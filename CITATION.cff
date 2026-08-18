@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: "Extremes on Rewind: ensemble generation and analysis code"
+abstract: >-
+  Research code for generating and analyzing 1,000-member weather ensembles
+  conditioned on a final (extreme) state using cBottle-video. A modified copy
+  of NVIDIA Earth2Studio 0.17.0a0.
+type: software
+license: Apache-2.0
+authors:
+  - given-names: Jerry
+    family-names: Lin
+    affiliation: "Department of Computing & Data Sciences, Boston University"
+    email: jlin404@bu.edu
+  - given-names: Mu-Ting
+    family-names: Chien
+    affiliation: "Department of Computing & Data Sciences, Boston University"
+  - given-names: Mansi
+    family-names: Sakarvadia
+    affiliation: "Department of Computer Science, University of Chicago"
+  - given-names: Elizabeth A.
+    family-names: Barnes
+    affiliation: "Department of Computing & Data Sciences, Boston University"
+references:
+  - type: software
+    title: NVIDIA Earth2Studio
+    authors:
+      - name: "Earth2Studio Contributors"
+    repository-code: https://github.com/NVIDIA/earth2studio
+    license: Apache-2.0
+    notes: Upstream project that this repository modifies.
+# TODO on public release: add `repository-code` (public repo URL), `version`,
+# `date-released`, the Zenodo `doi`, and a `preferred-citation` entry for the
+# article once it is accepted.

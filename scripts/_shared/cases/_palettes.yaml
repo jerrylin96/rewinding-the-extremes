@@ -1,0 +1,179 @@
+# Shared palettes for ensemble interpolation case studies.
+#
+# Two kinds of entries:
+#
+#   variable_sets/standard     -> canonical diagnostic variable list used
+#                                 by `dispatch_diagnostics.py` for every
+#                                 case by default (see
+#                                 `resolve_variable_set` in
+#                                 `_dispatch_lib.py`).  Individual cases
+#                                 can still override via
+#                                 `diagnostics.variables: [...]` in their
+#                                 YAML.
+#
+#   variable_defaults/<name>   -> canonical plot style (cmap, vmin, vmax,
+#                                 coastline_color, gridline_color) for each
+#                                 plot variable.  Per-case plot entries can
+#                                 override any of these keys inline.
+#
+# Both sections are consumed by `_dispatch_lib.py` and referenced from each
+# `cases/<event>.yaml`.
+
+# ----------------------------------------------------------------------
+# Diagnostic variable set
+# ----------------------------------------------------------------------
+variable_sets:
+
+  # Canonical diagnostic variables for every case.  Ordered physically:
+  # near-surface / column-integrated, then 200 hPa, 500 hPa, 850 hPa.
+  # Must be a subset of STORED_VARIABLES in custom_utils.interpolation_utils
+  # (that subset is what ensemble_interpolation.py writes to disk).
+  standard:
+    # Near-surface / column-integrated
+    - u10m
+    - v10m
+    - t2m
+    - msl
+    - sst
+    - tcwv
+    # 200 hPa
+    - u200
+    - v200
+    # 500 hPa
+    - u500
+    - v500
+    - t500
+    - z500
+    # 850 hPa
+    - u850
+    - v850
+
+
+# ----------------------------------------------------------------------
+# Per-variable plot defaults.  Case plot entries can override any key.
+# ----------------------------------------------------------------------
+variable_defaults:
+
+  wspd10m:
+    cmap: cmr.sapphire_r
+    vmin: 0
+    vmax: 50
+    coastline_color: white
+    gridline_color: gray
+
+  wspd850:
+    cmap: cmr.sapphire_r
+    vmin: 0
+    vmax: 40
+    coastline_color: white
+    gridline_color: gray
+
+  # Signed, so the colormap must be diverging and the limits symmetric about
+  # zero -- the sign of zeta IS the diagnostic (cyclonic is positive in the NH
+  # and negative in the SH), and an asymmetric scale reads as a spin change
+  # that is not there.  The default spans a mature TC core; shallow tropical
+  # lows need a per-case override roughly an order of magnitude tighter.
+  vort850:
+    cmap: cmr.fusion_r
+    vmin: -5.0e-4
+    vmax: 5.0e-4
+    coastline_color: black
+    gridline_color: gray
+
+  u10m:
+    cmap: cmr.sapphire_r
+    vmin: -20
+    vmax: 25
+    coastline_color: white
+    gridline_color: gray
+
+  v10m:
+    cmap: cmr.sapphire_r
+    vmin: -20
+    vmax: 20
+    coastline_color: white
+    gridline_color: gray
+
+  u850:
+    cmap: cmr.sapphire_r
+    vmin: -25
+    vmax: 35
+    coastline_color: white
+    gridline_color: gray
+
+  v850:
+    cmap: cmr.sapphire_r
+    vmin: -25
+    vmax: 25
+    coastline_color: white
+    gridline_color: gray
+
+  u500:
+    cmap: cmr.sapphire_r
+    vmin: -25
+    vmax: 60
+    coastline_color: white
+    gridline_color: gray
+
+  v500:
+    cmap: cmr.sapphire_r
+    vmin: -30
+    vmax: 30
+    coastline_color: white
+    gridline_color: gray
+
+  u200:
+    cmap: cmr.sapphire_r
+    vmin: -30
+    vmax: 80
+    coastline_color: white
+    gridline_color: gray
+
+  v200:
+    cmap: cmr.sapphire_r
+    vmin: -40
+    vmax: 40
+    coastline_color: white
+    gridline_color: gray
+
+  msl:
+    cmap: cmr.sapphire_r
+    vmin: 93000
+    vmax: 103000
+    coastline_color: white
+    gridline_color: gray
+
+  tcwv:
+    cmap: cmr.sapphire_r
+    vmin: 5
+    vmax: 65
+    coastline_color: white
+    gridline_color: gray
+
+  t2m:
+    cmap: cmr.ember
+    vmin: 280
+    vmax: 320
+    coastline_color: black
+    gridline_color: gray
+
+  sst:
+    cmap: cmr.ember
+    vmin: 270
+    vmax: 310
+    coastline_color: black
+    gridline_color: gray
+
+  t500:
+    cmap: cmr.ember
+    vmin: 230
+    vmax: 275
+    coastline_color: black
+    gridline_color: gray
+
+  z500:
+    cmap: cmr.sapphire_r
+    vmin: 51000
+    vmax: 58500
+    coastline_color: white
+    gridline_color: gray

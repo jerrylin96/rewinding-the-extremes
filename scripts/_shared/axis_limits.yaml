@@ -1,0 +1,71 @@
+# Per-(analysis, variable, panel) axis limits for cross-comparison.
+#
+# Missing keys fall through to matplotlib autoscale (no clipping). When a
+# configured limit is in force and the actual data exceeds it, a warning is
+# printed at plot time so silent clipping is loud.
+#
+# Entries are populated from observed Sandy ranges; widen as new cases come
+# in or as ensemble sizes change. Limits should be picked to comfortably span
+# every case in the comparison set, not just the tightest one.
+#
+# Schema:
+#   <analysis>:
+#     <variable>:
+#       <panel>:
+#         ylim: [<ymin>, <ymax>]   # optional
+#         xlim: [<xmin>, <xmax>]   # optional
+
+spread_rmse_crps:
+  # RE-PINNED 2026-08-12 for the per-variable domains. The previous ceilings
+  # (spread 24, member_rmse 54, crps 29) were pinned from the GLOBAL Sandy run;
+  # this battery now reduces z500 over regions.synoptic, where the storm-track
+  # variance is not diluted by quiet global background, so every one of them
+  # was too low. Text S4 computes the free-end z500 spread with the same
+  # formula over the same pixels and reports 26.4 m for start-conditioned
+  # Sandy -- i.e. the old ylim of 24 would have clipped the peak of the very
+  # curve keypoint 2 rests on.
+  z500:
+    # 26.4 m (Text S4: Sandy, start-conditioned) is the largest published
+    # free-end z500 spread across all three cases; spread is monotone away
+    # from the pinned frame for single-ended conditioning and the both-mode
+    # arch sits below both, so 26.4 is the max over cases x modes x leads.
+    # 30 leaves ~14% headroom. Widen if a case outside {PNW, Sandy, Ian} is
+    # added.
+    spread: {ylim: [0, 30]}
+    # member_rmse and crps are deliberately left unpinned: their old ceilings
+    # were global-tuned with no published anchor to re-derive them from, and
+    # member_rmse^2 = ((N-1)/N) * spread^2 + skill^2 puts the regional value
+    # plausibly above the old 54. Missing keys autoscale (no clipping), which
+    # is the safe failure mode. Re-pin from the first regional run if the SI
+    # figure ends up spanning more than one case and the panels need a shared
+    # axis to be compared by eye.
+
+ageostrophic:
+  # PINNED 2026-08-15 from the npz of all three cases (Sandy, Ian, PNW
+  # heatwave), via `submission_scripts/ageostrophic_stats.py`. SI Figures
+  # S13-S15 are one float per case sitting pages apart in the same document,
+  # and the diagnostic reduces over an identical global band in every case, so
+  # the magnitude rows are meant to be read against each other. Unpinned they
+  # autoscale per case, and PNW's |V| envelope sits ~1.5 m/s below Sandy's --
+  # side by side that reads as a difference in the figures rather than in the
+  # data.
+  #
+  # Ranges below are the min/max over every drawn artist (all 1000 members,
+  # ERA5, and the ERA5 HEALPix round trip) across all three cases and all
+  # three conditioning modes. Widen if a fourth case is added; a limit in
+  # force warns at plot time when data exceeds it, so clipping is never
+  # silent.
+  uvz500:
+    # observed 14.920 (PNW) to 19.249 (Sandy)
+    mean_v: {ylim: [14.0, 20.0]}
+    # observed 16.696 (PNW) to 20.947 (Sandy)
+    mean_vg: {ylim: [16.0, 22.0]}
+    # observed 3.189 (Ian) to 5.294 (Sandy)
+    mean_va: {ylim: [3.0, 5.75]}
+    # observed 0.1747 (Ian) to 0.2997 (Sandy). The floor keeps the 0.10 that
+    # aggregate_ageostrophic.py has always applied, so the figures look as they
+    # always have; the ceiling is the new part, since row 1's top otherwise
+    # autoscales to 0.2731-0.2997 and leaves the row carrying the headline
+    # claim as the only one not comparable across the three case figures.
+    # Nothing clips: the axis runs well below the lowest member.
+    ratio: {ylim: [0.10, 0.32]}

@@ -1,0 +1,67 @@
+# Hurricane Sandy (2012)
+#
+# Sandy made landfall near Atlantic City, NJ at ~23:30 UTC on Oct 29 2012.
+# The 66h window starts at 2012-10-27 06Z so frame 11 aligns with
+# 2012-10-30 00Z — the nearest ERA5 analysis time to landfall.
+
+display_name: Hurricane Sandy
+year: 2012
+timezone: America/New_York
+base: /projectnb/eb-general/jlin404/scratch/sandy
+
+ensemble:
+  start_time: { year: 2012, month: 10, day: 27, hour: 6 }
+  size: 1000
+  modes: [start, end, both]
+  random_seed: 0
+
+# Purpose-named spatial regions (see scripts/_shared/README.md).
+regions:
+  # Cause: synoptic precursor box for the joint PCA on z500 (+ msl).  Captures
+  # the Greenland blocking high that steered Sandy westward into the US East
+  # Coast, the upstream / downstream trough over SE Canada and the NE US, and
+  # Sandy itself.  Wider than the track box because the keypoint is *which
+  # upstream wave configuration could have produced the observed landfall*.
+  synoptic: { lon: [-100, -30], lat: [25, 75] }
+  # Effect: free_end_states member rank / mean / maps.  For this TC the effect
+  # region coincides with the track box.
+  impact: { lon: [-85, -60], lat: [25, 45] }
+  # TC-track detection domain + track-map view; also the synoptic-PCA
+  # track-impact annotation.
+  track: { lon: [-85, -60], lat: [25, 45] }
+
+plots:
+  members: [0, 1, 2, 3]
+
+tc_tracks:
+  trackers: [tempest]
+  # Add the Zarzycki & Ullrich 2017 warm-core thickness contour to DetectNodes
+  # so cold-core extratropical lows are rejected (needs z300/z500 in the zarr).
+  # Equivalent to always passing --warm-core; override a run with --no-warm-core.
+  warm_core: true
+  landfall_frame: 11
+
+# spread_rmse_crps.domains gives each variable its own analysis box, because
+# "which region" is a property of the variable, not of the run.  z500 is the
+# synoptic-scale cause -- the trough / block configuration that steered Sandy
+# -- so it reduces over regions.synoptic, the same pixels the EOF analysis
+# uses.  msl is the storm itself, so it reduces over regions.impact: averaging
+# the MSLP ensemble spread over the full [-100, -30] x [25, 75] synoptic box
+# would dilute the cyclone's mass signature with several million square km of
+# quiet background, understating exactly the spread the figure is about.  No
+# mask: MSLP is meaningful over land and ocean alike.
+diagnostics:
+  spread_rmse_crps:
+    domains:
+      z500: {region: synoptic}
+      msl: {region: impact}
+
+# Synoptic-PCA: leading EOFs to analyze (precursor maps + impact panels baked
+# per EOF).  Sandy's z500 free-end precursor diversity is high-dimensional --
+# synoptic_pca_diversity.png shows ~14-16 effective modes, 15 modes clearing the
+# North (1982) separation test in both conditionings, and only ~35-38%
+# cumulative EVR in the top 3 -- so the default of 3 under-resolves it badly.
+# Capped at 10 (<= max_d) for figure interpretability rather than the full 15:
+# EOF11+ each carry only ~1.5% EVR.
+synoptic_pca:
+  n_eof: 10

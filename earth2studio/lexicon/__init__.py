@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from .ace import ACELexicon
+from .arco import ARCOLexicon
+from .cams import CAMSGlobalLexicon
+from .cbottle import CBottleLexicon
+from .cds import CDSLexicon
+from .cfs import CFSFluxLexicon, CFSLexicon
+from .cmip6 import CMIP6Lexicon
+from .earthmover import (
+    EarthMoverERA5Lexicon,
+    EarthMoverIFSInitialConditionLexicon,
+    EarthMoverIFSLexicon,
+)
+from .ecmwf import AIFSLexicon, IFSLexicon
+from .gdas import GDASObsConvLexicon
+from .gefs import GEFSLexicon, GEFSLexiconSel
+from .gfs import GFSLexicon
+from .ghcn import GHCNLexicon
+from .goes import GOESLexicon
+from .goes_glm import GOESGLMLexicon
+from .himawari_ahi import HimawariAHILexicon
+from .hrrr import HRRRFXLexicon, HRRRLexicon
+from .ibtracs import IBTrACSLexicon
+from .isd import ISDLexicon
+from .jpss import JPSSATMSLexicon, JPSSCrISLexicon, JPSSLexicon
+from .meteosat import MeteosatFCILexicon
+from .metop import (
+    MetOpAMSUALexicon,
+    MetOpAVHRRLexicon,
+    MetOpIASILexicon,
+    MetOpMHSLexicon,
+)
+from .mrms import MRMSLexicon
+from .ncar import NCAR_ERA5Lexicon
+from .nclimgrid import NClimGridLexicon
+from .nnja import NNJAObsConvLexicon
+from .opera import OPERALexicon
+from .planetary_computer import (
+    PlanetaryComputerECMWFOpenDataIFSLexicon,
+    PlanetaryComputerGOESLexicon,
+    PlanetaryComputerMODISFireLexicon,
+    PlanetaryComputerOISSTLexicon,
+    PlanetaryComputerSentinel3AODLexicon,
+)
+from .ufs import GSIConventionalLexicon, GSISatelliteLexicon
+from .wb2 import WB2ClimatetologyLexicon, WB2Lexicon

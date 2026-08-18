@@ -1,0 +1,23 @@
+{
+    "copyright_file": "header.txt",
+    "dir": "../../",
+    "exclude-dir": [
+        "../../build/",
+        "../../docs/",
+        "../../.venv/",
+        "../../.git/",
+        "../../.github/",
+        "../../.tox/",
+        "../../.cache/",
+        "../../.vscode/",
+        "../../.pytest_cache/",
+        "../../.pre-commit/",
+        "../../.uv-cache/",
+        "../../.earth2studio-cache/",
+        "../../.testmon/"
+      ],
+    "exclude-patterns": [".venv"],
+    "include-ext": [
+        ".py"
+    ]
+  }

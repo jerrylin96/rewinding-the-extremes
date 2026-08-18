@@ -1,0 +1,135 @@
+# Teleport illustration, Gulf of Mexico: two opposite-heading landfalls no
+# trajectory can connect (D3 / S6, conditional on [R2] = maximal).  NOT a
+# physical case study.
+#
+# Reproduces, from ERA5, the author's observed cBottle-video teleport (a storm
+# west of Cuba moving east disappeared while a different storm emerged toward
+# Mexico).  The design lesson from the smoke test that preceded this case:
+# maximal spatial separation (the earlier Earl->Humberto pair, 4545 km apart)
+# resolves to a BENIGN crossfade -- two distant storms decaying/forming
+# independently is physically ordinary, so nothing looks impossible.  What makes
+# a teleport non-physical is not distance; it is (a) a frame-0 storm COMMITTED
+# to a landfall, so its disappearance cannot be read as ordinary decay, and
+# (b) an endpoint BEHIND its heading, so no physical bridge exists either.
+#
+#   frame 0  = 2005-10-24 12Z  Hurricane Wilma  26.0N 81.0W  951 hPa
+#              -> moving NE, making landfall on SW Florida
+#   frame 11 = 2007-08-22 12Z  Hurricane Dean   20.5N 95.5W  977 hPa
+#              -> moving W, making landfall on mainland Mexico
+#
+# Selected against ERA5 fields (ARCO-ERA5 MSLP), verified by track:
+#   * Wilma intensifies 968->951 hPa racing NE onto Florida, then exits and
+#     weakens over the Atlantic -- a committed, intense landfall at frame 0.
+#   * Dean intensifies to 977 hPa driving due W into the Bay of Campeche, then
+#     dissipates over Mexico -- a committed landfall in the OPPOSITE direction.
+#   * separation only 1601 km (implied 24 km/h over 66 h): the pair is
+#     BRIDGEABLE by distance.  That is deliberate.  The impossibility is
+#     DIRECTIONAL, not kinematic -- to connect them a single storm would have to
+#     abandon a Florida landfall, reverse from NE to WSW, and re-cross the whole
+#     Gulf against its own motion in 66 h.  This is the Cuba->Mexico regime, and
+#     it tests the hypothesis that a committed heading contradiction defeats a
+#     physical bridge where raw distance does not.
+#   * both frame fields are single-storm clean in the Gulf: Wilma's field is
+#     quiet near Mexico, Dean's is quiet near Florida/Cuba (verified: zero
+#     closed lows <1000 hPa within the other storm's corner), so the model
+#     cannot escape by bridging to a conveniently pre-existing nearby low.
+#
+# CAVEAT -- CROSS-MONTH SST (accepted trade-off, flagged honestly).
+# Wilma is October, Dean is August.  The AMIP SST is clocked by `start_time`
+# (see paper/proposals/sst-conditioning-trace.md), so the whole run uses
+# late-October-2005 Gulf SST, and Dean's August field is imposed at frame 11
+# over SST ~2 C cooler than it was born in.  This breaks the same-month
+# criterion (5) the Earl/Humberto pair honored.  It does not matter for the
+# illustration: the free frames (1-10) are self-consistently Oct-2005, only the
+# pinned endpoint is borrowed, and a ~2 C SST offset cannot manufacture a
+# teleport (a spatial/identity failure, not a thermodynamic one).  No clean
+# same-month Gulf pair with this opposite-heading geometry exists in 2000-2021
+# (the only October Mexico storm, Delta 2020, moves NW toward Louisiana, not W
+# toward Mexico -- a weaker contradiction).  Recorded so the author can veto.
+#
+# ---------------------------------------------------------------------------
+# WARNING -- era5_reference.zarr IN THIS CASE'S OUTPUT DIR IS MEANINGLESS
+# ---------------------------------------------------------------------------
+# ensemble_interpolation.py always saves the *natural* 12-frame window for
+# start_time, so <base>/both/era5_reference.zarr is Wilma's real 2005-10-24 ->
+# 2005-10-27 evolution (Wilma exiting into the Atlantic), NOT the Dean state the
+# run was pinned to.  It is written only because the pipeline requires it.
+#
+# Therefore NO verification / skill diagnostic may be run against this case.
+# Omitting `regions:` and `tc_tracks:` hard-fails free_end_states, tc_tracks and
+# tc_landfall_split (require_region exits).  spread_rmse_crps, power_spectra,
+# ageostrophic and synoptic_pca are NOT blocked and would score members against
+# Wilma's window -- do not submit them; this comment is the only guard.  The
+# missing tc_tracks block is also independent: the illustration must contain no
+# detection step (a tracker stub near each storm is indistinguishable from the
+# tracker losing the storm).  Only plots.view is declared, for the fixed domain.
+
+# display_name is the only reviewer-facing string here -- it is the suptitle of
+# the member grid.  "Teleport" is kept for the case name, paths and internal
+# prose (it is what the failure is), but a figure title that announces it reads
+# as a claim before the panels have made one; "conditioning stress test" states
+# what was done and lets the panels say what happened.  Override per render with
+# plot_ensemble_member.py --grid-title.
+display_name: "Conditioning stress test: Gulf of Mexico (Wilma 2005 to Dean 2007)"
+year: 2005
+# UTC: the panels span a Florida landfall (EDT) and a Mexico landfall (CDT); no
+# single event-local zone is honest for a synthetic construct.
+timezone: UTC
+base: /projectnb/eb-general/jlin404/scratch/teleport_gulf
+
+ensemble:
+  # Frame-0 storm's own date; it sets the SST clock for all 12 frames.  Hour 12
+  # is a synoptic hour (load_era5_zarr requires {0, 6, 12, 18}).
+  start_time: { year: 2005, month: 10, day: 24, hour: 12 }
+  # 100: one member for the figure + the caption's "n of 100 members behave this
+  # way".  Members are not redundant -- the interior 10 frames are free, so
+  # whether members agree on the resolution (vanish-and-reappear vs an
+  # incoherent reversing bridge vs a benign independent landfall+genesis) is
+  # itself the result.
+  size: 100
+  # `both` only, and the only legal mode: MODE_FRAMES["both"] == [0, 11], and
+  # validate_frame_specs() rejects a custom frame that is not a conditioning
+  # frame, so `--mode start` dies with a clear error.
+  modes: [both]
+  random_seed: 0
+
+  # ---- The teleport: frame 11 borrowed from Dean's Mexico landfall ----------
+  # Path (mechanism verified end-to-end against the real ensemble_interpolation
+  # main() + merge_ensemble_zarrs main() with stubbed torch/custom_utils):
+  #   dispatch_ensemble -> --custom-frame 11 2007 8 22 12
+  #   parse_custom_frame_specs -> {11: (2007, 8, 22, 12)}
+  #   load_and_pad_frame -> ERA5 idx (22-1)*4 + 12//6 = 86 of
+  #                         era5_raw_2007_08.zarr (in-month; there is no
+  #                         month-boundary path, so an in-month index is
+  #                         required -- 86 < 124 for a 31-day month)
+  #   Step 3 assembly -> replaces padded_data[11:12]
+  #   metadata -> attrs["custom_frames"] = {"11": "2007-08-22T12:00"}
+  #   merge_ensemble_zarrs -> attrs survive (canonical store copytree'd from the
+  #                           offset-0 chunk)
+  custom_frames:
+    - { frame: 11, year: 2007, month: 8, day: 22, hour: 12 }
+
+plots:
+  members: [0, 1, 2, 3]
+  # MSLP only: the illustration is a mean-sea-level-pressure sequence, and the
+  # per-member QC videos should not render the other standard variables.  Shared
+  # scale from the palette `msl` entry (cmr.sapphire_r, 93000-103000 Pa) holds
+  # both Wilma (95100 Pa) and Dean (97700 Pa).
+  variables:
+    # cmap flipped from the palette default so the LOW is the dark end -- see
+    # the note in teleport_atlantic.yaml.  Storms read as dark cores on a light
+    # ocean at panel size; the reversed default buries them in a dark ambient.
+    - { name: msl, cmap: cmr.sapphire, coastline_color: "0.25" }
+    # Added alongside msl so the identity failure is visible in the wind and
+    # vorticity fields too, not just the pressure sequence.  Both ranges are
+    # measured from ERA5 in THIS view box and are far wider than the
+    # equator-crossing case's -- Wilma reaches 65 m/s and zeta = +1.9e-3, an
+    # order of magnitude above a shallow equatorial low, so the palette
+    # defaults (40 m/s, +/-5e-4) would clip her core into a flat blob.
+    - { name: wspd850, vmin: 0, vmax: 65 }
+    - { name: vort850, vmin: -2.0e-3, vmax: 2.0e-3 }
+  # Fixed Gulf-of-Mexico domain for all twelve panels, as an explicit extent
+  # (NOT a named region) so no analysis diagnostic can pick it up.  Holds Wilma
+  # (26N 81W, eastern Gulf / SW Florida), Dean (20.5N 95.5W, Bay of Campeche),
+  # and the whole Gulf a bridge would have to re-cross.  [-180,180] convention.
+  view: [-99, -77, 13, 32]

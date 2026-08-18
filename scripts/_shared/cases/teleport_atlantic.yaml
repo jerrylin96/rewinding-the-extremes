@@ -1,0 +1,170 @@
+# ===========================================================================
+# SUPERSEDED BY `teleport_gulf` -- RESTORED FOR QC OF THE COMPLETED RUN ONLY
+# ===========================================================================
+# Deleted in 7b8a22f and restored here because the 100-member run had already
+# been submitted and its zarrs are on disk at `base` below.  Without this file
+# `plot_ensemble_member.py --event teleport_atlantic` and
+# `member_field_qc.py --event teleport_atlantic` cannot resolve those paths,
+# so the finished run could not be inspected at all.
+#
+# It is NOT a candidate for the D3 / S6 figure.  The reason it was replaced is
+# recorded in 7b8a22f and in `paper/proposals/G1.md`: the Earl -> Humberto pair
+# maximizes separation (4545 km) but an 8-member smoke test showed it resolves
+# to a BENIGN crossfade -- two storms that far apart decaying and forming
+# independently is physically ordinary, so nothing in the panels looks
+# impossible.  Maximal separation makes a bridge impossible while making the
+# crossfade maximally readable as two unrelated storms.  `teleport_gulf`
+# (Wilma -> Dean) replaces it with a committed-heading contradiction.
+#
+# Keep it for what it is: the negative control.  The Gulf case's claim is that
+# a directional contradiction defeats a bridge where raw distance does not, and
+# that claim is only checkable against a case where distance alone was the
+# lever.  Do not promote it to a figure; do not run any skill diagnostic on it
+# (see the warning further down, which still applies).
+# ---------------------------------------------------------------------------
+#
+# Teleport illustration: two North Atlantic storms no trajectory can connect
+# (D3 / S6, conditional on [R2] = maximal).  NOT a physical case study.
+#
+# This case produces ONE artifact: a 12-panel MSLP sequence for a single member
+# of a both-end run whose two pinned states are kinematically impossible to
+# bridge in 66 h.  It is an EXISTENCE demonstration that the interpolation
+# interface returns a sequence for any conditioning pair, so plausibility has to
+# be established rather than assumed.  No skill is scored; see the warning below.
+#
+#   frame 0  = 2010-09-03 00Z  Hurricane Earl      33.25N 74.5W  955 hPa
+#   frame 11 = 2013-09-12 18Z  Hurricane Humberto  22.5N  29.5W  990 hPa
+#
+# The pair was selected AGAINST ERA5 FIELDS, not recollection (an earlier
+# recollection-based pair was rejected -- see paper/proposals/G1.md and
+# PAPER_PLAN §5).  Verified from ARCO-ERA5 mean_sea_level_pressure:
+#   * great-circle separation 4545 km -> implied 68.9 km/h sustained over 66 h,
+#     above any observed TC translation speed (plan criterion 2, the hard one).
+#   * both are deep, isolated closed lows, unambiguous in a single panel
+#     (criterion 1); tracked coherently for >48 h around each stamp.
+#   * frame 0 far WEST, frame 11 far EAST of one window: the impossibility is
+#     ~45 deg of eastward transit and is VISIBLE in the field (storm jumps
+#     corner to corner), not hidden in the decade-apart timestamp -- the exact
+#     failure of the rejected pair.
+#   * Earl moving N/NNE and Humberto drifting NNW: neither storm's own motion
+#     points across the gap, so the bridge is dynamically incoherent as well as
+#     kinematically impossible (criterion 3, "communicating").
+#   * same calendar month (September), different years (criterion 5, see SST).
+#
+# WHY THIS PARTICULAR frame-11 FIELD (a lesson that cost the first attempt):
+# `custom_frames` pins the ENTIRE global ERA5 field at the frame-11 stamp, not
+# just the storm we named.  The first candidate (Helene, 2018-09-11) had good
+# separation but its field also contained Hurricane Florence ~900 km from
+# Earl's frame-0 position; the model could have bridged Earl -> Florence with an
+# ordinary track and ignored the far-east target entirely.  2013-09-12 is from
+# one of the quietest Atlantic seasons on record: Humberto is the ONLY deep low
+# in the whole map window (verified: zero cells < 1000 hPa more than 700 km from
+# it), so there is no nearby low to escape to.  A frame-11 field MUST be
+# single-storm clean, or the separation on paper means nothing.
+#
+# SST CLOCK (do not re-derive; paper/proposals/sst-conditioning-trace.md).
+# The AMIP SST is driven by `start_time`, not by each frame's borrowed date:
+# every frame's SST timestamp is start_time + 6h*frame.  So the frame-11 field
+# (Sept 2013) is presented over Sept-2010 SST.  Same-calendar-month selection
+# (criterion 5) shrinks that mismatch from seasonal to interannual -- a few
+# tenths of a degree -- so SST cannot be mistaken for the cause of any failure
+# in the panels.  That is the real reason for criterion 5.  The residual
+# shape-handling check is in the trace file; the author should run the one-line
+# get_cbottle_input confirmation on the SCC before the production run.
+#
+# ---------------------------------------------------------------------------
+# WARNING -- era5_reference.zarr IN THIS CASE'S OUTPUT DIR IS MEANINGLESS
+# ---------------------------------------------------------------------------
+# ensemble_interpolation.py always saves the *natural* 12-frame ERA5 window for
+# start_time, so <base>/both/era5_reference.zarr is Earl's real 2010-09-03 ->
+# 2010-09-05 18Z evolution.  Its frame 11 is Earl recurving off Nova Scotia --
+# NOT the Humberto state the run was pinned to.  It is written only because the
+# pipeline requires it.
+#
+# Therefore NO verification / skill diagnostic may be run against this case.
+# The omissions below make three of them fail loudly; four are NOT blocked by
+# anything, and for those this comment is the only guard:
+#
+#   BLOCKED (require_region exits before submitting):
+#     free_end_states, tc_tracks, tc_landfall_split
+#   NOT BLOCKED -- would run and score against the wrong truth:
+#     spread_rmse_crps (no diagnostics.domains -> global-unmasked default),
+#     power_spectra (takes no region), ageostrophic (takes no region),
+#     synoptic_pca (regions.synoptic absent -> dispatcher default box)
+#
+# The missing tc_tracks block is also an independent requirement, not just a
+# side effect: the illustration must contain no detection step at all, because a
+# tracker stub near the origin plus one near the endpoint is indistinguishable
+# to a reader from the tracker simply losing the storm.  Only plots.view is
+# declared, because the figure needs a fixed domain.
+
+display_name: "Conditioning stress test: North Atlantic (Earl 2010 to Humberto 2013)"
+year: 2010
+# UTC, deliberately: the panels span the US east coast to the Cabo Verde
+# islands, so no single event-local zone is honest.  format_local_time_axis
+# falls back to UTC ticks, which is what a synthetic construct should show.
+timezone: UTC
+base: /projectnb/eb-general/jlin404/scratch/teleport_atlantic
+
+ensemble:
+  # Frame-0 storm's own date.  It is not bookkeeping: it sets the SST clock for
+  # all 12 frames (see the SST note above).  Hour 0 is a synoptic hour;
+  # load_era5_zarr requires start_hour in {0, 6, 12, 18}.
+  start_time: { year: 2010, month: 9, day: 3, hour: 0 }
+  # 100, not 1000: the figure is one member plus the caption sentence "n of 100
+  # members behave this way".  100 supports that count at 1/10th the cost of a
+  # production case.  Members are NOT redundant here -- the interior 10 frames
+  # are unconstrained, so whether members agree on the failure mode is itself
+  # part of what the figure reports.
+  size: 100
+  # `both` only, and it is the only legal mode: MODE_FRAMES["both"] == [0, 11],
+  # and validate_frame_specs() rejects a custom frame that is not a conditioning
+  # frame, so `--mode start` on this case dies with a clear error rather than
+  # silently dropping the teleport.
+  modes: [both]
+  # Same seed as the production cases so member k's noise is comparable.
+  random_seed: 0
+
+  # ---- The teleport itself: first committed use of custom_frames -----------
+  # Path (mechanism verified end-to-end against the real ensemble_interpolation
+  # main() and merge_ensemble_zarrs main() with stubbed torch/custom_utils):
+  #   dispatch_ensemble.build_script_args -> --custom-frame 11 2013 9 12 18
+  #   parse_custom_frame_specs            -> {11: (2013, 9, 12, 18)}
+  #   validate_frame_specs                -> 11 in [0, 11]                    OK
+  #   load_and_pad_frame                  -> ERA5 idx (12-1)*4 + 18//6 = 47
+  #                                          of era5_raw_2013_09.zarr (in-month;
+  #                                          load_and_pad_frame has no
+  #                                          month-boundary path, so an in-month
+  #                                          index is required -- this is one)
+  #   Step 3 conditioning assembly        -> replaces padded_data[11:12]
+  #   create_ensemble_zarr metadata       -> attrs["custom_frames"] =
+  #                                          {"11": "2013-09-12T18:00"}
+  #   merge_ensemble_zarrs                -> attrs survive (canonical store is
+  #                                          copytree'd from the offset-0 chunk)
+  custom_frames:
+    - { frame: 11, year: 2013, month: 9, day: 12, hour: 18 }
+
+plots:
+  members: [0, 1, 2, 3]
+  # MSLP only: the illustration is a mean-sea-level-pressure sequence, and the
+  # per-member QC videos (plot_ensemble_member.py --event) should not spend time
+  # rendering the other standard variables.  The shared color scale comes from
+  # the palette's `msl` entry (cmr.sapphire_r, 93000-103000 Pa), which contains
+  # both Earl (95500 Pa) and Humberto (99000 Pa).
+  variables:
+    # cmap flipped from the palette default (cmr.sapphire_r) for the panel
+    # grid.  The shared default paints high pressure black, so the ambient
+    # field -- most of every panel -- renders as a dark mass and the storm, the
+    # only thing the figure is about, is a faint bright smudge inside it.
+    # Unreversed puts the LOW at the dark end: storms read as dark cores on a
+    # light ocean, which survives being shrunk to a twelfth of a page and does
+    # not flood an SI page with ink.  Set per case rather than in _palettes.yaml
+    # so the real cases' existing figures are untouched.
+    - { name: msl, cmap: cmr.sapphire, coastline_color: "0.25" }
+  # Fixed domain for all twelve panels, declared as an explicit extent (NOT a
+  # named region) so no analysis diagnostic can pick it up.  Wide enough to hold
+  # Earl (33N 74W), Humberto (22N 30W), and the corridor a fabricated bridge
+  # would cross.  Per-panel autoscaling or a drifting domain would destroy the
+  # corner-to-corner reading, so this extent plus a shared color scale are not
+  # optional at plot time.  [-180,180] longitude convention (plot_ensemble_member).
+  view: [-80, -22, 8, 46]

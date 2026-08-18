@@ -1,0 +1,101 @@
+# Equator-crossing illustration, Indian Ocean: Cyclone Agni (2004) to TS Abaimba (2003).
+# NOT a physical case study.
+#
+# Tests first-principles planetary fluid dynamics under video diffusion infilling:
+# A shallow tropical low at Frame 0 located within 55 km of the equator (moving west
+# along the equatorial channel and about to recurve northwest) is paired with a
+# Southern Hemisphere tropical low at Frame 11 positioned across the equator.
+#
+# Tests first-principles planetary physics:
+#   * The Coriolis Barrier: At latitude 0.0, f = 2*Omega*sin(phi) = 0.
+#   * Relative Vorticity Inversion: Cyclonic relative vorticity is counter-clockwise
+#     (zeta > 0) in the Northern Hemisphere and clockwise (zeta < 0) in the Southern
+#     Hemisphere.
+#   * Crossing the equator requires a storm to either abruptly invert its spin sign,
+#     sustain an unphysical anticyclonically-rotating low in the opposite hemisphere,
+#     or dissipate naturally near 0 deg while the diffusion prior conjures an
+#     independent system.
+#
+# Verified against ARCO-ERA5 gridded fields:
+#   frame 0  = 2004-11-27 12Z  Cyclone Agni         0.50N 70.50E  1005.5 hPa
+#              -> southern extremum, moving west along equator, about to recurve NW
+#   frame 11 = 2003-10-02 12Z  TS Abaimba           5.75S 67.00E  1002.9 hPa (custom_frames)
+#              -> Southern Hemisphere tropical low, ~790 km across the equator
+#
+# CAVEAT -- CROSS-PERIOD SST (accepted trade-off, flagged honestly).
+# Agni is Nov 2004, Abaimba is Oct 2003. AMIP SST is clocked by `start_time` (Nov 2004).
+# Frame 11 is conditioned over late-November-2004 Indian Ocean SST.
+#
+# CAVEAT -- THE SOLAR CLOCK CONTRADICTS THE FRAME-11 PIN (found 2026-08-14).
+# cbottle_video.py:389-401 passes `second_of_day` and `day_of_year` to the model
+# per frame, and ensemble_interpolation.py:460 builds frame times as
+# `start_dt + timedelta(hours=frame_idx * 6)`. The window is 66 h, so frame 11's
+# slot is 2004-11-27 12Z + 66 h = 2004-11-30 06Z -- while the field pinned into
+# it is 2003-10-02 12Z. Frame 11 therefore carries a solar clock of 06Z /
+# day-of-year ~334 against a pinned field from 12Z / day-of-year ~274: 6 h of
+# diurnal phase error and ~60 days of seasonal phase error. Both endpoints being
+# nominally 12Z is what makes this easy to miss -- the mismatch is between the
+# pinned field's clock and its SLOT's clock, not between the two endpoints.
+#
+# Consequence for what may be claimed: the tropical semidiurnal pressure tide is
+# ~1-2 hPa peak-to-peak near the equator, the same order as the background msl
+# swing across the panels, and it is solar-driven. So a background-oscillation
+# claim is CONFOUNDED and needs an independent ERA5 baseline over this box at
+# matched synoptic hours before it can be stated. The vort850 sign result is
+# immune -- no tidal or seasonal phase error flips a storm core's vorticity sign.
+#
+# To remove the diurnal half of the error, re-pin Abaimba to 06Z: index
+# (2-1)*4 + 6//6 = 5 of era5_raw_2003_10.zarr, against the current 12Z index 6.
+# That leaves the seasonal and SST errors in place, so it is not worth a re-run
+# unless the oscillation claim has to be load-bearing. See
+# paper/proposals/next-session-d3-equator-handoff.md.
+#
+# ---------------------------------------------------------------------------
+# WARNING -- era5_reference.zarr IN THIS CASE'S OUTPUT DIR IS MEANINGLESS
+# ---------------------------------------------------------------------------
+# ensemble_interpolation.py always saves the natural 12-frame window for
+# start_time, so <base>/both/era5_reference.zarr is Agni's real 2004-11-27 ->
+# 2004-11-30 evolution (Agni recurving northwestward toward Somalia), NOT the
+# Abaimba state the run was pinned to.
+#
+# Therefore NO verification / skill diagnostic may be run against this case.
+# Omitting `regions:` and `tc_tracks:` hard-fails free_end_states, tc_tracks and
+# tc_landfall_split (require_region exits). spread_rmse_crps, power_spectra,
+# ageostrophic and synoptic_pca are NOT blocked and would score members against
+# Agni's window -- do not submit them; this comment is the only guard.
+# Only plots.view is declared, for the fixed domain.
+
+display_name: "Conditioning stress test: equator crossing (Agni 2004 to Abaimba 2003)"
+year: 2004
+timezone: UTC
+base: /projectnb/eb-general/jlin404/scratch/equator_indian_ocean
+
+ensemble:
+  # Frame-0 start time: Nov 27 2004 12Z (synoptic hour 12, index 106 in era5_raw_2004_11.zarr)
+  start_time: { year: 2004, month: 11, day: 27, hour: 12 }
+  size: 100
+  modes: [both]
+  random_seed: 0
+
+  # ---- The cross-equatorial endpoint: TS Abaimba (2003) ---------------------
+  # Sourced from ERA5 idx (2-1)*4 + 12//6 = 6 of era5_raw_2003_10.zarr (in-month: 6 < 124).
+  custom_frames:
+    - { frame: 11, year: 2003, month: 10, day: 2, hour: 12 }
+
+plots:
+  members: [0, 1, 2, 3]
+  variables:
+    # cmap flipped from the palette default so the LOW is the dark end -- see
+    # the note in teleport_atlantic.yaml.
+    - { name: msl, vmin: 100000, vmax: 101400, cmap: cmr.sapphire, coastline_color: "0.25" }
+    - { name: wspd850, vmin: 0, vmax: 20 }
+    # The discriminating diagnostic: msl and wspd850 are both unsigned in the
+    # relevant sense, so neither can separate a spin-preserving crossing
+    # (counter-clockwise flow surviving into the SH) from a spin-flipping one.
+    # Only the sign of zeta can.  Range is symmetric and set from the ERA5
+    # endpoint cores measured in this view box: Agni peaks at +3.5e-4 (cyclonic
+    # NH) and Abaimba at -3.8e-4 (cyclonic SH), so +/-4e-4 holds both without
+    # saturating either.  A member that carries a positive core south of 0 deg
+    # is Failure Mode A; one whose core crosses zero smoothly is Mode B.
+    - { name: vort850, vmin: -4.0e-4, vmax: 4.0e-4 }
+  view: [58.0, 78.0, -10.0, 5.0]

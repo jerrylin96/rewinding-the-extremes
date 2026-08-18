@@ -1,0 +1,492 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from collections.abc import Callable
+from typing import Any
+
+from earth2studio.lexicon.base import LexiconType
+
+
+class JPSSLexicon(metaclass=LexiconType):
+    """JPSS VIIRS lexicon for mapping standardized variable names to VIIRS product codes.
+
+    This lexicon maps standardized variable names to VIIRS SDR (Level 1) and EDR (Level 2)
+    product codes and HDF5 datasets used in AWS. It includes both raw radiance data and
+    derived environmental products.
+
+    Notes
+    -----
+    SDR Products (Level 1 - Calibrated Radiances):
+    - I-bands (375m): viirs01i-viirs05i (high spatial resolution imagery)
+    - M-bands (750m): viirs01m-viirs16m (moderate resolution multispectral)
+    - Band numbering follows VIIRS instrument naming with zero-padding (I1→viirs01i, M15→viirs15m)
+    - Applications: Ocean color, vegetation monitoring, cloud detection, fire detection, atmospheric profiling
+
+    EDR Products (Level 2 - Derived Environmental Variables):
+    - Surface/Land: lst (land surface temperature), salb (surface albedo), snc (snow cover)
+    - Active Fire: afire (fire detection), fmask (fire confidence mask)
+    - Cloud Suite: cmask (cloud mask), cphase (cloud phase), cth (cloud top height), etc.
+    - Atmospheric: aod (aerosol optical depth), vash (volcanic ash detection)
+    - Resolution: 375m-750m depending on input bands, global coverage every ~100 minutes
+
+    References
+    ----------
+    - NOAA STAR. (n.d.). VIIRS instrument specifications and band characteristics.
+      Retrieved September 29, 2025, from https://www.star.nesdis.noaa.gov/jpss/VIIRS.php
+    - NOAA STAR. (n.d.). VIIRS Sensor Data Record (SDR) Algorithm Theoretical Basis
+      Document. Retrieved September 29, 2025, from
+      https://www.star.nesdis.noaa.gov/jpss/documents/ATBD/D0001-M01-S01-003_JPSS_ATBD_VIIRS-SDR_E.pdf
+    """
+
+    # Mapping of VIIRS band numbers to product codes and modifiers
+    # Format: "viirs{band_number}{band_type}": ("product_type", "folder", "dataset", modifier_function)
+    VOCAB: dict[str, tuple[str, str, str, Callable[[Any], Any]]] = {
+        # === SDR Level 1 Products: Calibrated Radiances ===
+        # I-bands (375m resolution) - High spatial resolution imagery bands
+        # Used for: Land/water discrimination, cloud detection, fire detection
+        "viirs01i": (
+            "I",
+            "VIIRS-I1-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # I1: 0.64 μm (Red) - Land/vegetation, cloud optical depth
+        "viirs02i": (
+            "I",
+            "VIIRS-I2-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # I2: 0.864 μm (Near-IR) - Vegetation index, cloud particle size
+        "viirs03i": (
+            "I",
+            "VIIRS-I3-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # I3: 1.58 μm (SWIR) - Snow/ice discrimination, fire detection
+        "viirs04i": (
+            "I",
+            "VIIRS-I4-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # I4: 3.74 μm (MWIR) - Fire detection, cloud phase discrimination
+        "viirs05i": (
+            "I",
+            "VIIRS-I5-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # I5: 11.45 μm (LWIR) - Sea surface temp, land surface temp, cloud top temp
+        # M-bands (750m resolution) - Moderate resolution multispectral bands
+        # Reflective Solar Bands (RSB): Solar illumination dependent, daytime only
+        "viirs01m": (
+            "M",
+            "VIIRS-M1-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M1: 0.412 μm (Violet) - Ocean color, aerosol over ocean
+        "viirs02m": (
+            "M",
+            "VIIRS-M2-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M2: 0.445 μm (Blue) - Ocean color, atmospheric correction
+        "viirs03m": (
+            "M",
+            "VIIRS-M3-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M3: 0.488 μm (Blue-Green) - Ocean color, true color imagery
+        "viirs04m": (
+            "M",
+            "VIIRS-M4-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M4: 0.555 μm (Green) - Ocean color, vegetation monitoring
+        "viirs05m": (
+            "M",
+            "VIIRS-M5-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M5: 0.672 μm (Red) - Ocean color, vegetation health (chlorophyll absorption)
+        "viirs06m": (
+            "M",
+            "VIIRS-M6-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M6: 0.746 μm (Red Edge) - Vegetation stress, atmospheric correction
+        "viirs07m": (
+            "M",
+            "VIIRS-M7-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M7: 0.865 μm (Near-IR) - Vegetation index, land/water boundaries
+        "viirs08m": (
+            "M",
+            "VIIRS-M8-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M8: 1.24 μm (Near-IR) - Cloud particle size, cirrus detection
+        "viirs09m": (
+            "M",
+            "VIIRS-M9-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M9: 1.378 μm (Cirrus) - Thin cirrus detection over land/ocean
+        "viirs10m": (
+            "M",
+            "VIIRS-M10-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M10: 1.61 μm (SWIR) - Snow/cloud discrimination, fire detection
+        "viirs11m": (
+            "M",
+            "VIIRS-M11-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M11: 2.25 μm (SWIR) - Cloud effective radius, drought monitoring
+        # Thermal Emissive Bands (TEB): Thermal emission, day/night capable
+        "viirs12m": (
+            "M",
+            "VIIRS-M12-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M12: 3.7 μm (MWIR) - Sea surface temp, fire detection, cloud properties
+        "viirs13m": (
+            "M",
+            "VIIRS-M13-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M13: 4.05 μm (MWIR) - Volcanic ash, fire detection, cloud top temp
+        "viirs14m": (
+            "M",
+            "VIIRS-M14-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M14: 8.55 μm (LWIR) - Cloud top properties, atmospheric profile
+        "viirs15m": (
+            "M",
+            "VIIRS-M15-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M15: 10.76 μm (LWIR) - Sea/land surface temp, cloud properties
+        "viirs16m": (
+            "M",
+            "VIIRS-M16-SDR",
+            "Radiance",
+            lambda x: x,
+        ),  # M16: 12.01 μm (LWIR) - Cloud properties, atmospheric water vapor
+        # === EDR Level 2 Products: Environmental Data Records ===
+        # Surface/Land Products (JPSS RR - Rapid Refresh algorithms)
+        # Resolution: 750m at nadir, accuracy: ±2-3K for LST, ±0.02 for albedo
+        "lst": (
+            "L2",
+            "JPSSRR_LST",
+            "LST",
+            lambda x: x,
+        ),  # Land Surface Temperature from split-window algorithm (M15/M16)
+        "salb": (
+            "L2",
+            "JPSSRR_SurfAlb",
+            "SurfaceAlbedo",
+            lambda x: x,
+        ),  # Surface Albedo from BRDF model using visible/NIR bands
+        "snc": (
+            "L2",
+            "JPSSRR_SnowCover",
+            "SnowCover",
+            lambda x: x,
+        ),  # Snow Cover fraction using NDSI from M3/M10 bands
+        # Active Fire Products (Enterprise algorithm)
+        # Resolution: 375m (I-band), detection sensitivity: ~4K temperature anomaly
+        "afire": (
+            "L2",
+            "VIIRS_EFIRE_VIIRSI_EDR",
+            "Fire",
+            lambda x: x,
+        ),  # Active Fire Detection using contextual algorithm (I4/I5 thermal anomaly)
+        "fmask": (
+            "L2",
+            "VIIRS_EFIRE_VIIRSI_EDR",
+            "FireMask",
+            lambda x: x,
+        ),  # Fire Mask with confidence levels (low/nominal/high/water/cloud)
+        # Cloud Products (JRR - Joint Radio and Radar algorithms)
+        # Resolution: 750m, temporal: every orbit (~100 minutes global coverage)
+        "cmask": (
+            "L2",
+            "VIIRS-JRR-CloudMask",
+            "CloudMask",
+            lambda x: x,
+        ),  # Cloud Mask using multispectral tests (clear/probably_clear/probably_cloudy/cloudy)
+        "cphase": (
+            "L2",
+            "VIIRS-JRR-CloudPhase",
+            "CloudPhase",
+            lambda x: x,
+        ),  # Cloud Phase from IR split-window (ice/water/mixed/unknown)
+        "cth": (
+            "L2",
+            "VIIRS-JRR-CloudHeight",
+            "CldTopHght",
+            lambda x: x,
+        ),  # Cloud Top Height from CO2 slicing method using M13/M16
+        "cbh": (
+            "L2",
+            "VIIRS-JRR-CloudBase",
+            "CldBaseHght",
+            lambda x: x,
+        ),  # Cloud Base Height from atmospheric profiles and adiabatic assumptions
+        "cdcomp": (
+            "L2",
+            "VIIRS-JRR-CloudDCOMP",
+            "CloudMicroVisOD",
+            lambda x: x,
+        ),  # Cloud Optical Depth from visible reflectance (day only)
+        "cncomp": (
+            "L2",
+            "VIIRS-JRR-CloudNCOMP",
+            "CloudMicroVisOD",
+            lambda x: x,
+        ),  # Cloud Optical Properties from thermal IR (night/day)
+        "ccl": (
+            "L2",
+            "VIIRS-JRR-CloudCoverLayers",
+            "Total_Cloud_Fraction",
+            lambda x: x,
+        ),  # Cloud Cover by pressure layers (low/mid/high)
+        # Atmospheric Products
+        # Resolution: 750m for aerosol, volcanic ash detection
+        "aod": (
+            "L2",
+            "VIIRS-JRR-ADP",
+            "AerosolOpticalThickness",
+            lambda x: x,
+        ),  # Aerosol Optical Depth at 550nm using Dark Target/Deep Blue algorithms
+        "vash": (
+            "L2",
+            "VIIRS-JRR-VolcanicAsh",
+            "VolcanicAsh",
+            lambda x: x,
+        ),  # Volcanic Ash detection using BTD algorithm (M14-M15/M15-M16)
+    }
+
+    @classmethod
+    def get_item(cls, val: str) -> tuple[str, str, str, Callable[[Any], Any]]:
+        """Get VIIRS product details for a standardized variable name.
+
+        Parameters
+        ----------
+        val : str
+            Standardized variable name (e.g., 'viirs01i', 'viirs05m', 'lst', 'aod')
+
+        Returns
+        -------
+        tuple[str, str, str, Callable]
+            Tuple containing:
+            - Product type ("I", "M", or "L2")
+            - Folder name for S3 path
+            - Dataset name within HDF5 file
+            - Modifier function for data transformation
+        """
+        if val not in cls.VOCAB:
+            raise KeyError(f"Variable {val} not found in VIIRS lexicon")
+        return cls.VOCAB[val]
+
+
+class JPSSATMSLexicon(metaclass=LexiconType):
+    """Lexicon for JPSS ATMS (Advanced Technology Microwave Sounder) data source.
+
+    This lexicon maps the ``atms`` variable to an identity modifier for brightness
+    temperature observations in Kelvin.  Individual channels (1-22) are distinguished
+    by the ``sensor_index`` column of the returned DataFrame, following the same
+    convention used by :class:`~earth2studio.data.UFSObsSat`.
+
+    The ATMS instrument is a 22-channel cross-track scanning microwave radiometer
+    operating from 23 GHz to 183 GHz aboard NOAA-20 (JPSS-1) and NOAA-21 (JPSS-2).
+
+    Notes
+    -----
+    ATMS Channel Groups:
+
+    - Channels 1-2 (23-31 GHz): Surface / precipitation / total precipitable water
+    - Channels 3-15 (50-57 GHz): Temperature sounding (oxygen absorption complex)
+    - Channel 16 (88 GHz): Surface / cloud / precipitation
+    - Channels 17-22 (165-183 GHz): Humidity sounding (water vapor absorption)
+
+    References
+    ----------
+    - NOAA JPSS program:
+      https://www.nesdis.noaa.gov/current-satellite-missions/currently-flying/joint-polar-satellite-system
+    - ATMS instrument description:
+      https://www.star.nesdis.noaa.gov/jpss/ATMS.php
+    - AWS NOAA-20 open data:
+      https://registry.opendata.aws/noaa-nesdis-n20-pds/
+    """
+
+    # Number of ATMS cross-track field-of-view positions per scan line
+    ATMS_NUM_FOVS = 96
+    # Number of ATMS channels
+    ATMS_NUM_CHANNELS = 22
+    # ATMS channel center frequencies (GHz) for documentation / reference
+    ATMS_CHANNEL_FREQS: dict[int, float] = {
+        1: 23.8,
+        2: 31.4,
+        3: 50.3,
+        4: 51.76,
+        5: 52.8,
+        6: 53.596,
+        7: 54.40,
+        8: 54.94,
+        9: 55.50,
+        10: 57.29,
+        11: 57.29,
+        12: 57.29,
+        13: 57.29,
+        14: 57.29,
+        15: 57.29,
+        16: 88.20,
+        17: 165.5,
+        18: 183.31,
+        19: 183.31,
+        20: 183.31,
+        21: 183.31,
+        22: 183.31,
+    }
+
+    VOCAB: dict[str, str] = {
+        "atms": "brightnessTemperature",
+    }
+
+    @classmethod
+    def get_item(cls, val: str) -> tuple[str, Callable[[Any], Any]]:
+        """Get ATMS BUFR key for a standardized variable name.
+
+        Parameters
+        ----------
+        val : str
+            Standardized variable name (``atms``)
+
+        Returns
+        -------
+        tuple[str, Callable]
+            Tuple containing:
+            - BUFR key name for brightness temperature
+            - Modifier function (identity -- brightness temperature in K)
+        """
+        if val not in cls.VOCAB:
+            raise KeyError(f"Variable {val} not found in ATMS lexicon")
+        return cls.VOCAB[val], lambda x: x
+
+
+class JPSSCrISLexicon(metaclass=LexiconType):
+    """Lexicon for JPSS CrIS (Cross-track Infrared Sounder) FSR data source.
+
+    This lexicon maps the ``crisfsr`` variable to an identity modifier for
+    the raw HDF5 spectral-radiance field.  The data source itself applies
+    optional Hamming apodization (default on) followed by the inverse Planck
+    function to convert radiance into brightness temperature (K), so the
+    ``observation`` column in the returned DataFrame is directly comparable
+    with :class:`~earth2studio.data.UFSObsSat`.  Individual channels are
+    distinguished by the ``sensor_index`` column, which uses the GSI
+    ``sensor_chan`` numbering convention.
+
+    The CrIS instrument is a Fourier-transform spectrometer operating in three
+    infrared spectral bands aboard Suomi NPP, NOAA-20 (JPSS-1) and NOAA-21
+    (JPSS-2).  In Full Spectral Resolution (FSR) mode the instrument produces
+    2223 channels:
+
+    - **LWIR** (9.14--15.38 µm, 650--1095 cm^-1): 717 channels at 0.625 cm^-1
+    - **MWIR** (5.71--8.26 µm, 1210--1750 cm^-1): 869 channels at 0.625 cm^-1
+    - **SWIR** (3.92--4.64 µm, 2155--2550 cm^-1): 637 channels at 0.625 cm^-1
+
+    When ``apodize=True`` (default in :class:`~earth2studio.data.JPSS_CRIS`),
+    the 2 guard channels at each end of each band (4 per band, 12 total) are
+    trimmed after apodization, yielding 2211 science channels with contiguous
+    ``sensor_index`` 1--2211.
+
+    Notes
+    -----
+    CrIS Channel Indexing (GSI ``sensor_chan`` convention):
+
+    The CRTM defines 2211 science channels (713 + 865 + 633) across the three
+    bands.  Each band has 2 guard channels at the low-wavenumber end and 2 at
+    the high-wavenumber end that are excluded from CRTM/GSI.
+
+    - sensor_chan   0       : LWIR guard channels 0--1 (not in GSI)
+    - sensor_chan   1--713  : LWIR band (713 of 717 physical channels)
+    - sensor_chan   0       : LWIR guard channels 715--716 (not in GSI)
+    - sensor_chan   0       : MWIR guard channels 717--718 (not in GSI)
+    - sensor_chan 714--1578 : MWIR band (865 of 869 physical channels)
+    - sensor_chan   0       : MWIR guard channels 1584--1585 (not in GSI)
+    - sensor_chan   0       : SWIR guard channels 1586--1587 (not in GSI)
+    - sensor_chan 1579--2211: SWIR band (633 of 637 physical channels)
+    - sensor_chan   0       : SWIR guard channels 2221--2222 (not in GSI)
+
+    References
+    ----------
+    - NOAA JPSS CrIS SDR:
+      https://www.star.nesdis.noaa.gov/jpss/CrIS.php
+    - AWS NOAA-20 open data:
+      https://registry.opendata.aws/noaa-nesdis-n20-pds/
+    - CrIS SDR documentation:
+      https://ncc.nesdis.noaa.gov/documents/documentation/viirs-users-guide-tech-report-142a-v1.3.pdf
+    """
+
+    # Number of CrIS spectral channels per band (FSR mode)
+    CRIS_NUM_CHANNELS_LW: int = 717
+    CRIS_NUM_CHANNELS_MW: int = 869
+    CRIS_NUM_CHANNELS_SW: int = 637
+    CRIS_NUM_CHANNELS: int = (
+        CRIS_NUM_CHANNELS_LW + CRIS_NUM_CHANNELS_MW + CRIS_NUM_CHANNELS_SW
+    )  # 2223
+
+    # CrIS spatial geometry
+    CRIS_NUM_FOR: int = 30  # Fields of Regard per scan line
+    CRIS_NUM_FOV: int = 9  # Fields of View per FOR (3x3 detector array)
+
+    # CrIS spectral band wavenumber ranges (cm^-1).
+    # These are the *full physical* band extents (including 4 guard channels at
+    # the high end of each band).  CRTM/GSI science channels cover a slightly
+    # narrower range (650--1095, 1210--1750, 2155--2550 cm^-1) because the 4
+    # highest-wavenumber guard channels per band are excluded.
+    CRIS_BAND_RANGES: dict[str, tuple[float, float]] = {
+        "LW": (650.0, 1097.5),
+        "MW": (1210.0, 1752.5),
+        "SW": (2155.0, 2552.5),
+    }
+
+    VOCAB: dict[str, str] = {
+        "crisfsr": "spectralRadiance",
+    }
+
+    @classmethod
+    def get_item(cls, val: str) -> tuple[str, Callable[[Any], Any]]:
+        """Get CrIS HDF5 dataset key for a standardised variable name.
+
+        Parameters
+        ----------
+        val : str
+            Standardised variable name (``crisfsr``)
+
+        Returns
+        -------
+        tuple[str, Callable]
+            Tuple containing:
+            - HDF5 dataset key for spectral radiance
+            - Modifier function (identity -- radiance is converted to
+              brightness temperature inside the data source)
+        """
+        if val not in cls.VOCAB:
+            raise KeyError(f"Variable {val} not found in CrIS lexicon")
+        return cls.VOCAB[val], lambda x: x

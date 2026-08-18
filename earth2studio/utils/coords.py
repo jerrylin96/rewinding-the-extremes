@@ -1,0 +1,798 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import warnings
+from collections import OrderedDict
+from copy import deepcopy
+from typing import Literal
+
+import numpy as np
+import torch
+import xarray as xr
+
+from earth2studio.utils.type import CoordSystem
+
+try:
+    import cupy as cp
+except ImportError:
+    cp = None
+
+
+def handshake_dim(
+    input_coords: CoordSystem,
+    required_dim: str,
+    required_index: int | None = None,
+) -> None:
+    """Simple check to see if coordinate system has a dimension in a particular index
+
+    Parameters
+    ----------
+    input_coords : CoordSystem
+        Input coordinate system to validate
+    required_dim : str
+        Required dimension (name of coordinate)
+    required_index : int, optional
+        Required index of dimension if needed, by default None
+
+    Raises
+    ------
+    KeyError
+        If required dimension is not found in the input coordinate system
+    ValueError
+        If the required index is outside the dimensionality of the input coordinate system
+    ValueError
+        If dimension is not in the required index
+    """
+
+    if required_dim not in input_coords:
+        raise KeyError(
+            f"Required dimension {required_dim} not found in input coordinates"
+        )
+
+    input_dims = list(input_coords.keys())
+
+    if required_index is None:
+        return
+
+    try:
+        input_dims[required_index]
+    except IndexError:
+        raise ValueError(
+            f"Required index {required_index} outside dimensionality of input coordinate system of {len(input_dims)}"
+        )
+
+    if input_dims[required_index] != required_dim:
+        raise ValueError(
+            f"Required dimension {required_dim} not found in the required index {required_index} in dim list {input_dims}"
+        )
+
+
+def handshake_coords(
+    input_coords: CoordSystem,
+    target_coords: CoordSystem,
+    required_dim: str | list[str],
+) -> None:
+    """Simple check to see if the required dimensions have the same coordinate system
+
+    Parameters
+    ----------
+    input_coords : CoordSystem
+        Input coordinate system to validate
+    target_coords : CoordSystem
+        Target coordinate system
+    required_dim : str | list[str]
+        Required dimension(s) (name of coordinate)
+    Raises
+    ------
+    KeyError
+        If required dim is not present in coordinate systems
+    ValueError
+        If coordinates of required dimensions don't match
+    """
+    if isinstance(required_dim, str):
+        required_dim = [required_dim]
+
+    for _required_dim in required_dim:
+        if _required_dim not in input_coords:
+            raise KeyError(
+                f"Required dimension {_required_dim} not found in input coordinates"
+            )
+
+        if _required_dim not in target_coords:
+            raise KeyError(
+                f"Required dimension {_required_dim} not found in target coordinates"
+            )
+
+        if input_coords[_required_dim].shape != target_coords[_required_dim].shape:
+            raise ValueError(
+                f"Coordinate systems for required dim {_required_dim} are not the same"
+            )
+
+        if not np.all(
+            (input_coords[_required_dim] == target_coords[_required_dim]).flatten()
+        ):
+            raise ValueError(
+                f"Coordinate systems for required dim {_required_dim} are not the same"
+            )
+
+
+def handshake_size(
+    input_coords: CoordSystem,
+    required_dim: str,
+    required_size: int,
+) -> None:
+    """Simple check to see if a coordinate system of a given dimension is a required
+    size
+
+    Parameters
+    ----------
+    input_coords : CoordSystem
+        Input coordinate system to validate
+    required_dim : str
+        Required dimension (name of coordinate)
+    required_size : int
+        Required coordinate system size
+
+    Raises
+    ------
+    KeyError
+        If required dim is not present in input coordinate system
+    ValueError
+        If required dimension is not of required size
+
+    Note
+    ----
+    Presently assumes coordinate system of given dimension is 1D
+    """
+
+    if required_dim not in input_coords:
+        raise KeyError(
+            f"Required dimension {required_dim} not found in input coordinates"
+        )
+
+    if input_coords[required_dim].shape[0] != required_size:
+        raise ValueError(
+            f"Coordinate size for required dim {required_dim} is not of size {required_size}"
+        )
+
+
+def map_coords(
+    x: torch.Tensor,
+    input_coords: CoordSystem,
+    output_coords: CoordSystem,
+    method: Literal["nearest"] = "nearest",
+) -> tuple[torch.Tensor, CoordSystem]:
+    """A basic interpolation util to map between coordinate systems with common
+    dimensions. Namely, `output_coords` should consist of keys are present in
+    `input_coords`. Note that `output_coords` do not need have all the dimensions of the
+    `input_coords`. Does not support more advanced interpolation, such as between a regular
+    and curvilinear grid. For such use-cases, use `fetch_data` or `prep_data_array` from
+    `data/utils`.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input data to map
+    input_coords : CoordSystem
+        Respective input coordinate system
+    output_coords : CoordSystem
+        Target output coordinates to map.
+    method : Literal[&quot;nearest&quot;], optional
+        Method to use for mapping numeric coordinates, by default "nearest"
+
+    Returns
+    -------
+    tuple[torch.Tensor, CoordSystem]
+        Mapped data and coordinate system.
+
+    Warning
+    -------
+    Use this function with caution. Only certain coordinate transformations are
+    supported / tested. Consider doing complex transforms manually in the inference
+    pipeline.
+
+    Raises
+    ------
+    KeyError:
+        If output coordinate has a dimension not in the input coordinate
+    ValueError
+        If value in non-numeric output coordinate is not in input coordinate
+        If asked to interpolate between 2D lat/lon (curvilinear) coordinates
+    """
+    mapped_coords = input_coords.copy()
+
+    for key, value in output_coords.items():
+        if key in [
+            "batch",
+            "time",
+            "lead_time",
+        ]:  # TODO: Need better solution, time is numeric
+            continue
+
+        # Handling np.empty(0) (free coordinate system)
+        if len(value) == 0:
+            continue
+
+        if key not in input_coords:
+            raise KeyError(f"Output coordinate dim {key} not found in input coords")
+
+        outc = value
+        inc = mapped_coords[key]
+        dim = list(input_coords).index(key)
+
+        if np.all(np.isin(outc, inc)):
+            if inc.shape[0] == outc.shape[0] and np.all(inc == outc):
+                # skip interpolation if input and output coords are identical
+                continue
+
+            if key in ["lat", "lon"] and len(inc.shape) > 1 or len(outc.shape) > 1:
+                # Guard against 2D lat/lon grids (curvilinear case)
+                raise ValueError(
+                    f"Coordinate dim {key} in input or mapped coords is \
+                        two-dimensional; please use fetch_data or \
+                        prep_data_array to regrid/interpolate first."
+                )
+
+            # Roll condition
+            first_element = outc[0]
+            shift_amount = np.where(inc == first_element)[0][0]
+            if np.array_equal(np.roll(inc, shift_amount), outc):
+                x = torch.roll(x, shifts=shift_amount, dims=dim)
+                mapped_coords[key] = outc
+                continue
+
+            # Slice condition
+            indx = np.where(inc == outc[0])[0][0]
+            inc_slice = inc[indx : indx + outc.shape[0]]
+            if inc_slice.shape[0] == outc.shape[0] and np.all(inc_slice == outc):
+                # Min here, to deal when coords have extra meta-data
+                # TODO: Improve this method / outright remove
+                x_slice = [slice(None)] * min([len(input_coords), x.ndim])
+                x_slice[dim] = slice(indx, indx + outc.shape[0])
+                x = x[x_slice]
+                mapped_coords[key] = outc
+                continue
+
+            # Generic fall back
+            if True:
+                # sort inputs and outputs before np.isin
+                indx_inc = inc.argsort()
+                indx_outc = outc.argsort()
+                indx_rev_outc = indx_outc.argsort()
+                indx = np.where(
+                    np.isin(inc[indx_inc], outc[indx_outc], assume_unique=True)
+                )[0]
+
+                # undo sorting
+                indx = indx_inc[indx][indx_rev_outc]
+
+                if len(indx) != len(value):
+                    raise ValueError(
+                        f"Output coord dim {key} contains values not present in input"
+                    )
+
+                mapped_coords[key] = outc
+                x = torch.index_select(
+                    x, dim, torch.tensor(indx, dtype=torch.int32, device=x.device)
+                )
+                continue
+
+        if not np.issubdtype(value.dtype, np.number):
+            raise ValueError(
+                f"For non-numeric coordinate, {key}, all values of output coords must be in the input coordinates. "
+                + f"Some elements of {outc} are not in {inc}."
+            )
+
+        if method == "nearest":
+            # Method = nearest
+            c1 = np.repeat(inc[:, np.newaxis], outc.shape[0], axis=1)
+            c2 = np.repeat(outc[np.newaxis, :], inc.shape[0], axis=0)
+            c = np.abs(c1 - c2)
+
+            idx = np.argmin(c, axis=0)
+
+            x = torch.index_select(
+                x, dim, torch.tensor(idx, dtype=torch.int32, device=x.device)
+            )
+            mapped_coords[key] = outc
+            continue
+        else:
+            raise ValueError(f"Map method {method} not supported")
+
+    # Only keep the first x.ndim keys from mapped_coords
+    # TODO: Remove this when proper support for dim
+    mapped_coords = OrderedDict(list(mapped_coords.items())[: x.ndim])
+    return x, mapped_coords
+
+
+def map_coords_xr(
+    x: xr.DataArray,
+    output_coords: CoordSystem,
+    method: Literal["nearest"] = "nearest",
+) -> xr.DataArray:
+    """Map xarray DataArray to target coordinate system using selection or interpolation.
+
+    Maps an input DataArray to match the coordinates specified in output_coords by
+    selecting or interpolating along dimensions. Supports both numpy and cupy-backed
+    DataArrays. Empty coordinate arrays are ignored, and warnings are issued for
+    missing coordinate keys.
+
+    Parameters
+    ----------
+    x : xr.DataArray
+        Input DataArray to map. May be backed by numpy or cupy arrays.
+    output_coords : CoordSystem
+        Target coordinate system containing a subset of coordinates present in x.
+        Dimensions not in output_coords are preserved from the input.
+    method : Literal["nearest"], optional
+        Interpolation method for numeric coordinates, by default "nearest"
+
+    Returns
+    -------
+    xr.DataArray
+        Mapped DataArray with coordinates matching output_coords where specified.
+        Preserves all dimensions and coordinates not specified in output_coords.
+
+    Raises
+    ------
+    KeyError
+        If output coordinate dimension is not found in input DataArray
+    ValueError
+        If non-numeric coordinate values are not present in input coordinates
+        If interpolation method is not supported
+    """
+    result = x.copy()
+
+    # Build selection/interpolation dictionary
+    sel_dict = {}
+    interp_dict = {}
+
+    for key, value in output_coords.items():
+        # Ignore batch dimension
+        if key == "batch":
+            continue
+
+        # Skip empty arrays (free coordinate system)
+        if len(value) == 0:
+            continue
+
+        # Check if dimension exists in input
+        if key not in result.dims and key not in result.coords:
+            warnings.warn(
+                f"Coordinate key '{key}' not found in input DataArray. "
+                f"Available dims: {list(result.dims)}, "
+                f"Available coords: {list(result.coords.keys())}"
+            )
+            continue
+
+        # Get coordinate values from input DataArray
+        if key in result.coords:
+            coord_values = result.coords[key]
+        elif key in result.dims:
+            coord_values = result[key]
+        else:
+            continue  # Should not happen due to check above
+
+        coord_array = (
+            coord_values.values if hasattr(coord_values, "values") else coord_values
+        )
+
+        # Check if coordinate types are compatible
+        # Check for datetime/timedelta first (these are not numeric for comparison purposes)
+        is_datetime = np.issubdtype(value.dtype, np.datetime64) or np.issubdtype(
+            coord_array.dtype, np.datetime64
+        )
+        is_timedelta = np.issubdtype(value.dtype, np.timedelta64) or np.issubdtype(
+            coord_array.dtype, np.timedelta64
+        )
+        # Only treat as numeric if both are numeric AND neither is datetime/timedelta
+        is_numeric = (
+            not is_datetime
+            and not is_timedelta
+            and np.issubdtype(value.dtype, np.number)
+            and np.issubdtype(coord_array.dtype, np.number)
+        )
+
+        # Check if all output values are in input (exact match)
+        if is_numeric:
+            # Numeric coordinate: check if values match exactly
+            if len(value) == len(coord_array) and np.allclose(
+                value, coord_array, equal_nan=True
+            ):
+                continue  # No change needed, exact match
+
+            # Check if all values are present in input (can use selection)
+            if np.all(np.isin(value, coord_array)):
+                sel_dict[key] = value
+            else:
+                # Need interpolation for values not in input
+                # xarray's interp uses coordinate names and handles dimension mapping
+                interp_dict[key] = xr.DataArray(value, dims=[key])
+        elif is_datetime or is_timedelta:
+            # Datetime/timedelta coordinate: use direct equality comparison
+            if len(value) == len(coord_array) and np.array_equal(value, coord_array):
+                continue  # No change needed, exact match
+
+            # Check if all values are present in input (can use selection)
+            if np.all(np.isin(value, coord_array)):
+                sel_dict[key] = value
+            else:
+                # Need interpolation for datetime/timedelta values not in input
+                # xarray's interp uses coordinate names and handles dimension mapping
+                interp_dict[key] = xr.DataArray(value, dims=[key])
+        else:
+            # Non-numeric coordinate: must use selection, all values must be present
+            if not np.all(np.isin(value, coord_array)):
+                raise ValueError(
+                    f"For non-numeric coordinate '{key}', all values of output coords "
+                    f"must be in the input coordinates. Some elements of {value} are "
+                    f"not in {coord_array}."
+                )
+            sel_dict[key] = value
+
+    # Apply selection first (exact matches)
+    if sel_dict:
+        result = result.sel(sel_dict)
+
+    # Apply nearest-neighbor interpolation per dimension using torch
+    if interp_dict:
+        if method != "nearest":
+            raise ValueError(f"Interpolation method '{method}' not supported")
+
+        data = result.data
+        is_cupy = cp is not None and isinstance(data, cp.ndarray)
+        dims = list(result.dims)
+        new_coords = dict(result.coords)
+
+        for key, target_da in interp_dict.items():
+            dim_idx = dims.index(key)
+            src_raw = np.asarray(result.coords[key].values)
+            tgt_raw = np.asarray(target_da.values)
+
+            sort_order = np.argsort(src_raw)
+            src_sorted = src_raw[sort_order]
+            idx_sorted = np.searchsorted(src_sorted, tgt_raw)
+            idx_sorted = np.clip(idx_sorted, 1, len(src_sorted) - 1)
+            left = np.abs(tgt_raw - src_sorted[idx_sorted - 1])
+            right = np.abs(tgt_raw - src_sorted[idx_sorted])
+            idx_sorted = np.where(left <= right, idx_sorted - 1, idx_sorted)
+
+            # Map back to original unsorted indices
+            idx = sort_order[idx_sorted]
+
+            # Index into the data array along this dimension
+            if is_cupy:
+                idx_arr = cp.asarray(idx)
+                data = cp.take(data, idx_arr, axis=dim_idx)
+            else:
+                data = np.take(data, idx, axis=dim_idx)
+
+            # Update the interpolated dimension coordinate
+            new_coords[key] = (key, tgt_raw)
+
+            # Re-index any non-dimension coordinates that depend on this dim
+            for cname, cval in list(new_coords.items()):
+                if cname == key:
+                    continue
+                if isinstance(cval, xr.Variable):
+                    c_dims = cval.dims
+                    c_data = cval.values
+                elif isinstance(cval, xr.DataArray):
+                    c_dims = cval.dims
+                    c_data = cval.values
+                elif isinstance(cval, tuple) and len(cval) == 2:
+                    c_dims, c_data = cval
+                    if isinstance(c_dims, str):
+                        c_dims = (c_dims,)
+                else:
+                    continue
+
+                if key in c_dims:
+                    ax = list(c_dims).index(key)
+                    c_data = np.take(np.asarray(c_data), idx, axis=ax)
+                    new_coords[cname] = (c_dims, c_data)
+
+        result = xr.DataArray(data=data, dims=dims, coords=new_coords)
+
+    return result
+
+
+def split_coords(
+    x: torch.Tensor, coords: CoordSystem, dim: str = "variable"
+) -> tuple[list[torch.Tensor], CoordSystem, np.ndarray]:
+    """
+    A utility function to split a dimension from a (x,coords) pair and convert it into
+    a list of tensors, a CoordSystem, and the dimension that extract from coords.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input tensor
+    coords : CoordSystem
+        Coordinates referring to the dimensions of x
+    dim : str
+        Name of the dimension in coords to split along
+
+    Returns
+    -------
+    list[torch.Tensor]
+        List of tensors extracted by splitting the extracted dimension from coords.
+    CoordSystem
+        The updated coord system with the extracted dimension removed.
+    np.ndarray
+        The values of the dimension extracted from the coordinate system.
+    """
+
+    if dim not in coords:
+        raise ValueError(f"dim {dim} is not in coords: {list(coords)}.")
+
+    reduced_coords = coords.copy()
+    dim_index = list(reduced_coords).index(dim)
+    values = reduced_coords.pop(dim)
+    xs = [xi.squeeze(dim_index) for xi in x.split(1, dim=dim_index)]
+    return xs, reduced_coords, values
+
+
+def convert_multidim_to_singledim(
+    coords: CoordSystem, return_mapping: bool = False
+) -> tuple[CoordSystem, dict[str, list[str]]]:
+    """Converts a set of coordinates from a complex coordinate system, which has some
+    coordinates with multidimensional arrays, into a simple coordinate system
+    containing only one-dimensional arrays.
+
+    This conversion is done by creating individual indexes that are enumerations of
+    the complex coordinate.
+
+    Assumptions
+    -----------
+    This code assumes that if a coordinate entry is n-dimensional, then the following
+    (n-1) coordinate entries in the ordered dictionary have the same shape and represent
+    the same multidimensional grid.
+
+    Example
+    -------
+
+    Suppose we have lat/lon coordinates represented by 2-dimensional grids.
+    ```python
+    lat = np.linspace(0, 1, 10)
+    lon = np.linspace(0, 1, 20)
+    LON, LAT = np.meshgrid(lat, lon)
+    c = CoordSystem({"lat": LAT, "lon": LON})
+
+    c1, m = convert_multidim_to_singledim(c)
+    ```
+
+    `c1` has 2 keys - `x1` and `x2`, with shapes `(10,)` and `(20,)` respectively.
+
+    Parameters
+    ----------
+    coords : CoordSystem
+        CoordSystem to convert.
+
+    Returns
+    -------
+    CoordSystem
+        Converted coordinate system where each coordinate is 1-dimensional.
+    dict[str, list[str]]
+        Mapping of multidimensional coordinates to a list of their 1-dimensional
+        enumerations.
+    """
+
+    adjusted_coords = {}
+    mapping: dict[str, list[str]] = {}
+
+    items = list(coords.items())
+    i = 0
+    while i < len(items):
+        item = items[i]
+        k, v = item
+        # Temp fix: TODO: REMOVE
+        if k.startswith("_"):
+            i += 1
+            continue
+
+        ndim = v.ndim
+        if v.ndim < 2:
+            adjusted_coords[k] = v
+            i += 1
+        else:
+            s = v.shape
+            mapping[k] = []
+
+            for j in range(ndim):
+                if i + j > len(items) - 1:
+                    raise ValueError(
+                        "Assumed that if an n-dimensional coordinate exists, "
+                        "then there will be exactly n coordinates with the same shape."
+                    )
+
+                k1, v1 = items[i + j]
+                if v1.shape != s:
+                    raise ValueError(
+                        "Assumed that if an n-dimensional coordinate exists, "
+                        "then there will be exactly n coordinates with the same shape."
+                    )
+
+                adjusted_coords["i" + k1] = np.arange(s[j])
+                mapping[k].append("i" + k1)
+                mapping[k1] = mapping[k]
+
+            i += j + 1
+
+    return CoordSystem(adjusted_coords), mapping
+
+
+def tile_coords(
+    x: torch.Tensor, coords: CoordSystem, target_coords: CoordSystem
+) -> tuple[torch.Tensor, CoordSystem]:
+    """Tile tensor x to match dimensions in target_coords that don't exist in coords.
+
+    This function tiles the input tensor to match leading dimensions from target_coords
+    that are not present in coords. Dimensions that exist in both coords and target_coords
+    are ignored in target_coords and use the values from coords instead.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Source tensor to be tiled
+    coords : CoordSystem
+        Coordinate system for x tensor
+    target_coords : CoordSystem
+        Target coordinate system. Dimensions that exist in coords are ignored.
+
+    Returns
+    -------
+    tuple[torch.Tensor, CoordSystem]
+        Tuple containing the tiled tensor and updated coordinate system
+
+    Examples
+    --------
+    Tiling a tensor to match additional dimensions from target_coords
+
+    >>> from earth2studio.utils.coords import tile_coords
+    >>> from collections import OrderedDict
+    >>> import torch
+    >>> import numpy as np
+    >>>
+    >>> x = torch.randn(3, 4)
+    >>> coords = OrderedDict({
+    ...     "variable": np.array(["a", "b", "c"]),
+    ...     "time": np.array([0, 1, 2, 3])
+    ... })
+    >>>
+    >>> target_coords = OrderedDict({
+    ...     "batch": np.array([0, 1]),
+    ...     "ensemble": np.array([0, 1, 2]),
+    ...     "variable": np.array(["x", "y"]),  # Ignored, uses coords value
+    ...     "time": np.array([10, 20, 30, 40])  # Ignored, uses coords value
+    ... })
+    >>>
+    >>> # Tile x to match batch and ensemble dimensions
+    >>> x_tiled, out_coords = tile_coords(x, coords, target_coords)
+    >>> x_tiled.shape
+    torch.Size([2, 3, 3, 4])
+    >>> list(out_coords.keys())
+    ['batch', 'ensemble', 'variable', 'time']
+    """
+    coords_keys = set(coords.keys())
+    leading_dims = OrderedDict()
+    common_dims = []
+
+    for key, val in target_coords.items():
+        if key not in coords_keys:
+            leading_dims[key] = val
+        else:
+            common_dims.append(key)
+
+    # Validate that all common dims are at the end of target_coords
+    if common_dims:
+        target_keys = list(target_coords.keys())
+        coords_keys_list = list(coords.keys())
+        if target_keys[-len(common_dims) :] != coords_keys_list:
+            raise ValueError(
+                f"All common dimensions must appear at the end of target_coords. "
+                f"Common dimensions: {coords_keys_list}, "
+                f"target_coords trailing keys: {target_keys[-len(common_dims):]}, "
+                f"target_coords order: {target_keys}"
+            )
+
+    n_lead = len(leading_dims)
+
+    out_coords = deepcopy(leading_dims)
+    for key, val in coords.items():
+        out_coords[key] = val
+
+    # add leading size-1 dims so tile has one rep per dimension, then tile to match target
+    reps = [len(dim) for dim in leading_dims.values()] + [1] * len(x.shape)
+    x_tiled = x.view(*([1] * n_lead), *x.shape).tile(reps)
+
+    return x_tiled, out_coords
+
+
+def cat_coords(
+    tensors: tuple[torch.Tensor, ...],
+    coords: tuple[CoordSystem, ...],
+    dim: str = "variable",
+) -> tuple[torch.Tensor, CoordSystem]:
+    """
+    concatenate data along coordinate dimension.
+
+    Parameters
+    ----------
+    tensors : tuple[torch.Tensor, ...]
+        Tuple of input tensors to concatenate
+    coords : tuple[CoordSystem, ...]
+        Tuple of OrderedDicts representing coordinate systems for each tensor
+    dim : str
+        name of dimension along which to concatenate
+
+    Returns
+    -------
+    tuple[torch.Tensor, CoordSystem]
+        Tuple containing output tensor and coordinate OrderedDict from
+        concatenated data.
+
+    Raises
+    ------
+    ValueError
+        If tensors and coords have different lengths
+        If input tensors have different dimension names
+        If non-concatenation dimensions don't match across inputs
+    KeyError
+        If concatenation dimension is not found in all coordinate systems
+    """
+    if len(tensors) != len(coords):
+        raise ValueError(
+            f"tensors and coords must have the same length, got {len(tensors)} tensors and {len(coords)} coords"
+        )
+
+    if len(tensors) == 0:
+        raise ValueError("at least one tensor and coord must be provided")
+
+    if len(tensors) == 1:
+        return tensors[0], deepcopy(coords[0])
+
+    # Use first coord as reference
+    ref_coord = coords[0]
+
+    # make sure cat dim is present in all tensors
+    handshake_dim(ref_coord, dim)
+
+    # make sure all tensors have the same dimension names
+    ref_keys = list(ref_coord.keys())
+    for i, coord in enumerate(coords[1:], start=1):
+        handshake_dim(coord, dim)
+        if not list(coord.keys()) == ref_keys:
+            raise ValueError(
+                f"all input tensors must have the same dimension names. "
+                f"Tensor 0 has {ref_keys}, tensor {i} has {list(coord.keys())}"
+            )
+
+    # make sure all the other dimensions are of equal length
+    other_dims = list(ref_keys)
+    other_dims.remove(dim)
+    for i, coord in enumerate(coords[1:], start=1):
+        handshake_coords(ref_coord, coord, other_dims)
+
+    # assemble output coords
+    coz = deepcopy(ref_coord)
+    coz[dim] = np.concatenate([coord[dim] for coord in coords])
+
+    # concatenate tensors
+    dim_index = list(coz).index(dim)
+    zz = torch.cat(tensors, dim=dim_index)
+
+    return zz, coz
