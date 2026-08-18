@@ -21,6 +21,9 @@ authors:
   - given-names: Elizabeth A.
     family-names: Barnes
     affiliation: "Department of Computing & Data Sciences, Boston University"
+repository-code: https://github.com/jerrylin96/rewinding-the-extremes
+doi: 10.5281/zenodo.22000716
+date-released: 2026-08-18
 references:
   - type: software
     title: NVIDIA Earth2Studio
@@ -29,6 +32,5 @@ references:
     repository-code: https://github.com/NVIDIA/earth2studio
     license: Apache-2.0
     notes: Upstream project that this repository modifies.
-# TODO on public release: add `repository-code` (public repo URL), `version`,
-# `date-released`, the Zenodo `doi`, and a `preferred-citation` entry for the
-# article once it is accepted.
+# TODO: add a `preferred-citation` entry for the article once it is accepted,
+# and bump `doi`/`date-released` if a new Zenodo version is deposited.
