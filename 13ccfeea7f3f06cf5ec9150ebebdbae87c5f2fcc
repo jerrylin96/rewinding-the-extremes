@@ -1,0 +1,16 @@
+[SIGNOFF df3c53f]: human comprehension and risk attestation
+
+Signoff-Spec-Version: 1.0
+Signoff-Status: VERIFIED_BY_HUMAN
+Signoff-Timestamp: 2026-08-25T01:51:09Z
+Signoff-Base-SHA: daf4523656e6a09dfee5ddb5a00b903694b3f262
+Signoff-Reviewed-Commit-SHA: df3c53f9b0f8636cd4517a8a3828301abec8c132
+Signoff-Reviewed-Tree-SHA: 13ccfeea7f3f06cf5ec9150ebebdbae87c5f2fcc
+Signoff-Harness-ID: antigravity-cli
+Signoff-Conversation-ID: 57578120-f524-4fad-8505-3eeadd59d4bd
+Signoff-Transcript-Digest: sha256:5aca036346face659862cf56f00335c677daae7ee8679222503712e3d9bab42a
+Signoff-Transcript-Bytes: 125597
+Signoff-Tradeoff: none
+Signoff-Risk: PRs require signoff attestation to pass CI status checks
+Signoff-Verified-By: jerrylin247365@gmail.com
+Signoff-Agent: harness=antigravity-cli/N/A model=gemini-3.7-flash-high reasoning=N/A interview=standard/domain-science/sha256:efbfc1b21662
