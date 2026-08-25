@@ -2,10 +2,10 @@
 #
 # Ian struck the US twice: high-end Cat 4 landfall near Cayo Costa, FL at
 # ~19:05 UTC on Sep 28 2022, then Cat 1 landfall near Georgetown, SC at
-# ~14:00 UTC on Sep 30 after re-emerging into the Atlantic.  The 66h
+# ~18:05 UTC on Sep 30 after re-emerging into the Atlantic.  The 66h
 # window starts at 2022-09-28 00Z (peak intensity in the eastern Gulf,
 # ~19h pre-FL-landfall) and runs through 2022-09-30 18Z, so frame 11
-# brackets the SC landfall.  FL landfall sits at frame ~3.
+# coincides with the SC landfall.  FL landfall sits at frame ~3.
 #
 # This windowing prioritizes the multi-state compound character of Ian
 # over the FL track-bust forecast story (which would require a much
@@ -57,9 +57,10 @@ tc_tracks:
   # needs z300/z500 in the zarr.  Same as always passing --warm-core (override a
   # single run with --no-warm-core).
   warm_core: true
-  # SC landfall (~09-30 14Z) sits ~4h before frame 11 (09-30 18Z); use frame 11
-  # as the single annotation anchor.  FL landfall is at frame ~3 and is not
-  # separately annotated pending multi-landfall schema support in tc_tracks.
+  # SC landfall (~09-30 18:05Z) falls 5 min after frame 11 (09-30 18Z), the
+  # window's last frame; use frame 11 as the single annotation anchor.  FL
+  # landfall is at frame ~3 and is not separately annotated pending
+  # multi-landfall schema support in tc_tracks.
   landfall_frame: 11
 
 # spread_rmse_crps.domains gives each variable its own analysis box, because
