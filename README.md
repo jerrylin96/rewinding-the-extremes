@@ -2,6 +2,8 @@
 
 # Extremes on Rewind
 
+[![attested by humans](https://github.com/jerrylin96/rewinding-the-extremes/actions/workflows/signoff.yml/badge.svg)](https://github.com/jerrylin96/rewinding-the-extremes/actions/workflows/signoff.yml)
+
 Research code for **"Extremes on Rewind: Generating 1,000-Member Ensembles
 Initialized at a Final Condition"** — Jerry Lin, Mu-Ting Chien,
 Mansi Sakarvadia, and Elizabeth A. Barnes.
