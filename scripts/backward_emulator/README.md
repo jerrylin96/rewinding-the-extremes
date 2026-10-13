@@ -5,8 +5,9 @@ Tooling to compare this repo's **video-diffusion** end-conditioned ensembles
 [run-it-back](https://github.com/jerrylin96/run-it-back) for the same
 extreme-event case studies, running the analyses we already have on both methods
 and drawing them side by side. The figures of the NeurIPS 2026 CCAI workshop
-paper on that emulator (the Ian tracks and intensity, the two EOF regressions,
-the PNW free-end states) are produced here. `run-it-back` produces the
+paper *Run it Back: Autoregression vs. Video Diffusion for End-Conditioned Weather Trajectories*
+(Lin and Barnes 2026): the Ian tracks and intensity, the two EOF regressions and
+the PNW free-end states, are produced here. `run-it-back` produces the
 emulator's ensembles (`analysis/backward_rollout_ensemble.sbatch` there); their
 field dumps are transferred and read by `makani_source.py`.
 
