@@ -45,6 +45,7 @@ The research code lives outside the `earth2studio/` package:
 | `scripts/ensemble_run/` | Ensemble generation — `dispatch_ensemble.py` submits one job per conditioning mode; `ensemble_interpolation.py` runs cBottle-video; `merge_ensemble_zarrs.py` consolidates member chunks. |
 | `scripts/ensemble_analysis/` | Diagnostics and figures. Each `dispatch_*.py` fans out a `submission_scripts/compute_*.py` per case/mode, then `aggregate_*.py` reduces to the published figure. Covers spread/RMSE/CRPS, synoptic PCA, TC tracking, landfall splits, ageostrophic flow, power spectra, and free end states. |
 | `scripts/_shared/` | Case definitions (`cases/*.yaml` — event windows, ensemble size, analysis regions) and shared figure helpers. See `scripts/_shared/README.md`. |
+| `scripts/backward_emulator/` | Side-by-side comparison with the autoregressive backward emulator of [run-it-back](https://github.com/jerrylin96/run-it-back) on the same cases (survivor censoring, spread/RMSE/CRPS, free end states, synoptic PCA, ageostrophic flow, TC tracks); the figures of the NeurIPS 2026 CCAI workshop paper on that emulator. See `scripts/backward_emulator/README.md`. |
 | `scripts/download_era5_raw/` | ERA5 retrieval into local zarr stores for conditioning and verification. |
 | `custom_utils/` | Ensemble loading, derived variables, interpolation, and diagnostic helpers. |
 | `test/scripts/` | Tests for the analysis pipeline. |
