@@ -79,7 +79,7 @@ and a survival-fraction panel is added where makani appears.
 
 ## Fail-loud guards
 
-Two misuses used to produce plausible output, and are now errors:
+These misuses used to produce plausible output, and are now errors:
 
 * **Anchor check.** The join of makani onto cBottle's forward window is positional,
   so every script that takes `--case` (and `survival.py` when given `--case`) passes
@@ -93,6 +93,40 @@ Two misuses used to produce plausible output, and are now errors:
   re-raised and nothing is written, because a makani-only `.npz`/figure written with
   exit 0 is byte-for-byte indistinguishable from an intentional run. `--no-cbottle`
   remains the way to request a makani-only run.
+* **Storm of interest (Ian).** Every script that reads a tracks parquet resolves each
+  member's storm through the paper's own track QC (`ensemble_analysis/track_qc.py`,
+  via `case_track_qc.py`), never from `path_id=0`. Tracking is global and
+  TempestExtremes numbers concurrent systems arbitrarily: 19 of the 1000 cBottle Ian
+  members have another system on path 0 (15 near Okinawa, 3 off Mexico, 1 in the Bay
+  of Bengal) and Ian on a different path, plus 7 members with no Ian track. The
+  paper's `synoptic_pca_end.npz` bakes those path-0 targets (`track_target_fe`); its
+  own figures stopped reading them, and so do ours: `synoptic_pca_compare.py` refuses
+  path-0 targets unless the model's tracks parquet is passed
+  (`--cbottle-parquet`, `--makani-parquet`) so they can be recomputed, and the TC-track
+  figure draws, counts (cBottle N = 993) and colours by the QC'd tracks. All 1000
+  makani members pass the QC with Ian on path 0, so makani's numbers are unchanged.
+* **Survivor mask window.** `plot_tc_tracks_compare.py` requires `--survival-npz`
+  (or an explicit `--no-censor`) and refuses a mask whose shape is not the tracks'
+  `(members, leads)`: the full-horizon `survival_full.npz` would censor at 180 h, not
+  66 h.
+
+Regenerating the two Ian figures after this fix (light jobs, minutes):
+
+```bash
+qsub submit_py.sh synoptic_pca_compare.py --case ian \
+    --makani-npz ./out/ian/synoptic_pca/synoptic_pca_makani_ian.npz \
+    --makani-parquet ./out/ian/tc_tracks/tc_tracks_makani_ian_end.parquet \
+    --cbottle-npz /projectnb/eb-general/jlin404/scratch/ian/diagnostics/synoptic_pca/synoptic_pca_end.npz \
+    --cbottle-parquet /projectnb/eb-general/jlin404/scratch/ian/diagnostics/tc_tracks/tempest/tc_tracks_end.parquet \
+    --out-dir ./out/ian/synoptic_pca
+qsub submit_py.sh plot_tc_tracks_compare.py --case ian \
+    --makani-parquet ./out/ian/tc_tracks/tc_tracks_makani_ian_end.parquet \
+    --cbottle-parquet /projectnb/eb-general/jlin404/scratch/ian/diagnostics/tc_tracks/tempest/tc_tracks_end.parquet \
+    --survival-npz ./out/ian/survival_ian.npz \
+    --pca-makani-npz ./out/ian/synoptic_pca/synoptic_pca_makani_ian.npz \
+    --pca-cbottle-npz /projectnb/eb-general/jlin404/scratch/ian/diagnostics/synoptic_pca/synoptic_pca_end.npz \
+    --color-pcs 1 --out-dir ./out/ian/tc_tracks
+```
 
 ## Memory
 
@@ -142,6 +176,7 @@ The union the six diagnostics consume — 8 channels, each present in cBottle's
 | `submit_compare_spread_rmse_crps.sh` / `submit_survival.sh` | SGE wrappers (eb-general, 16 omp, e2s-custom): the per-(variable,region) compare job; the survivor-mask root job. | ✅ |
 | `dispatch_compare.py` | Reads each case's `spread_rmse_crps.domains`; submits a survivor root + per-variable compare jobs (`-hold_jid` chained, cached mask). `--dry-run` previews. | ✅ + tested |
 | `ageostrophic_compare.py` + `submit_ageostrophic_compare.sh` + `dispatch_ageostrophic.py` + `smoke_ageostrophic.py` | Ageostrophic imbalance (S13–S15): `\|V_a\|/\|V\|` over the 30–60° \|lat\| band, makani native vs cBottle regridded, each vs its resolution-matched ERA5, makani survivor-censored. Reuses `compute_ageostrophic`'s core verbatim. | ✅ + tested |
+| `case_track_qc.py` | The paper's track QC (`track_qc.py`) with a case's end-mode parameters (track box, landfall anchor, free end at frame 0): one storm-of-interest rule for every tracks-parquet consumer below. | ✅ + tested |
 | `tc_tracks_compare.py` + `submit_tc_tracks_compare.sh` + `dispatch_tc_tracks_compare.py` + `smoke_tc_tracks.py` | TC tracks (Ian, Text S3): re-tracks makani natively through the paper's TempestExtremes runner (`track_member_with_tempest`, Z&U-2017 warm-core + WB2 orography), ERA5 ref = makani truth; writes the paper's parquet schema → feeds Ian's synoptic-PCA impact target. | ✅ + tested |
 | `synoptic_pca_makani.py` + `synoptic_pca_compare.py` + `submit_synoptic_pca_makani.sh` + `dispatch_synoptic_pca_makani.py` | Per-ensemble EOF/PC regression (Text S2): makani on native lat/lon (√cos φ weighting), leading-8-PC → impact R² (in-sample + 10-fold CV), free-end-divergence censored. Compare vs the paper's cBottle `synoptic_pca_end.npz`. Ian consumes the TC parquet. | ✅ + tested |
 | power spectra | Deferred (lowest priority; resolution asymmetry makes a raw overlay tautological). | ⏳ |

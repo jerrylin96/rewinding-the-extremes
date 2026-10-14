@@ -45,12 +45,18 @@ numerically unstable while the video-diffusion ensemble cannot:
 This censoring is the same divergence criterion the spread/RMSE/CRPS and ageostrophic
 diagnostics use, so "diverged" means one thing across the whole comparison.
 
-Reuses `compute_synoptic_pca._pca` (SVD + sign-fix), `pca_stats` (OLS + CV), and
-`tc_track_targets.free_end_target_arrays` verbatim.
+Ian's track targets come from the paper's track QC (`case_track_qc`), the rule its
+own regression figure uses: each member's storm of interest is the path that
+reaches the landfall anchor, and track-excluded members are NaN (dropped from the
+regression, as in the paper).  The npz records ``target_source="track_qc"`` so
+`synoptic_pca_compare.py` can tell these from path-0 targets.
 
-Heavy env (the makani source is numpy/h5py, but `_pca`/`free_end_target_arrays`
-live next to torch/pandas imports).  Free-end frame = forward frame 0 (the
-unpinned window start; makani pins the present at forward -1, == cBottle end mode).
+Reuses `compute_synoptic_pca._pca` (SVD + sign-fix) and `pca_stats` (OLS + CV)
+verbatim.
+
+Heavy env (the makani source is numpy/h5py, but `_pca` lives next to torch
+imports).  Free-end frame = forward frame 0 (the unpinned window start; makani
+pins the present at forward -1, == cBottle end mode).
 """
 
 from __future__ import annotations
@@ -273,18 +279,18 @@ def main(argv=None) -> None:
     else:
         if not args.tc_parquet:
             raise SystemExit("--impact-kind track needs --tc-parquet (the makani tracks).")
-        from tc_track_targets import free_end_target_arrays
-        landfall = dl.resolve_landfall_frame(case)
-        anchor = landfall if 0 <= landfall < args.n_frames else args.n_frames - 1
-        baked = free_end_target_arrays(args.tc_parquet, FREE_END_FRAME,
-                                       makani.n_members, anchor_frame=anchor)
-        tgt = np.asarray(baked["track_target_fe"], dtype=np.float64)[analyzable]  # [Na,4]
+        from case_track_qc import free_end_target_matrix, load_track_qc, qc_summary
+        _ens, _era5, qc = load_track_qc(args.tc_parquet, case, n_members=makani.n_members)
+        print(f"[syn-pca-mk] track QC: {qc_summary(qc)}")
+        tgt = free_end_target_matrix(qc)[analyzable]  # [Na,4]; track-excluded rows NaN
         names = ["tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa"]
         for j, nm in enumerate(names):
             reg[nm] = regression_summary(scores, tgt[:, j], n_pc=args.n_pc)
         payload["target_track_fe"] = tgt.astype(np.float32)
         payload["target_names"] = np.array(names)
-        payload["track_era5_fe"] = np.asarray(baked["track_era5_fe"], np.float32)
+        payload["target_source"] = np.array("track_qc")
+        payload["track_era5_fe"] = np.array(
+            [qc.era5_free_end[k] for k in ("lat", "lon", "msl_hpa")], np.float32)
 
     for nm, r in reg.items():
         print(f"[syn-pca-mk]   {nm}: R2_insample={r['r2_insample']:.3f} "

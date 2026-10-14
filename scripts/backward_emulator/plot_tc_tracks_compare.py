@@ -1,9 +1,10 @@
 """TC-track comparison figure: makani vs cBottle vs ERA5 (Hurricane Ian).
 
 Reads the two tracks parquets (makani = `tc_tracks_makani_ian_end.parquet` from our
-tracking job; cBottle = the paper's own `tc_tracks_end.parquet`) through the paper's
-`tc_tracks_io`, restricts to the Ian track box (so `path_id=0` is each member's storm
-of interest), and draws a three-row figure:
+tracking job; cBottle = the paper's own `tc_tracks_end.parquet`), resolves each
+member's storm of interest through the paper's track QC (`case_track_qc`, the rule
+the paper's own track figure uses), keeps only the members it marks analyzable, and
+draws a three-row figure:
 
   * top: two maps (makani | cBottle) of the member tracks, each model's ERA5 reference
     track, and its ERA5-closest member;
@@ -29,13 +30,14 @@ strong* under one key. `--color-pcs` sweeps a set of PCs, emitting one figure pe
 
 By default each PC's sign is oriented so its score correlates *positively* with `tc_lon`
 (so high percentile == eastward-tracking members == the pattern's positive lobe);
-`--no-orient-by-tclon` disables this.
+`--no-orient-by-tclon` disables this.  `tc_lon` is each member's free-end longitude
+from the same track QC, never the path-0 targets baked into the paper's npz.
 
-The PCA<->tracks join is 1:1: the PCA's analyzable set uses `alive[:, FREE_END_FRAME=0]`,
-exactly the survivor criterion `_censor_makani` applies, in the same original-member
-order -- guarded by a length check that falls back to flat colour rather than mis-colour.
-makani members can optionally be censored to survivors (`--survival-npz`), consistent
-with the other diagnostics (and required for the PC join to line up).
+makani members are also censored to survivors: `--survival-npz` must be the 66 h
+mask (`survival_<case>.npz`, one column per tracked lead) and is required unless
+`--no-censor` is passed.  The PCA<->tracks join is by original member index: the
+PCA's analyzable set is `alive[:, FREE_END_FRAME=0]` of the same mask, and a length
+check falls back to flat colour rather than mis-colour.
 
 Light where it can be (numpy reductions + the PC-percentile join + the pattern-map
 reshape are unit-tested); the map + parquet read need `e2s-custom` (pandas, and cartopy
@@ -61,6 +63,7 @@ if str(EA_DIR) not in sys.path:  # appended: never shadow our modules
     sys.path.append(str(EA_DIR))
 
 import _dispatch_lib as dl  # noqa: E402
+from case_track_qc import load_track_qc, qc_summary  # noqa: E402
 
 _R_EARTH_KM = 6371.0
 
@@ -332,36 +335,30 @@ def resolve_color_tokens(tokens: List[str], pca: Dict) -> List[Tuple[str, int]]:
     return out
 
 
-def _censor_makani(ens: np.ndarray, survival_npz: Optional[str]
-                   ) -> Tuple[np.ndarray, np.ndarray, int]:
-    """Keep members alive at the free-end frame; return (ens, keep_mask, n_keep).
+def survivor_mask(survival_npz: str, n_members: int, n_leads: int) -> np.ndarray:
+    """``[N]`` makani members alive at the free-end frame (forward 0).
 
-    ``keep_mask`` is the ``[N]`` bool used to subset the tracks, so any per-member
-    colour array can be subset with the *same* mask and stay aligned.
+    The mask must cover exactly this figure's members and leads.  A full-horizon
+    scan (``survival_full.npz``) has more leads and its frame 0 lies before the
+    window, so it would drop members that stayed valid for the whole 66 h; any
+    mismatch is an error, never a silent switch to uncensored.
     """
-    n = ens.shape[0]
-    if not survival_npz:
-        return ens, np.ones(n, bool), n
-    z = np.load(survival_npz)
-    alive = np.asarray(z["alive"], bool)  # [N, L] forward order
-    keep = alive[:, 0]  # free-end frame (forward 0)
-    if keep.shape[0] != n:
-        print(f"[tc-plot] WARNING: survival N={keep.shape[0]} != tracks N="
-              f"{n}; skipping censoring.", file=sys.stderr)
-        return ens, np.ones(n, bool), n
-    return ens[keep], keep, int(keep.sum())
+    alive = np.asarray(np.load(survival_npz)["alive"], bool)  # [N, L] forward order
+    if alive.shape != (n_members, n_leads):
+        raise SystemExit(
+            f"[tc-plot] {survival_npz}: alive {alive.shape} != tracks "
+            f"({n_members}, {n_leads}); pass the 66 h mask survival_<case>.npz.")
+    return alive[:, 0]
 
 
-def _load(parquet: str, box) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-    from tc_tracks_io import load_tracks_parquet, restrict_to_domain
+def _load(parquet: str, case: Dict) -> Tuple[np.ndarray, np.ndarray, object]:
+    """``(storm-of-interest tracks [N, 1, T, 4], ERA5 path 0, track QC)``.
 
-    d = load_tracks_parquet(parquet)
-    lon_min, lon_max, lat_min, lat_max = box
-    ens = restrict_to_domain(d["ensemble"], lon_min, lon_max, lat_min, lat_max)
-    era5 = d.get("era5")
-    if era5 is not None:
-        era5 = restrict_to_domain(era5, lon_min, lon_max, lat_min, lat_max)
-    return ens, era5
+    The paper's track figure draws exactly this: each member's anchor-resolved
+    path, and ERA5's path 0 (the reference the QC anchors on).
+    """
+    ens, era5, qc = load_track_qc(parquet, case)
+    return qc.storm_of_interest_array(ens), era5[:, 0:1], qc
 
 
 def _panel_graticule(ax, ps, *, left, right, bottom, top, max_ticks=4):
@@ -817,7 +814,11 @@ def main(argv=None) -> None:
     p.add_argument("--case", default="ian")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--survival-npz", default=None,
-                   help="Censor makani members to survivors (alive at free-end).")
+                   help="66 h makani survivor mask (survival_<case>.npz); members "
+                   "dead at the free-end frame are dropped. Required unless "
+                   "--no-censor.")
+    p.add_argument("--no-censor", action="store_true",
+                   help="Plot makani members without survivor censoring.")
     p.add_argument("--pca-makani-npz", default=None,
                    help="makani PCA npz; colour member tracks by PC percentile.")
     p.add_argument("--pca-cbottle-npz", default=None,
@@ -844,22 +845,34 @@ def main(argv=None) -> None:
     extent = [lon_min - args.margin, lon_max + args.margin,
               lat_min - args.margin, lat_max + args.margin]
 
-    # makani: native ERA5 (solid black baseline).
-    m_ens, m_era5 = _load(args.makani_parquet, box)
-    m_ens, keep, n_keep = _censor_makani(m_ens, args.survival_npz)
+    # makani: native ERA5 (solid black baseline).  Keep = analyzable under the
+    # track QC AND alive at the free-end frame.
+    m_ens, m_era5, m_qc = _load(args.makani_parquet, case)
+    keep = m_qc.analyzable.copy()
+    print(f"[tc-plot] makani track QC: {qc_summary(m_qc)}")
+    if not args.no_censor:
+        if not args.survival_npz:
+            raise SystemExit("[tc-plot] --survival-npz is required (or pass "
+                             "--no-censor to plot unstable makani members).")
+        alive = survivor_mask(args.survival_npz, m_ens.shape[0], m_ens.shape[2])
+        print(f"[tc-plot] makani survivors at the free end: {int(alive.sum())}/"
+              f"{alive.size}")
+        keep &= alive
     models: Dict[str, Dict] = {"makani": {
-        "label": "Autoregressive", "ens": m_ens, "era5": m_era5,
-        "era5_ls": "-", "era5_label": "ERA5 (native)", "keep": keep}}
-    print(f"[tc-plot] makani members plotted: {n_keep}")
+        "label": "Autoregressive", "ens": m_ens[keep], "era5": m_era5,
+        "era5_ls": "-", "era5_label": "ERA5 (native)", "keep": keep, "qc": m_qc}}
+    print(f"[tc-plot] makani members plotted: {int(keep.sum())}")
 
     # cBottle: round-tripped ERA5 (dashed black baseline).
     if args.cbottle_parquet and Path(args.cbottle_parquet).exists():
-        c_ens, c_era5 = _load(args.cbottle_parquet, box)
+        c_ens, c_era5, c_qc = _load(args.cbottle_parquet, case)
+        c_keep = c_qc.analyzable.copy()
+        print(f"[tc-plot] cBottle track QC: {qc_summary(c_qc)}")
         models["cbottle"] = {
-            "label": "Video diffusion (cBottle)", "ens": c_ens, "era5": c_era5,
+            "label": "Video diffusion (cBottle)", "ens": c_ens[c_keep], "era5": c_era5,
             "era5_ls": "--", "era5_label": "ERA5 (round-trip)",
-            "keep": np.ones(c_ens.shape[0], bool)}
-        print(f"[tc-plot] cBottle members plotted: {c_ens.shape[0]}")
+            "keep": c_keep, "qc": c_qc}
+        print(f"[tc-plot] cBottle members plotted: {int(c_keep.sum())}")
     else:
         print("[tc-plot] WARNING: no cBottle parquet; makani-only.", file=sys.stderr)
 
@@ -874,12 +887,12 @@ def main(argv=None) -> None:
 
     pca_by_model: Dict[str, Dict] = {}
     pca_path: Dict[str, str] = {}
-    if args.pca_makani_npz:
-        pca_by_model["makani"] = _load_pca_for_color(args.pca_makani_npz)
-        pca_path["makani"] = args.pca_makani_npz
-    if args.pca_cbottle_npz and "cbottle" in models:
-        pca_by_model["cbottle"] = _load_pca_for_color(args.pca_cbottle_npz)
-        pca_path["cbottle"] = args.pca_cbottle_npz
+    for mkey, npz in (("makani", args.pca_makani_npz),
+                      ("cbottle", args.pca_cbottle_npz)):
+        if npz and mkey in models:
+            fe_lon = models[mkey]["qc"].free_end_targets()["fe_lon_deg"]  # [N]
+            pca_by_model[mkey] = _load_pca_for_color(npz, fe_lon)
+            pca_path[mkey] = npz
 
     def _attach(jstar_by_model: Dict[str, int], sign_by_model: Dict[str, float]) -> bool:
         any_ok = False
@@ -964,8 +977,13 @@ def main(argv=None) -> None:
           f"{out}/tc_tracks_compare_{args.case}.npz")
 
 
-def _load_pca_for_color(npz_path: str) -> Dict:
+def _load_pca_for_color(npz_path: str, fe_lon: Optional[np.ndarray] = None) -> Dict:
     """Read a makani- or cBottle-schema PCA npz for track colouring.
+
+    ``fe_lon`` is the ``[N]`` free-end longitude from the track QC (NaN for
+    excluded members); it is mapped onto the PC-score rows as ``tc_lon``.  The
+    npz's own baked track targets are deliberately not read (the paper's are
+    path 0, which can be another storm).
 
     Returns ``{pc_scores [Na,D], analyzable [N]|None, n_members, tc_lon [Na]|None,
     era5_pc_percentile [D]|None, n_pc}``.
@@ -978,10 +996,10 @@ def _load_pca_for_color(npz_path: str) -> Dict:
                  else (int(analyzable.size) if analyzable is not None
                        else scores.shape[0]))
     tc_lon = None
-    if "target_track_fe" in keys and np.asarray(z["target_track_fe"]).size:
-        tc_lon = np.asarray(z["target_track_fe"], float)[:, 1]  # makani
-    elif "track_target_fe" in keys and np.asarray(z["track_target_fe"]).size:
-        tc_lon = np.asarray(z["track_target_fe"], float)[:, 1]  # cBottle
+    if fe_lon is not None and np.asarray(fe_lon).size == n_members:
+        tc_lon = np.asarray(fe_lon, float)
+        if analyzable is not None:
+            tc_lon = tc_lon[analyzable]
     era5_pct = (np.asarray(z["era5_pc_percentile"], float)
                 if "era5_pc_percentile" in keys else None)
     n_pc = int(z["n_pc"]) if "n_pc" in keys else 8
