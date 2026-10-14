@@ -58,7 +58,7 @@ if str(AGEO_DIR) not in sys.path:
 import _dispatch_lib as dl  # noqa: E402
 import plot_style  # noqa: E402
 from local_time_axis import format_local_time_axis  # noqa: E402
-from makani_source import MakaniBackwardSource  # noqa: E402
+from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
 
 _KEYS = ("ratio", "mean_v", "mean_vg", "mean_va")
 _ROW_LABEL = {
@@ -212,6 +212,10 @@ def main(argv=None) -> None:
     p.add_argument("--lon-min", type=float, default=None)
     p.add_argument("--lon-max", type=float, default=None)
     p.add_argument("--n-frames", type=int, default=12)
+    p.add_argument("--expected-anchor", default=None,
+                   help="ISO-hour prefix the dumps' anchor valid-time must match "
+                   "(default: the case's window end, start_time + 66 h; "
+                   "'none' disables the check).")
     p.add_argument("--censor", dest="censor", action="store_true", default=True)
     p.add_argument("--no-censor", dest="censor", action="store_false")
     p.add_argument("--survival-npz", default=None)
@@ -232,7 +236,8 @@ def main(argv=None) -> None:
     }
     names = [f"u{args.level}", f"v{args.level}", f"z{args.level}"]
 
-    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames)
+    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames,
+                                  expected_anchor_iso=resolve_expected_anchor(case, args.expected_anchor))
     lat, lon = makani.lat, makani.lon
     lat_idx, lon_idx, lat_weights, band = _domain_setup(lat, lon, args)
     pinned = args.n_frames - 1
@@ -281,9 +286,11 @@ def main(argv=None) -> None:
                 "summary": {k: _censored_summary(c_ens[k], None) for k in _KEYS},
             }
             print(f"[ageo-cmp] cBottle overlay: N={cb.n_members}")
-        except Exception as exc:  # noqa: BLE001 - degrade to makani-only
-            print(f"[ageo-cmp] WARNING: cBottle overlay skipped "
-                  f"({type(exc).__name__}: {exc}); makani-only.", file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001 - re-raised: never a silent makani-only output
+            print(f"[ageo-cmp] ERROR: cBottle overlay failed ({type(exc).__name__}: {exc}). "
+                  "Nothing written. Pass --no-cbottle for an intentional makani-only run.",
+                  file=sys.stderr)
+            raise
 
     out = Path(args.out_dir)
     stem = f"ageostrophic_compare_{args.case}_L{args.level}"

@@ -250,3 +250,36 @@ def test_expected_anchor_selection(tmp_path: Path):
                 anchor_ts=("2021-06-28T12", "2022-09-30T18"))
     src = MakaniBackwardSource(d, expected_anchor_iso="2022-09-30T18")
     assert src.anchor_timestamp.startswith("2022-09-30T18")
+
+
+def test_expected_anchor_mismatch_raises(tmp_path: Path):
+    """The case-derived anchor must match the dump's valid-time, else the dump is refused."""
+    d = tmp_path / "c"
+    d.mkdir()
+    _write_dump(d / "backward_fields_000.h5", member_ids=[0], anchor_ts=("2021-06-29T12",))
+    with pytest.raises(ValueError, match="window end"):
+        MakaniBackwardSource(d, expected_anchor_iso="2021-06-28T12")
+    MakaniBackwardSource(d, expected_anchor_iso="2021-06-29T12")  # the right date passes
+
+
+def test_expected_anchor_accepts_makani_space_separated_timestamps(tmp_path: Path):
+    """makani writes str(datetime) with a space; the ISO prefix still matches."""
+    d = tmp_path / "c"
+    d.mkdir()
+    _write_dump(d / "backward_fields_000.h5", member_ids=[0],
+                anchor_ts=("2021-06-28 12:00:00+00:00",))
+    src = MakaniBackwardSource(d, expected_anchor_iso="2021-06-28T12")
+    assert src.anchor_timestamp.startswith("2021-06-28")
+
+
+def test_expected_anchor_from_case_is_the_window_end():
+    from makani_source import expected_anchor_iso_from_case, resolve_expected_anchor
+
+    pnw = {"ensemble": {"start_time": {"year": 2021, "month": 6, "day": 25, "hour": 18}}}
+    ian = {"ensemble": {"start_time": {"year": 2022, "month": 9, "day": 28, "hour": 0}}}
+    assert expected_anchor_iso_from_case(pnw) == "2021-06-28T12"   # 06-25 18Z + 66 h
+    assert expected_anchor_iso_from_case(ian) == "2022-09-30T18"   # 09-28 00Z + 66 h
+    assert resolve_expected_anchor(pnw) == "2021-06-28T12"
+    assert resolve_expected_anchor(pnw, "none") is None
+    assert resolve_expected_anchor(pnw, "2022-09-30 18") == "2022-09-30T18"
+    assert resolve_expected_anchor(None) is None

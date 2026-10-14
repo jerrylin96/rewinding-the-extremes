@@ -22,7 +22,7 @@ _CH = ["t2m", "z500", "msl", "u500", "v500", "z300", "u10m", "v10m"]
 
 
 def _write_case(dirpath: Path, *, n_files=2, members_per_file=2, L=12,
-                H=19, W=36):
+                H=19, W=36, anchor_ts=b"2021-06-28T12"):
     dirpath.mkdir(parents=True, exist_ok=True)
     lat = np.linspace(90, -90, H)
     lon = np.linspace(0, 360, W, endpoint=False)
@@ -59,7 +59,7 @@ def _write_case(dirpath: Path, *, n_files=2, members_per_file=2, L=12,
             f.create_dataset("lat", data=lat)
             f.create_dataset("lon", data=lon)
             f.create_dataset("timestamps",
-                             data=np.array([[b"2021-06-28T12"] * L], dtype="S64"))
+                             data=np.array([[anchor_ts] * L], dtype="S64"))
             f.create_dataset("anchor_index", data=np.array([0]))
             f.create_dataset("member_index", data=np.arange(M))
             f.attrs["step_hours"] = -6
@@ -77,6 +77,7 @@ def test_driver_writes_npz_and_figure(tmp_path: Path):
         "--variable", "z500",
         "--region-name", "synoptic",
         "--out-dir", str(out),
+        "--no-cbottle",
     ])
 
     npz = out / "spread_rmse_crps_z500_synoptic.npz"
@@ -258,6 +259,59 @@ def test_global_region_uses_all_pixels(tmp_path: Path):
     drv.main([
         "--makani-dir", str(case_dir), "--case", "pnw_heatwave",
         "--variable", "msl", "--region-name", "global", "--out-dir", str(out),
+        "--no-cbottle",
     ])
     d = np.load(out / "spread_rmse_crps_msl_global.npz", allow_pickle=True)
     assert int(d["Autoregressive (makani)::n_pix"]) == 10 * 12
+
+
+def test_shifted_dump_is_refused_before_anything_is_written(tmp_path: Path):
+    """A dump anchored on the wrong date must fail loudly, not produce plausible
+    curves labelled with the case's dates: the join is positional, so this check is
+    the only thing tying a dump to the case it is compared under."""
+    import pytest
+
+    case_dir = tmp_path / "pnw_shifted"
+    _write_case(case_dir, anchor_ts=b"2021-06-29T12")  # one day late
+    out = tmp_path / "out"
+    with pytest.raises(ValueError, match="window end"):
+        drv.main(["--makani-dir", str(case_dir), "--case", "pnw_heatwave",
+                  "--variable", "z500", "--region-name", "synoptic",
+                  "--no-cbottle", "--no-censor", "--out-dir", str(out)])
+    assert not out.exists() or not list(out.glob("*.npz"))
+
+    # The explicit opt-out still works, and an explicit expected anchor can override the case.
+    drv.main(["--makani-dir", str(case_dir), "--case", "pnw_heatwave",
+              "--variable", "z500", "--region-name", "synoptic",
+              "--no-cbottle", "--no-censor", "--out-dir", str(out),
+              "--expected-anchor", "none"])
+    assert (out / "spread_rmse_crps_z500_synoptic.npz").exists()
+    drv.main(["--makani-dir", str(case_dir), "--case", "pnw_heatwave",
+              "--variable", "z500", "--region-name", "synoptic",
+              "--no-cbottle", "--no-censor", "--out-dir", str(tmp_path / "out2"),
+              "--expected-anchor", "2021-06-29T12"])
+
+
+def test_cbottle_failure_is_loud_and_writes_nothing(tmp_path: Path, monkeypatch):
+    """With the overlay requested (the default), a failing cBottle side must raise
+    and leave no makani-only output behind; --no-cbottle is the only makani-only path."""
+    import builtins
+    import pytest
+
+    case_dir = tmp_path / "pnw"
+    _write_case(case_dir)
+    out = tmp_path / "out"
+
+    real_import = builtins.__import__
+
+    def no_cbottle(name, *a, **k):
+        if name == "cbottle_source":
+            raise ImportError("heavy env missing (simulated)")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_cbottle)
+    with pytest.raises(ImportError, match="simulated"):
+        drv.main(["--makani-dir", str(case_dir), "--case", "pnw_heatwave",
+                  "--variable", "z500", "--region-name", "synoptic",
+                  "--no-censor", "--out-dir", str(out)])
+    assert not out.exists() or not list(out.glob("*"))

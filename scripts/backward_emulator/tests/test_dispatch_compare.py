@@ -32,6 +32,7 @@ def test_pnw_matrix_has_survival_root_and_land_masked_t2m(tmp_path):
     root = surv[0]
     assert root["jid"] == "<Surv_pnw_heatwave>"
     assert "--out" in root["cmd"]
+    assert "--case" in root["cmd"]  # the survivor root validates the dumps' anchor too
     surv_npz = root["cmd"][root["cmd"].index("--out") + 1]
 
     comps = _by_role(recs, "compare")

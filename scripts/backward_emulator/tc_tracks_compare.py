@@ -54,7 +54,7 @@ if str(EA_DIR) not in sys.path:
     sys.path.append(str(EA_DIR))
 
 import _dispatch_lib as dl  # noqa: E402
-from makani_source import MakaniBackwardSource  # noqa: E402
+from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
 
 
 def build_member_slab(fields: dict, variables: Sequence[str]) -> np.ndarray:
@@ -94,6 +94,10 @@ def main(argv=None) -> None:
     p.add_argument("--case", required=True)
     p.add_argument("--out-dir", required=True)
     p.add_argument("--n-frames", type=int, default=12)
+    p.add_argument("--expected-anchor", default=None,
+                   help="ISO-hour prefix the dumps' anchor valid-time must match "
+                   "(default: the case's window end, start_time + 66 h; "
+                   "'none' disables the check).")
     p.add_argument("--warm-core", dest="warm_core", action="store_true", default=None,
                    help="Z&U 2017 warm-core thickness filter (default: the case "
                    "tc_tracks.warm_core, true for Ian).")
@@ -110,7 +114,8 @@ def main(argv=None) -> None:
     tc = case.get("tc_tracks") or {}
     warm_core = bool(tc.get("warm_core", False)) if args.warm_core is None else args.warm_core
 
-    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames)
+    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames,
+                                  expected_anchor_iso=resolve_expected_anchor(case, args.expected_anchor))
     lats, lons = makani.lat, makani.lon
     step_h = float(abs(makani.step_hours))
     variables = _tempest_variables(warm_core)

@@ -178,8 +178,8 @@ def dispatch(
     else:
         surv_cmd = build_qsub_cmd(
             script=SURV_SCRIPT, job_name=f"Surv_{case_name}", h_rt=SURV_H_RT,
-            script_args=["--makani-dir", makani_dir, "--out", surv_npz,
-                         "--makani-analysis-dir", makani_analysis_dir])
+            script_args=["--makani-dir", makani_dir, "--case", case_name,
+                         "--out", surv_npz, "--makani-analysis-dir", makani_analysis_dir])
         root_jid = submit_qsub(surv_cmd, dry_run=dry_run, cwd=str(BW_DIR),
                                log_dir=LOG_DIR)
         if dry_run:

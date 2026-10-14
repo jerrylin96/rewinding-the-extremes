@@ -77,6 +77,23 @@ all-member stats stand; if not, `latlon_metrics.reduce_selected` gains a per-mem
 `alive` mask (all-True for cBottle) so both models reduce over survivors identically,
 and a survival-fraction panel is added where makani appears.
 
+## Fail-loud guards
+
+Two misuses used to produce plausible output, and are now errors:
+
+* **Anchor check.** The join of makani onto cBottle's forward window is positional,
+  so every script that takes `--case` (and `survival.py` when given `--case`) passes
+  the case's window end (`ensemble.start_time` + 66 h) to `MakaniBackwardSource`,
+  which refuses dumps whose anchor valid-time differs. A dump anchored on the wrong
+  date is rejected before anything is written. `--expected-anchor <ISO-hour>`
+  overrides the case; `--expected-anchor none` disables the check (an explicit,
+  visible opt-out). `inspect_bundle.py` performs the same check up front.
+* **cBottle overlay.** `compare_spread_rmse_crps.py` and `ageostrophic_compare.py`
+  no longer fall back to makani-only output when the overlay fails: the error is
+  re-raised and nothing is written, because a makani-only `.npz`/figure written with
+  exit 0 is byte-for-byte indistinguishable from an intentional run. `--no-cbottle`
+  remains the way to request a makani-only run.
+
 ## Memory
 
 The full pooled ensemble for one channel is ~50 GB (1000 × 12 × 721 × 1440 f32),

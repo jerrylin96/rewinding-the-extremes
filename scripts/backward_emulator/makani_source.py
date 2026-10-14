@@ -31,6 +31,7 @@ code adds torch / earth2studio where the actual reductions happen.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -44,6 +45,40 @@ except ImportError:  # pragma: no cover - script-style import
     from trim_backward_fields import COMPARISON_CHANNELS
 
 DEFAULT_N_FRAMES = 12  # 12 frames x 6 h = the 66 h comparison window
+
+
+def expected_anchor_iso_from_case(case: Dict, n_frames: int = DEFAULT_N_FRAMES,
+                                  step_hours: int = 6) -> str:
+    """ISO-hour prefix (``YYYY-MM-DDTHH``) of the case's window END, which is the
+    makani anchor by construction: ``ensemble.start_time`` + (n_frames - 1) x step.
+
+    Always derived from the comparison window (12 frames = 66 h), never from a
+    scan length -- ``survival.py --n-frames 0`` scans the whole rollout but the
+    anchor it must match is still the window end.
+    """
+    start = case["ensemble"]["start_time"]
+    t0 = datetime(int(start["year"]), int(start["month"]), int(start["day"]),
+                  int(start["hour"]), tzinfo=timezone.utc)
+    return (t0 + timedelta(hours=(n_frames - 1) * step_hours)).strftime("%Y-%m-%dT%H")
+
+
+def resolve_expected_anchor(case: Optional[Dict], override: Optional[str] = None) -> Optional[str]:
+    """Resolve the ``--expected-anchor`` CLI contract.
+
+    ``override`` wins when given (``"none"`` disables the check -- an explicit,
+    visible opt-out); otherwise the anchor is derived from the case; with neither
+    there is nothing to check against.  The join of makani onto cBottle's window is
+    positional, so this check is the only thing that ties a dump to the case it is
+    compared under: without it a dump anchored on the wrong date produces
+    plausible, correctly-labelled, silently time-shifted figures.
+    """
+    if override is not None:
+        if override.strip().lower() == "none":
+            return None
+        return override.strip().replace(" ", "T")
+    if case is None:
+        return None
+    return expected_anchor_iso_from_case(case)
 
 
 def _decode(raw: Sequence) -> List[str]:
@@ -163,12 +198,17 @@ class MakaniBackwardSource:
         if expected_anchor_iso is None:
             return 0  # case-study dumps carry a single anchor
         ts = _decode(f["timestamps"][...][:, 0]) if "timestamps" in f else []
+        # makani writes str(datetime): "2021-06-28 12:00:00+00:00" (a space); the
+        # case-derived prefix is ISO "2021-06-28T12". Compare in one form.
+        norm = [t.replace(" ", "T") for t in ts]
+        want = expected_anchor_iso.replace(" ", "T")
         for a in range(n_anchors):
-            if a < len(ts) and ts[a].startswith(expected_anchor_iso):
+            if a < len(norm) and norm[a].startswith(want):
                 return a
         raise ValueError(
-            f"{path.name}: no anchor matching '{expected_anchor_iso}' "
-            f"(present valid-times: {ts})"
+            f"{path.name}: no anchor matching '{want}' (the case's window end); the "
+            f"dump carries valid-time(s) {ts}. These dumps are not this case's -- "
+            f"wrong --makani-dir? Pass --expected-anchor none to compare anyway."
         )
 
     @staticmethod

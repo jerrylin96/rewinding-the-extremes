@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(SHARED))
 
 from latlon_metrics import Region, spread_rmse_crps_from_source  # noqa: E402
-from makani_source import MakaniBackwardSource  # noqa: E402
+from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
 
 import _dispatch_lib as dl  # noqa: E402
 import var_metadata as vm  # noqa: E402
@@ -327,6 +327,10 @@ def main(argv=None) -> None:
     p.add_argument("--region-name", default="synoptic")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--n-frames", type=int, default=12)
+    p.add_argument("--expected-anchor", default=None,
+                   help="ISO-hour prefix the dumps' anchor valid-time must match "
+                   "(default: the case's window end, start_time + 66 h; "
+                   "'none' disables the check).")
     p.add_argument("--makani-label", default="Autoregressive (makani)")
     p.add_argument("--censor", dest="censor", action="store_true", default=True,
                    help="Apply makani survivor censoring (default on).")
@@ -362,7 +366,8 @@ def main(argv=None) -> None:
         "start_time": dl.start_time_iso_from_case(case),
     }
 
-    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames)
+    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames,
+                                  expected_anchor_iso=resolve_expected_anchor(case, args.expected_anchor))
 
     land_mask = None
     if args.land_mask:
@@ -393,8 +398,9 @@ def main(argv=None) -> None:
 
     # cBottle overlay: regrid the HPX end-mode ensemble ->lat/lon and score it
     # against the round-tripped ERA5 truth, through the identical reducer/region.
-    # No censoring (all end-conditioned members are valid). Heavy env only, so we
-    # fall back to makani-only if the stores or earth2grid aren't available.
+    # No censoring (all end-conditioned members are valid). Heavy env only. A
+    # failure here is fatal on purpose: a makani-only output written with exit 0
+    # is byte-for-byte indistinguishable from an intentional --no-cbottle run.
     if args.cbottle:
         try:
             from cbottle_source import CBottleLatLonSource  # noqa: E402
@@ -415,9 +421,11 @@ def main(argv=None) -> None:
             results[args.cbottle_label] = cb_res
             print(f"[compare] cBottle overlay: N={cb_res['n_members']} "
                   f"pix={cb_res['n_pix']}")
-        except Exception as exc:  # noqa: BLE001 - degrade to makani-only, don't crash
-            print(f"[compare] WARNING: cBottle overlay skipped ({type(exc).__name__}: "
-                  f"{exc}); writing makani-only.", file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001 - re-raised: never a silent makani-only output
+            print(f"[compare] ERROR: cBottle overlay failed ({type(exc).__name__}: {exc}). "
+                  "Nothing written. Pass --no-cbottle for an intentional makani-only run.",
+                  file=sys.stderr)
+            raise
 
     out = Path(args.out_dir)
     stem = f"spread_rmse_crps_{args.variable}_{region_name}"

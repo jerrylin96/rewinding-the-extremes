@@ -58,8 +58,8 @@ DEFAULT_MAKANI_ANALYSIS = (
 def _submit_survival_root(case_name, makani_dir, surv_npz, mk_dir, dry_run) -> str:
     cmd = build_qsub_cmd(
         script=SURV_SCRIPT, job_name=f"Surv_{case_name}", h_rt=SURV_H_RT,
-        script_args=["--makani-dir", makani_dir, "--out", surv_npz,
-                     "--makani-analysis-dir", mk_dir])
+        script_args=["--makani-dir", makani_dir, "--case", case_name,
+                     "--out", surv_npz, "--makani-analysis-dir", mk_dir])
     jid = submit_qsub(cmd, dry_run=dry_run, cwd=str(BW_DIR), log_dir=LOG_DIR)
     return jid or f"<Surv_{case_name}>"  # placeholder keeps holds visible in dry-run
 

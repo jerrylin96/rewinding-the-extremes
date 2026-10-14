@@ -146,7 +146,7 @@ def range_alive_mask(
 def main(argv=None) -> None:
     import argparse
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from makani_source import MakaniBackwardSource, find_field_dumps  # noqa: E402
+    from makani_source import MakaniBackwardSource, find_field_dumps, resolve_expected_anchor  # noqa: E402
 
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--makani-dir", required=True, help="Case dir of *fields*.h5.")
@@ -160,7 +160,19 @@ def main(argv=None) -> None:
                    help="Leads to scan (12 = the 66 h comparison window). 0 = "
                    "every lead the dumps carry (the full rollout horizon, for "
                    "the stability figure).")
+    p.add_argument("--case", default=None,
+                   help="Case name (scripts/_shared/cases); when given, the dumps' "
+                   "anchor must equal the case's window end (start_time + 66 h).")
+    p.add_argument("--expected-anchor", default=None,
+                   help="ISO-hour prefix the dumps' anchor must match; overrides "
+                   "--case ('none' disables the check).")
     args = p.parse_args(argv)
+
+    case = None
+    if args.case is not None:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "_shared"))
+        import _dispatch_lib as dl  # noqa: E402
+        case = dl.load_case(args.case)
 
     n_frames = args.n_frames
     if n_frames <= 0:
@@ -171,7 +183,8 @@ def main(argv=None) -> None:
         print(f"[survival] --n-frames {args.n_frames} -> scanning all "
               f"{n_frames} leads in the dumps")
 
-    src = MakaniBackwardSource(args.makani_dir, n_frames=n_frames)
+    src = MakaniBackwardSource(args.makani_dir, n_frames=n_frames,
+                               expected_anchor_iso=resolve_expected_anchor(case, args.expected_anchor))
     res = range_alive_mask(src, channel=args.channel,
                            makani_analysis_dir=args.makani_analysis_dir)
     out = Path(args.out)

@@ -75,7 +75,7 @@ for _p in (str(EA_DIR), str(EA_SUB)):  # appended: never shadow our modules
 
 import _dispatch_lib as dl  # noqa: E402
 from latlon_metrics import cos_lat_weights, select_pixels  # noqa: E402
-from makani_source import MakaniBackwardSource  # noqa: E402
+from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
 
 FREE_END_FRAME = 0  # forward frame 0 = the unpinned window start (end-mode precursor)
 
@@ -202,6 +202,10 @@ def main(argv=None) -> None:
     p.add_argument("--tc-parquet", default=None,
                    help="makani tracks parquet for --impact-kind track (Ian).")
     p.add_argument("--n-frames", type=int, default=12)
+    p.add_argument("--expected-anchor", default=None,
+                   help="ISO-hour prefix the dumps' anchor valid-time must match "
+                   "(default: the case's window end, start_time + 66 h; "
+                   "'none' disables the check).")
     p.add_argument("--max-d", type=int, default=10)
     p.add_argument("--n-pc", type=int, default=8, help="PCs in the regression (Text S2: 8).")
     p.add_argument("--pca-censor", dest="censor", action="store_true", default=True,
@@ -223,7 +227,8 @@ def main(argv=None) -> None:
         raise SystemExit(f"region '{args.region_name}' not in case '{args.case}'")
     impact_kind = args.impact_kind or ("track" if (case.get("tc_tracks")) else "scalar")
 
-    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames)
+    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames,
+                                  expected_anchor_iso=resolve_expected_anchor(case, args.expected_anchor))
     print(f"[syn-pca-mk] {args.case} precursor={variables} region={args.region_name} "
           f"impact={impact_kind} N={makani.n_members}")
 

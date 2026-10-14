@@ -131,12 +131,16 @@ def main(argv=None) -> None:
                    help="Censor members to survivors alive at the free-end frame.")
     p.add_argument("--top-k", type=int, default=3, help="Members per tail (paper: 3).")
     p.add_argument("--n-frames", type=int, default=12)
+    p.add_argument("--expected-anchor", default=None,
+                   help="ISO-hour prefix the dumps' anchor valid-time must match "
+                   "(default: the case's window end, start_time + 66 h; "
+                   "'none' disables the check).")
     p.add_argument("--timezone", default="America/Los_Angeles")
     p.add_argument("--start-time", default=None)
     args = p.parse_args(argv)
 
     from latlon_metrics import select_pixels  # heavy env
-    from makani_source import MakaniBackwardSource
+    from makani_source import MakaniBackwardSource, resolve_expected_anchor
 
     case = dl.load_case(args.case)
     impact_box = dl.region_box(case, args.impact_region)
@@ -150,7 +154,8 @@ def main(argv=None) -> None:
         except Exception:  # noqa: BLE001, S110 -- optional; defaults handle absence
             pass
 
-    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames)
+    makani = MakaniBackwardSource(args.makani_dir, n_frames=args.n_frames,
+                                  expected_anchor_iso=resolve_expected_anchor(case, args.expected_anchor))
     W = int(makani.lon.shape[0])
     lat, lon = np.asarray(makani.lat, float), np.asarray(makani.lon, float)
 
