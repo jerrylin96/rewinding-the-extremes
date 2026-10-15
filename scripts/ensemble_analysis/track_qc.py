@@ -39,11 +39,14 @@ Every parquet-consuming TC analysis (``synoptic_pca_track_stats``,
 reads this table's ``analyzable`` mask and resolved path and reports its own
 ``n``; no other track filter exists in the analysis layer.
 
-Scope note.  ``tc_track_targets.py`` retains the *old* path-0 anchoring only to
-serve the upstream npz-baking in ``compute_synoptic_pca.py`` (a frozen input
-this post-processing refactor does not regenerate) and the standalone anchor
-diagnostic; that path is not part of the round-5 analysis QC and must not be
-called by the four consumers above.  Only the pure-geometry helpers are shared.
+Scope note.  ``tc_track_targets.py`` retains the *old* path-0 anchoring check
+only for the standalone anchor diagnostic; that path is not part of the round-5
+analysis QC and must not be called by the consumers above.  Only the
+pure-geometry helpers are shared.  ``compute_synoptic_pca.py`` bakes its
+free-end targets from this module too (:meth:`TrackQC.free_end_npz_arrays`,
+``track_target_source="track_qc"``).  npz files baked before that change hold
+path-0 targets in ``track_target_fe`` (no ``track_target_source`` key): path 0
+can be another storm (19 of 1000 Hurricane Ian members), so never read them.
 
 Kept dependency-light (NumPy + pandas + the parquet reader) so a stats-only
 login-node run does not pull cartopy / matplotlib.
@@ -77,6 +80,22 @@ EXCL_UNANCHORED = "unanchored"
 EXCL_INSUFFICIENT = "insufficient_fixes"
 
 EXCLUSION_ORDER: Tuple[str, ...] = (
+    EXCL_NO_TRACK,
+    EXCL_UNANCHORED,
+    EXCL_INSUFFICIENT,
+)
+
+# Free-end target columns, in the order the synoptic-PCA npz stores them.
+TARGET_COLUMNS: Tuple[str, ...] = (
+    "fe_lat_deg",
+    "fe_lon_deg",
+    "fe_dist_era5_km",
+    "fe_msl_hpa",
+)
+
+# ``TrackQC.counts`` keys baked into the npz as ``track_qc_counts``.
+QC_COUNT_KEYS: Tuple[str, ...] = (
+    "analyzable",
     EXCL_NO_TRACK,
     EXCL_UNANCHORED,
     EXCL_INSUFFICIENT,
@@ -254,6 +273,41 @@ class TrackQC:
         if col.size == 0:
             return float("nan"), 0
         return float(100.0 * (col <= era5_msl).mean()), int(col.size)
+
+    def free_end_npz_arrays(self) -> Dict[str, np.ndarray]:
+        """npz-ready free-end arrays for ``compute_synoptic_pca`` to bake.
+
+        * ``track_target_fe``      ``[N, 4]`` -- :data:`TARGET_COLUMNS` from
+          :meth:`free_end_targets` (NaN for excluded members);
+        * ``track_target_source``  ``"track_qc"``, so a reader can tell these
+          from the path-0 targets that npz files baked before this rule carry;
+        * ``track_analyzable``     ``[N]`` bool;
+        * ``track_era5_fe``        ``[3]`` ERA5 free-end (lat, lon, MSL hPa);
+        * ``track_anchor_frame``   scalar int;
+        * ``track_qc_counts``      ``[4]`` int, :data:`QC_COUNT_KEYS` order;
+        * ``track_era5_fe_msl_pct`` scalar, :meth:`era5_free_end_msl_pct`;
+        * ``track_n_fallback``     scalar int, analyzable members whose free-end
+          fix came from the nearest valid frame.
+        """
+        t = self.free_end_targets()
+        counts = self.counts()
+        return {
+            "track_target_fe": np.column_stack([t[c] for c in TARGET_COLUMNS]).astype(
+                np.float32
+            ),
+            "track_target_source": np.array("track_qc"),
+            "track_analyzable": self.analyzable,
+            "track_era5_fe": np.array(
+                [self.era5_free_end[k] for k in ("lat", "lon", "msl_hpa")],
+                dtype=np.float32,
+            ),
+            "track_anchor_frame": np.int32(self.config["mode_anchor_frame"]),
+            "track_qc_counts": np.array(
+                [counts[k] for k in QC_COUNT_KEYS], dtype=np.int32
+            ),
+            "track_era5_fe_msl_pct": np.float32(self.era5_free_end_msl_pct()[0]),
+            "track_n_fallback": np.int32(counts["fe_fallback"]),
+        }
 
 
 def compute_track_qc_arrays(

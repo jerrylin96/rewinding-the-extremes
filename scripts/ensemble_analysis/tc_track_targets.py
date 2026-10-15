@@ -1,19 +1,18 @@
-"""Shared TC free-end target extraction + pinned-end anchoring.
+"""Shared TC track geometry + the path-0 pinned-end anchoring diagnostic.
 
-Single definition of the per-member free-end track/intensity targets (storm
-latitude, longitude, great-circle distance from the ERA5 free-end fix, and
-central MSL) and the pinned-end anchoring check, read from the raw all-paths
-TempestExtremes parquet (``path_id=0`` is each member's tracker-primary path;
-anchoring flags the members whose primary path never reaches the ERA5 fix at
-the pinned end -- wrong-system or lost-storm contamination).
+Great-circle / longitude / nearest-fix helpers shared by ``track_qc`` and the
+track analyses, the rotated free-end target frames used by
+``synoptic_pca_track_stats.py``, and the path-0 anchoring check
+(:func:`_anchor_check`) that the standalone anchor diagnostic reports: whether
+each member's tracker-primary path (``path_id=0``) reaches the ERA5 fix at the
+pinned end.
 
-Imported by both ``compute_synoptic_pca.py`` -- which bakes the anchored
-targets + the ERA5 free-end MSL percentile into ``synoptic_pca_<mode>.npz`` so
-the aggregators read one source of truth -- and ``synoptic_pca_track_stats.py``
--- the thin QC CLI that renders the human-readable report. Keeping the
-extraction here (rather than in the npz's domain-restricted ``path_id=0``,
-which cannot anchor) is what lets the figure and the report quote identical
-numbers.
+Free-end targets are NOT extracted here.  The storm of interest is resolved by
+the round-5 track QC (``track_qc.py``), because tracking is global and
+TempestExtremes numbers concurrent systems arbitrarily: path 0 can be another
+storm (19 of 1000 Hurricane Ian members).  The path-0 extraction that used to
+live here (``load_track_targets`` / ``free_end_target_arrays``) was removed
+once ``compute_synoptic_pca.py`` stopped baking its output.
 
 Kept dependency-light (NumPy + the parquet reader) so a stats-only login-node
 run does not pull cartopy/matplotlib.
@@ -126,7 +125,7 @@ def _anchor_check(
     (no path does).  Returns None when the anchor window lies wholly beyond
     the parquet's lead axis (a truncated tracker run): the check is then
     *undefined*, not failed -- classifying every member as un-anchored would
-    silently empty the analysis under ``--drop-unanchored``.
+    misreport a truncated run as a wholesale tracking failure.
     """
     dmin = anchor_min_distances(ens_all_paths, anchor_lat, anchor_lon, anchor_frame)
     if dmin is None:
@@ -140,134 +139,6 @@ def _anchor_check(
         "lost": int((~any_anchored).sum()),
     }
     return path0_anchored, counts
-
-
-def load_track_targets(
-    parquet_path: str,
-    free_end_frame: int,
-    n_members: int,
-    *,
-    anchor_frame: int,
-    anchor_radius_km: float,
-    drop_unanchored: bool,
-) -> Tuple[Dict[str, np.ndarray], Dict[str, float], Dict[str, object]]:
-    """Per-member free-end track/intensity targets from the parquet.
-
-    Returns ``(targets, era5_ref, stats)``:
-
-    * ``targets`` maps target name -> ``[n_members]`` (NaN where the member
-      has no usable fix, or is un-anchored under ``drop_unanchored``);
-    * ``era5_ref`` holds the ERA5 free-end fix;
-    * ``stats`` carries the report bookkeeping: fallback count, the
-      pinned-end anchor classification, the number of members dropped, and
-      the ERA5 free-end MSL percentile (exact-frame definition, matching
-      ``aggregate_tc_tracks``'s ``ERA5 p<N>`` annotation).
-    """
-    tracks = load_tracks_parquet(parquet_path)
-    ens = tracks.get("ensemble")
-    era5 = tracks.get("era5")
-    if ens is None or era5 is None:
-        raise ValueError(f"{parquet_path}: missing ensemble or era5 tracks")
-
-    # All paths, [member, path, step, (lat, lon, msl)]; msl Pa -> hPa,
-    # tracker-grid [0, 360) longitudes -> [-180, 180).
-    ens_paths = ens[:, :, :, :3].astype(np.float64)
-    ens_paths[:, :, :, 1] = _norm_lon(ens_paths[:, :, :, 1])
-    ens_paths[:, :, :, 2] /= 100.0
-    ens_track = ens_paths[:, 0]  # primary path
-    era5_track = era5[0, 0, :, :3].astype(np.float64)
-    era5_track[:, 1] = _norm_lon(era5_track[:, 1])
-    era5_track[:, 2] /= 100.0
-
-    era5_fix, _ = _fix_at_frame(era5_track, free_end_frame)
-    if not np.isfinite(era5_fix).all():
-        raise ValueError(f"{parquet_path}: ERA5 has no valid free-end fix")
-
-    stats: Dict[str, object] = {}
-
-    # Pinned-end anchoring: ERA5's fix at the anchor frame is the point every
-    # conditioned member's storm must approach.  The check is skipped (never
-    # failed wholesale) when ERA5 has no usable anchor fix or the anchor
-    # window lies beyond the parquet's lead axis.
-    anchor_result = None
-    anchor_fix, anchor_fell_back = _fix_at_frame(era5_track, anchor_frame)
-    if np.isfinite(anchor_fix[:2]).all():
-        anchor_result = _anchor_check(
-            ens_paths,
-            float(anchor_fix[0]),
-            float(anchor_fix[1]),
-            anchor_frame,
-            anchor_radius_km,
-        )
-    if anchor_result is not None:
-        path0_anchored, counts = anchor_result
-        stats["anchor"] = {
-            "frame": anchor_frame,
-            "lat": float(anchor_fix[0]),
-            "lon": float(anchor_fix[1]),
-            "radius_km": anchor_radius_km,
-            "era5_fallback": anchor_fell_back,
-            **counts,
-        }
-    else:
-        path0_anchored = np.ones(ens_paths.shape[0], dtype=bool)
-        stats["anchor"] = None
-        print(
-            f"[tc-targets] anchor: no usable ERA5 fix / track window at "
-            f"frame {anchor_frame}; skipping the pinned-end anchoring check."
-        )
-
-    m = min(n_members, ens_track.shape[0])
-    fe = np.full((n_members, 3), np.nan, dtype=np.float64)
-    n_fallback = 0
-    n_dropped = 0
-    for i in range(m):
-        if drop_unanchored and not path0_anchored[i]:
-            n_dropped += 1
-            continue
-        fix, fell_back = _fix_at_frame(ens_track[i], free_end_frame)
-        fe[i] = fix
-        n_fallback += int(fell_back and np.isfinite(fix).all())
-    stats["n_fallback"] = n_fallback
-    stats["n_dropped"] = n_dropped
-    # Per-member anchoring mask (True = path 0 reaches the pinned-end anchor);
-    # consumed by ``free_end_target_arrays`` to bake the mask into the npz. Not
-    # read by the track-stats report, so exposing it changes nothing there.
-    stats["path0_anchored"] = np.asarray(path0_anchored, dtype=bool)
-
-    # ERA5 free-end MSL percentile, exact-frame definition (fraction of
-    # members with a finite fix at the free-end frame whose central MSL is at
-    # or below ERA5's) -- matches aggregate_tc_tracks's "ERA5 p<N>" label.
-    # Under --drop-unanchored the dropped members are excluded here too.
-    stats["era5_fe_msl_pct"] = float("nan")
-    stats["era5_fe_msl_n"] = 0
-    if 0 <= free_end_frame < ens_track.shape[1] and np.isfinite(
-        era5_track[free_end_frame, 2]
-    ):
-        col = ens_track[:m, free_end_frame, 2].copy()
-        if drop_unanchored:
-            col[~path0_anchored[:m]] = np.nan
-        col = col[np.isfinite(col)]
-        if col.size:
-            stats["era5_fe_msl_pct"] = float(
-                100.0 * (col <= era5_track[free_end_frame, 2]).mean()
-            )
-            stats["era5_fe_msl_n"] = int(col.size)
-
-    targets = {
-        "fe_lat_deg": fe[:, 0],
-        "fe_lon_deg": fe[:, 1],
-        "fe_dist_era5_km": _great_circle_km(
-            fe[:, 0], fe[:, 1], float(era5_fix[0]), float(era5_fix[1])
-        ),
-        "fe_msl_hpa": fe[:, 2],
-    }
-    era5_ref = {
-        "lat": float(era5_fix[0]),
-        "lon": float(era5_fix[1]),
-        "msl_hpa": float(era5_fix[2]),
-    }
-    return targets, era5_ref, stats
 
 
 # Mean km per degree of great-circle arc (2*pi*R / 360).
@@ -411,92 +282,5 @@ def _mean_storm_position(
 
 # Great-circle radius (km) within which a member's path must approach the ERA5
 # fix at the pinned-end frame to count as anchored.  Matches the track-stats
-# CLI default (--anchor-radius-km) so the baked targets and the report agree.
+# CLI default (--anchor-radius-km); track_qc uses the same value.
 ANCHOR_RADIUS_KM = 500.0
-
-# Column order of the baked per-member free-end target array.
-TARGET_COLUMNS: Tuple[str, ...] = (
-    "fe_lat_deg",
-    "fe_lon_deg",
-    "fe_dist_era5_km",
-    "fe_msl_hpa",
-)
-
-
-def free_end_target_arrays(
-    parquet_path: str,
-    free_end_frame: int,
-    n_members: int,
-    *,
-    anchor_frame: int,
-    anchor_radius_km: float = ANCHOR_RADIUS_KM,
-) -> Dict[str, np.ndarray]:
-    """npz-ready free-end target arrays for ``compute_synoptic_pca`` to bake.
-
-    Runs the shared :func:`load_track_targets` twice on the raw all-paths
-    parquet -- unanchored for the per-member targets, the anchoring mask and
-    the unanchored ERA5 MSL percentile, and ``drop_unanchored=True`` for the
-    anchored percentile (the same exact-frame definition the track-stats report
-    and the ``aggregate_tc_tracks`` ``ERA5 p<N>`` annotation use).  Baking the
-    all-member targets plus the mask lets a reader reconstruct either variant
-    (anchored = targets with ``~mask`` set to NaN) from one source of truth.
-
-    Returns fixed-shape arrays keyed exactly as the npz stores them:
-
-    * ``track_target_fe``            ``[n_members, 4]`` -- columns
-      ``TARGET_COLUMNS`` (lat, lon, great-circle dist from ERA5, central MSL);
-    * ``track_path0_anchored``       ``[n_members]`` bool;
-    * ``track_era5_fe``              ``[3]`` -- ERA5 free-end (lat, lon, MSL);
-    * ``track_anchor_frame``         scalar int;
-    * ``track_anchor_counts``        ``[3]`` int (anchored, alt_path, lost);
-    * ``track_era5_fe_msl_pct``      scalar (unanchored percentile);
-    * ``track_era5_fe_msl_pct_anchored`` scalar (anchored percentile);
-    * ``track_n_fallback``           scalar int (unanchored fallback count).
-    """
-    targets, era5_ref, stats = load_track_targets(
-        parquet_path,
-        free_end_frame,
-        n_members,
-        anchor_frame=anchor_frame,
-        anchor_radius_km=anchor_radius_km,
-        drop_unanchored=False,
-    )
-    _, _, stats_anchored = load_track_targets(
-        parquet_path,
-        free_end_frame,
-        n_members,
-        anchor_frame=anchor_frame,
-        anchor_radius_km=anchor_radius_km,
-        drop_unanchored=True,
-    )
-
-    fe = np.column_stack([targets[c] for c in TARGET_COLUMNS]).astype(np.float32)
-
-    # Align the mask (length = parquet member count) to n_members: members
-    # beyond the parquet have no track and are not anchored.
-    mask = np.asarray(stats["path0_anchored"], dtype=bool)
-    aligned = np.zeros(n_members, dtype=bool)
-    k = min(mask.shape[0], n_members)
-    aligned[:k] = mask[:k]
-
-    anchor = stats["anchor"]
-    counts = (
-        np.array(
-            [anchor["anchored"], anchor["alt_path"], anchor["lost"]], dtype=np.int32
-        )
-        if anchor is not None
-        else np.array([int(aligned.sum()), 0, 0], dtype=np.int32)
-    )
-
-    return {
-        "track_target_fe": fe,
-        "track_path0_anchored": aligned,
-        "track_era5_fe": np.array(
-            [era5_ref["lat"], era5_ref["lon"], era5_ref["msl_hpa"]], dtype=np.float32
-        ),
-        "track_anchor_frame": np.int32(anchor_frame),
-        "track_anchor_counts": counts,
-        "track_era5_fe_msl_pct": np.float32(stats["era5_fe_msl_pct"]),
-        "track_era5_fe_msl_pct_anchored": np.float32(stats_anchored["era5_fe_msl_pct"]),
-        "track_n_fallback": np.int32(stats["n_fallback"]),
-    }

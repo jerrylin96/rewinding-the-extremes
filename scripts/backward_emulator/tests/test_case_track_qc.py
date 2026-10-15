@@ -162,6 +162,20 @@ def test_compare_marks_track_target_sources(tmp_path):
     assert spc._read_pca_npz(str(tmp_path / "mk_old.npz"))["track_source"] == "path0"
 
 
+def test_compare_accepts_a_track_qc_cbottle_npz(case, parquet, tmp_path):
+    # An npz baked by the fixed compute_synoptic_pca (track_qc.free_end_npz_arrays)
+    # needs no parquet: its targets already come from the track QC.
+    _e, _r, qc = ctq.load_track_qc(parquet, case)
+    np.savez(tmp_path / "cb.npz", model="cbottle", case_name="Hurricane Ian",
+             free_end_frame=0, pc_scores=np.zeros((5, 10)),
+             explained_variance_ratio=np.linspace(0.3, 0.0, 10),
+             **qc.free_end_npz_arrays())
+    cb = spc._read_pca_npz(str(tmp_path / "cb.npz"))
+    assert cb["track_source"] == "track_qc"
+    assert cb["targets"]["tc_lon"][1] == pytest.approx(IAN_FE[1], abs=1e-3)
+    assert np.isnan(cb["targets"]["tc_lat"][2])
+
+
 def test_compare_refuses_path0_targets_without_parquet(tmp_path):
     _cbottle_track_npz(tmp_path / "cb.npz")
     _makani_track_npz(tmp_path / "mk.npz")

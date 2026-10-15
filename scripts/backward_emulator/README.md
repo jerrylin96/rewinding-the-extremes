@@ -99,8 +99,9 @@ These misuses used to produce plausible output, and are now errors:
   TempestExtremes numbers concurrent systems arbitrarily: 19 of the 1000 cBottle Ian
   members have another system on path 0 (15 near Okinawa, 3 off Mexico, 1 in the Bay
   of Bengal) and Ian on a different path, plus 7 members with no Ian track. The
-  paper's `synoptic_pca_end.npz` bakes those path-0 targets (`track_target_fe`); its
-  own figures stopped reading them, and so do ours: `synoptic_pca_compare.py` refuses
+  paper's existing `synoptic_pca_end.npz` holds those path-0 targets (`track_target_fe`,
+  baked before `compute_synoptic_pca.py` switched to track QC); its current figure code
+  does not read them, and neither do ours: `synoptic_pca_compare.py` refuses
   path-0 targets unless the model's tracks parquet is passed
   (`--cbottle-parquet`, `--makani-parquet`) so they can be recomputed, and the TC-track
   figure draws, counts (cBottle N = 993) and colours by the QC'd tracks. All 1000

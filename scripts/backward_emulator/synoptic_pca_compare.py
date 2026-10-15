@@ -14,10 +14,11 @@ Reads the makani npz (`synoptic_pca_makani.py`) and the cBottle npz (the paper's
 `compute_synoptic_pca.py` output, `synoptic_pca_end.npz`), normalising both schemas
 into one shape.  Degrades to makani-only if the cBottle npz is absent.
 
-**Track targets (Ian) come from the paper's track QC only.**  The cBottle npz bakes
-path-0 targets (`track_target_fe`) that the paper's own regression figure no longer
-reads; for Ian, 19 cBottle members carry another storm there.  So a model's track
-targets are recomputed from its tracks parquet (`--cbottle-parquet`,
+**Track targets (Ian) come from the paper's track QC only.**  A cBottle npz baked
+before `compute_synoptic_pca.py` used track QC holds path-0 targets
+(`track_target_fe`, no `track_target_source`) that the paper's current regression code
+does not read; for Ian, 19 cBottle members carry another storm there.  So a model's
+track targets are recomputed from its tracks parquet (`--cbottle-parquet`,
 `--makani-parquet`) through `case_track_qc`, and an npz whose targets did not come
 from track QC is refused rather than plotted.
 
@@ -146,7 +147,11 @@ def _read_pca_npz(path: str) -> Dict:
         tgt = np.asarray(z["track_target_fe"], float)  # [N,4]
         for j, nm in enumerate(_TRACK_NAMES):
             out["targets"][nm] = tgt[:, j]
-        out["track_source"] = "path0"  # the paper's superseded baked targets
+        # npz files baked before compute_synoptic_pca used track QC carry path-0
+        # targets and no source key.
+        source = (str(z["track_target_source"]) if "track_target_source" in keys
+                  else "")
+        out["track_source"] = source or "path0"
     return out
 
 

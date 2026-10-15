@@ -69,8 +69,8 @@ sys.path.insert(0, str(SHARED_DIR))
 sys.path.insert(0, str(ENSEMBLE_ANALYSIS_DIR))
 
 from _dispatch_lib import lead_hours  # noqa: E402
-from tc_track_targets import free_end_target_arrays  # noqa: E402
 from tc_tracks_io import load_tracks_parquet, restrict_to_domain  # noqa: E402
+from track_qc import compute_track_qc  # noqa: E402
 
 from custom_utils.diagnostics import (  # noqa: E402
     domain_hpx_indices,
@@ -1121,19 +1121,19 @@ def main() -> None:
     landfall_frame = int(args.landfall_frame)
     member_track_latlon = np.zeros((0, 0, 0), dtype=np.float32)
     era5_track_latlon = np.zeros((0, 0), dtype=np.float32)
-    # Baked free-end track targets (path_id=0), anchored via the shared
-    # tc_track_targets extraction, so aggregate_synoptic_pca can draw the
-    # track-regression figure and aggregate_tc_tracks can annotate the anchored
-    # ERA5 MSL percentile from one source of truth.  Empty unless
-    # impact_kind == "track"; populated in the track branch below.
-    track_target_fe = np.zeros((0, 4), dtype=np.float32)  # [N, (lat, lon, dist, msl)]
-    track_path0_anchored = np.zeros(0, dtype=bool)  # [N]
-    track_era5_fe = np.zeros(0, dtype=np.float32)  # [3] (lat, lon, msl_hpa)
-    track_anchor_frame = np.int32(-1)
-    track_anchor_counts = np.zeros(0, dtype=np.int32)  # [3] anchored/alt_path/lost
-    track_era5_fe_msl_pct = np.float32(np.nan)  # unanchored
-    track_era5_fe_msl_pct_anchored = np.float32(np.nan)
-    track_n_fallback = np.int32(0)
+    # Baked free-end track targets, resolved by the round-5 track QC (the rule
+    # the aggregators apply), for npz readers outside this pipeline.  Empty
+    # unless impact_kind == "track"; populated in the track branch below.
+    track_npz = {
+        "track_target_fe": np.zeros((0, 4), dtype=np.float32),  # [N, 4]
+        "track_target_source": np.array(""),
+        "track_analyzable": np.zeros(0, dtype=bool),  # [N]
+        "track_era5_fe": np.zeros(0, dtype=np.float32),  # [3] (lat, lon, msl_hpa)
+        "track_anchor_frame": np.int32(-1),
+        "track_qc_counts": np.zeros(0, dtype=np.int32),  # [4]
+        "track_era5_fe_msl_pct": np.float32(np.nan),
+        "track_n_fallback": np.int32(0),
+    }
 
     if impact_kind == "scalar":
         if not impact_variable or args.impact_bbox is None:
@@ -1315,43 +1315,38 @@ def main() -> None:
                 f"[syn-pca] impact track : {time.time() - t0:.1f}s  "
                 f"tracker={tc_tracker} members with track={n_tracked}/{n_members}"
             )
-            # Bake the anchored free-end targets from the raw all-paths parquet
-            # via the shared extraction (the same load_track_targets the
-            # track-stats report uses) so the aggregators quote one source of
-            # truth.  Anchor = the pinned end: frame 0 for start-conditioning,
-            # the landfall frame (last frame if unset) for end-conditioning.
-            # A baking failure degrades to maps-only rather than sinking the run.
+            # Bake the free-end targets from the raw all-paths parquet through
+            # the round-5 track QC, the same resolution aggregate_synoptic_pca
+            # and synoptic_pca_track_stats apply (they recompute it from the
+            # parquet; the baked copy serves other npz readers).  Never path 0:
+            # it can be another storm.  Anchor = the pinned end: frame 0 for
+            # start-conditioning, the landfall frame (last frame if unset)
+            # otherwise.  A baking failure degrades rather than sinking the run.
             anchor_frame = (
                 0
                 if args.mode == "start"
                 else (landfall_frame if 0 <= landfall_frame < n_leads else n_leads - 1)
             )
             try:
-                baked = free_end_target_arrays(
+                qc = compute_track_qc(
                     args.tc_parquet,
-                    free_end_frame,
-                    n_members,
+                    track_box=tuple(float(v) for v in args.tc_domain),
                     anchor_frame=anchor_frame,
+                    free_end_frame=free_end_frame,
+                    n_members=n_members,
                 )
-                track_target_fe = baked["track_target_fe"]
-                track_path0_anchored = baked["track_path0_anchored"]
-                track_era5_fe = baked["track_era5_fe"]
-                track_anchor_frame = baked["track_anchor_frame"]
-                track_anchor_counts = baked["track_anchor_counts"]
-                track_era5_fe_msl_pct = baked["track_era5_fe_msl_pct"]
-                track_era5_fe_msl_pct_anchored = baked["track_era5_fe_msl_pct_anchored"]
-                track_n_fallback = baked["track_n_fallback"]
-                a = track_anchor_counts
+                track_npz = qc.free_end_npz_arrays()
+                c = qc.counts()
                 print(
-                    f"[syn-pca] track targets: anchor frame {anchor_frame}, "
-                    f"anchored/alt/lost={a[0]}/{a[1]}/{a[2]}, ERA5 free-end MSL "
-                    f"pct anchored={float(track_era5_fe_msl_pct_anchored):.1f}"
+                    f"[syn-pca] track targets (track QC, anchor frame "
+                    f"{anchor_frame}): {c['analyzable']}/{c['total']} analyzable "
+                    f"(no_track={c['no_track']} unanchored={c['unanchored']} "
+                    f"insufficient_fixes={c['insufficient_fixes']})"
                 )
             except Exception as exc:  # noqa: BLE001 - degrade, do not crash
                 print(
                     f"[syn-pca] WARNING: could not bake free-end track targets "
-                    f"({exc}); the aggregator will skip the track-regression "
-                    f"figure and the anchored percentile annotation."
+                    f"({exc}); the npz will carry empty track_* arrays."
                 )
 
     # --- Save -----------------------------------------------------------
@@ -1448,17 +1443,9 @@ def main() -> None:
             np.float32
         ),  # [N, n_leads, 2] or empty
         era5_track_latlon=era5_track_latlon.astype(np.float32),  # [n_leads, 2] or empty
-        # Baked anchored free-end targets (empty unless impact_kind == "track");
-        # one source of truth for the track-regression figure + anchored ERA5
-        # MSL percentile.  See tc_track_targets.free_end_target_arrays.
-        track_target_fe=track_target_fe,  # [N, 4] (lat, lon, dist_km, msl_hpa)
-        track_path0_anchored=track_path0_anchored,  # [N] bool
-        track_era5_fe=track_era5_fe,  # [3] (lat, lon, msl_hpa)
-        track_anchor_frame=track_anchor_frame,
-        track_anchor_counts=track_anchor_counts,  # [3] anchored/alt_path/lost
-        track_era5_fe_msl_pct=track_era5_fe_msl_pct,  # unanchored
-        track_era5_fe_msl_pct_anchored=track_era5_fe_msl_pct_anchored,
-        track_n_fallback=track_n_fallback,
+        # Baked track-QC free-end targets (empty unless impact_kind == "track").
+        # See track_qc.TrackQC.free_end_npz_arrays for the keys.
+        **track_npz,
     )
     print(f"[syn-pca] wrote {npz_path}")
     print("[syn-pca] done.")

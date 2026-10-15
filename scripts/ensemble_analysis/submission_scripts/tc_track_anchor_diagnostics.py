@@ -113,7 +113,7 @@ def load_all_paths(parquet_path: str) -> Tuple[np.ndarray, np.ndarray]:
 
     Returns ``(ensemble [N, P, T, 4], era5 [T, 4])`` with longitudes on
     [-180, 180) and MSL in hPa -- the same normalization
-    ``tc_track_targets.load_track_targets`` applies, so distances computed
+    ``track_qc.compute_track_qc_arrays`` applies, so distances computed
     here match the track-stats report.
     """
     tracks = load_tracks_parquet(parquet_path)

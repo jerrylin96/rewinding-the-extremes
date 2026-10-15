@@ -9,8 +9,9 @@ case's ``regions.track`` box, the anchor at the case's landfall frame (last
 lead when the case sets none), and the free end at frame 0.
 
 Never take a member's storm from ``path_id=0`` of the raw parquet, nor from the
-path-0 ``track_target_fe`` baked into the paper's ``synoptic_pca_end.npz``
-(which the paper's own figures no longer read).  Tracking is global and
+path-0 ``track_target_fe`` in a ``synoptic_pca_end.npz`` baked before
+``compute_synoptic_pca.py`` switched to track QC (no ``track_target_source``
+key; the paper's current figure code does not read it).  Tracking is global and
 TempestExtremes numbers concurrent systems arbitrarily, so path 0 can be another
 storm: for Hurricane Ian, 19 of the 1000 cBottle members have a western-Pacific,
 eastern-Pacific or Bay-of-Bengal system on path 0 and Ian on another path.

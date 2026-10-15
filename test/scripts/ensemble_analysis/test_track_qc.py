@@ -179,6 +179,24 @@ class TestFreeEnd:
         assert n == 2
         assert pct == pytest.approx(50.0)
 
+    def test_npz_arrays_bake_the_resolved_storm(self, qc):
+        # compute_synoptic_pca bakes these.  m1's storm is on path 1 while a far
+        # system holds path 0: the baked target must be the storm, never path 0
+        # (the old path-0 baking put 19 wrong storms into Hurricane Ian's npz).
+        arr = qc.free_end_npz_arrays()
+        assert str(arr["track_target_source"]) == "track_qc"
+        fe = arr["track_target_fe"]
+        assert fe.shape == (6, 4)
+        assert fe[1, 0] == pytest.approx(26.0) and fe[1, 1] == pytest.approx(-78.0)
+        assert fe[1, 3] == pytest.approx(970.0)  # path 1's MSL, not path 0's 1005
+        assert np.isnan(fe[[2, 3, 4]]).all()  # excluded members
+        assert arr["track_analyzable"].tolist() == qc.analyzable.tolist()
+        assert arr["track_qc_counts"].tolist() == [3, 1, 1, 1]
+        assert int(arr["track_anchor_frame"]) == ANCHOR_FRAME
+        assert int(arr["track_n_fallback"]) == 1  # m5
+        np.testing.assert_allclose(arr["track_era5_fe"], [26.0, -78.0, 980.0])
+        assert float(arr["track_era5_fe_msl_pct"]) == pytest.approx(50.0)
+
 
 class TestStormOfInterestArray:
     def test_reduces_to_resolved_path(self):
