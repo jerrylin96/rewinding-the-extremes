@@ -37,10 +37,12 @@ numerically unstable while the video-diffusion ensemble cannot:
     the mask is monotone (a member that diverges stays dead), "alive at the
     free-end" == "a fully valid trajectory end to end", so only members with a
     physically valid precursor field enter the decomposition.
-  * The count of admitted members is reported and saved as ``n_analyzable`` (the
-    same bookkeeping the paper quotes, e.g. Ian "N=993 analyzable members").  This
-    is a no-op for the PNW ridge (stable) and live for Ian.  ``--no-pca-censor``
-    reverts to the paper's all-member convention.
+  * The count of admitted members is reported and saved as ``n_analyzable``.
+    Measured (Oct 2026): 778 of 1000 for the PNW ridge and 867 of 1000 for Ian,
+    so censoring is live in both cases.  This is a divergence count, distinct
+    from the paper's track-QC count (cBottle Ian "N=993 analyzable"), which
+    drops members with no resolvable storm.  ``--no-pca-censor`` reverts to the
+    paper's all-member convention.
 
 This censoring is the same divergence criterion the spread/RMSE/CRPS and ageostrophic
 diagnostics use, so "diverged" means one thing across the whole comparison.

@@ -69,8 +69,10 @@ failing lead onward — and reports the **survival fraction** alongside. cBottle
 end-conditioned members are all valid, so they need no censoring.
 
 Whether our comparison reducer needs censoring hinges on one empirical number:
-**the survival fraction at 66 h** (likely ~all for the PNW ridge, fewer for the
-faster Ian). Check it with makani's existing `analysis/ensemble_horizon.py` /
+**the survival fraction at 66 h**. Measured (Oct 2026): 778/1000 for the PNW ridge
+and 867/1000 for Ian, so censoring is live in both cases, and the PNW ridge loses
+more members than Ian (the original expectation was the reverse). Check it with
+makani's existing `analysis/ensemble_horizon.py` /
 `plot_ensemble_horizon.py` (torch-free; the `range` detector works from the field
 dumps alone) on the first 12 frames. If survival ≈ 100 % at 66 h, the naive
 all-member stats stand; if not, `latlon_metrics.reduce_selected` gains a per-member

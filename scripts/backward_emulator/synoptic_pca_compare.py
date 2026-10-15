@@ -155,8 +155,12 @@ def _read_pca_npz(path: str) -> Dict:
     return out
 
 
-def _apply_track_qc(m: Dict, parquet: str, case: Dict) -> None:
-    """Replace ``m``'s track targets with the paper's track-QC targets."""
+def _apply_track_qc(m: Dict, parquet: str, case: Dict, name: str = "") -> None:
+    """Replace ``m``'s track targets with the paper's track-QC targets.
+
+    ``name`` labels the log lines (the model key); the paper's npz stores no
+    model name, so ``m["model"]`` falls back to its file stem.
+    """
     from case_track_qc import free_end_target_matrix, load_track_qc, qc_summary
 
     n_rows = m["pc_scores"].shape[0]
@@ -167,11 +171,11 @@ def _apply_track_qc(m: Dict, parquet: str, case: Dict) -> None:
     if rows is not None:
         tgt = tgt[rows]
     if tgt.shape[0] != n_rows:
-        raise SystemExit(f"[pca-cmp] {m['model']}: {tgt.shape[0]} track rows != "
+        raise SystemExit(f"[pca-cmp] {name or m['model']}: {tgt.shape[0]} track rows != "
                          f"{n_rows} PC-score rows")
     m["targets"] = {nm: tgt[:, j] for j, nm in enumerate(_TRACK_NAMES)}
     m["track_source"] = "track_qc"
-    print(f"[pca-cmp] {m['model']} track QC from {parquet}: {qc_summary(qc)}")
+    print(f"[pca-cmp] {name or m['model']} track QC from {parquet}: {qc_summary(qc)}")
 
 
 def _r2_table(models: Dict[str, Dict], n_pc: int = 8) -> Dict:
@@ -388,7 +392,7 @@ def main(argv=None) -> None:
         if parquets.get(mkey):
             if not args.case:
                 raise SystemExit("[pca-cmp] --case is required with a tracks parquet.")
-            _apply_track_qc(m, parquets[mkey], dl.load_case(args.case))
+            _apply_track_qc(m, parquets[mkey], dl.load_case(args.case), name=mkey)
         elif m["track_source"] != "track_qc":
             raise SystemExit(
                 f"[pca-cmp] {mkey} npz holds path-0 track targets, which can be "

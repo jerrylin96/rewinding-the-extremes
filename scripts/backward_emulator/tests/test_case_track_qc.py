@@ -185,10 +185,12 @@ def test_compare_refuses_path0_targets_without_parquet(tmp_path):
                   "--case", "ian", "--out-dir", str(tmp_path / "out")])
 
 
-def test_compare_recomputes_targets_from_parquet(case, parquet, tmp_path):
+def test_compare_recomputes_targets_from_parquet(case, parquet, tmp_path, capsys):
     _cbottle_track_npz(tmp_path / "cb.npz")
     cb = spc._read_pca_npz(str(tmp_path / "cb.npz"))
-    spc._apply_track_qc(cb, parquet, case)
+    cb["model"] = "synoptic_pca_end"  # the paper's npz stores no model name
+    spc._apply_track_qc(cb, parquet, case, name="cbottle")
+    assert "[pca-cmp] cbottle track QC" in capsys.readouterr().out
     assert cb["track_source"] == "track_qc"
     assert cb["targets"]["tc_lon"][1] == pytest.approx(IAN_FE[1], abs=1e-3)
     assert np.isnan(cb["targets"]["tc_lat"][2])  # no Ian: dropped from the regression
