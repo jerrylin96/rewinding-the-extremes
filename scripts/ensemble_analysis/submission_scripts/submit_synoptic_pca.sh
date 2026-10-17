@@ -79,7 +79,7 @@ export NUMEXPR_NUM_THREADS=$NSLOTS
 #   [--conditioning-frame <int> ...]
 #   --impact-kind <scalar|track|none>
 #   [--impact-variable <name> --impact-bbox L R B T --impact-mask <kind>]
-#   [--tc-parquet <path> --tc-tracker <name> --tc-domain L R B T --landfall-frame <n>]
+#   [--tc-tracker <name> --tc-domain L R B T --landfall-frame <n>]
 # ---------------------------------------------------------------------
 
 echo "=========================================================="

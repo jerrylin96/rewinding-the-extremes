@@ -128,22 +128,21 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SHARED_DIR = SCRIPT_DIR.parent.parent / "_shared"
 sys.path.insert(0, str(SHARED_DIR))
 
-from _dispatch_lib import MODE_FRAMES, lead_hours  # noqa: E402
+from _dispatch_lib import MODE_FRAMES, anchor_free_end_frames, lead_hours  # noqa: E402
 
 from custom_utils.diagnostics import hpx_land_mask_from_sst_hpx  # noqa: E402
 from custom_utils.ensemble_loading import variable_index  # noqa: E402
 
 
-def _free_end_frame(mode: str, n_leads: int) -> int:
+def _free_end_frame(mode: str) -> int:
     """Return the frame index opposite the conditioning frame for ``mode``."""
-    if mode == "start":
-        return n_leads - 1
-    if mode == "end":
-        return 0
-    raise ValueError(
-        f"mode '{mode}' has no free end (both ends are conditioned); "
-        f"this diagnostic only runs on 'start' and 'end'."
-    )
+    free_end = anchor_free_end_frames(mode)[1]
+    if free_end is None:
+        raise ValueError(
+            f"mode '{mode}' has no free end (both ends are conditioned); "
+            f"this diagnostic only runs on 'start' and 'end'."
+        )
+    return free_end
 
 
 def _hpx_level_from_root(root) -> int:
@@ -522,8 +521,7 @@ def main() -> None:
     ens_root = zarr.open_group(args.ensemble_zarr, mode="r")
     _require_hpx_ensemble(ens_root, args.ensemble_zarr)
     lead_times = np.array(ens_root["lead_time"][:])
-    n_leads = len(lead_times)
-    free_end = _free_end_frame(args.mode, n_leads)
+    free_end = _free_end_frame(args.mode)
     free_end_h = float(lead_hours(lead_times)[free_end])
     cond_frames = list(
         ens_root.attrs.get("conditioning_frames", MODE_FRAMES[args.mode])

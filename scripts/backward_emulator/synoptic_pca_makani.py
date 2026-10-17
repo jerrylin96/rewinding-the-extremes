@@ -37,20 +37,27 @@ numerically unstable while the video-diffusion ensemble cannot:
     the mask is monotone (a member that diverges stays dead), "alive at the
     free-end" == "a fully valid trajectory end to end", so only members with a
     physically valid precursor field enter the decomposition.
-  * The count of admitted members is reported and saved as ``n_analyzable`` (the
-    same bookkeeping the paper quotes, e.g. Ian "N=993 analyzable members").  This
-    is a no-op for the PNW ridge (stable) and live for Ian.  ``--no-pca-censor``
-    reverts to the paper's all-member convention.
+  * The count of admitted members is reported and saved as ``n_analyzable``.
+    Measured (Oct 2026): 778 of 1000 for the PNW ridge and 867 of 1000 for Ian,
+    so censoring is live in both cases.  This is a divergence count, distinct
+    from the paper's track-QC count, which drops members with no resolvable
+    storm.  ``--no-pca-censor`` reverts to the
+    paper's all-member convention.
 
 This censoring is the same divergence criterion the spread/RMSE/CRPS and ageostrophic
 diagnostics use, so "diverged" means one thing across the whole comparison.
 
-Reuses `compute_synoptic_pca._pca` (SVD + sign-fix), `pca_stats` (OLS + CV), and
-`tc_track_targets.free_end_target_arrays` verbatim.
+Ian's track regression here is a log line only: the targets come from the paper's
+track QC (`case_track_qc`), and track-excluded members are NaN (dropped from the
+regression, as in the paper).  The npz stores no track targets;
+`synoptic_pca_compare.py` resolves them from the tracks parquet itself.
 
-Heavy env (the makani source is numpy/h5py, but `_pca`/`free_end_target_arrays`
-live next to torch/pandas imports).  Free-end frame = forward frame 0 (the
-unpinned window start; makani pins the present at forward -1, == cBottle end mode).
+Reuses `compute_synoptic_pca._pca` (SVD + sign-fix) and `pca_stats` (OLS + CV)
+verbatim.
+
+Heavy env (the makani source is numpy/h5py, but `_pca` lives next to torch
+imports).  Free-end frame = forward frame 0 (the unpinned window start; makani
+pins the present at forward -1, == cBottle end mode).
 """
 
 from __future__ import annotations
@@ -77,7 +84,8 @@ import _dispatch_lib as dl  # noqa: E402
 from latlon_metrics import cos_lat_weights, select_pixels  # noqa: E402
 from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
 
-FREE_END_FRAME = 0  # forward frame 0 = the unpinned window start (end-mode precursor)
+# Forward frame 0 = the unpinned window start (end-mode precursor).
+FREE_END_FRAME = dl.anchor_free_end_frames("end")[1]
 
 
 def build_feature_matrix_latlon(
@@ -273,18 +281,12 @@ def main(argv=None) -> None:
     else:
         if not args.tc_parquet:
             raise SystemExit("--impact-kind track needs --tc-parquet (the makani tracks).")
-        from tc_track_targets import free_end_target_arrays
-        landfall = dl.resolve_landfall_frame(case)
-        anchor = landfall if 0 <= landfall < args.n_frames else args.n_frames - 1
-        baked = free_end_target_arrays(args.tc_parquet, FREE_END_FRAME,
-                                       makani.n_members, anchor_frame=anchor)
-        tgt = np.asarray(baked["track_target_fe"], dtype=np.float64)[analyzable]  # [Na,4]
-        names = ["tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa"]
-        for j, nm in enumerate(names):
+        from case_track_qc import free_end_target_matrix, load_track_qc
+        _ens, _era5, qc = load_track_qc(args.tc_parquet, case, n_members=makani.n_members)
+        print(f"[syn-pca-mk] track QC: {qc.summary()}")
+        tgt = free_end_target_matrix(qc)[analyzable]  # [Na,4]; track-excluded rows NaN
+        for j, nm in enumerate(("tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa")):
             reg[nm] = regression_summary(scores, tgt[:, j], n_pc=args.n_pc)
-        payload["target_track_fe"] = tgt.astype(np.float32)
-        payload["target_names"] = np.array(names)
-        payload["track_era5_fe"] = np.asarray(baked["track_era5_fe"], np.float32)
 
     for nm, r in reg.items():
         print(f"[syn-pca-mk]   {nm}: R2_insample={r['r2_insample']:.3f} "

@@ -170,44 +170,6 @@ def tracks_in_domain(
     return _fixes_in_bbox(arr, lon_min, lon_max, lat_min, lat_max).any(axis=-1)
 
 
-def restrict_to_domain(
-    arr: np.ndarray,
-    lon_min: float,
-    lon_max: float,
-    lat_min: float,
-    lat_max: float,
-) -> np.ndarray:
-    """Restrict to the bbox and order each member's paths primary-first.
-
-    Returns a copy of ``arr`` with the same ``[n_members, n_paths,
-    n_steps, 4]`` shape.  For every member:
-
-    * paths with no valid fix in ``[lon_min, lon_max] x [lat_min,
-      lat_max]`` have their whole ``[n_steps, 4]`` slab replaced with NaN
-      (as before), and
-    * the surviving in-domain paths are moved to the front of the
-      ``path`` axis, ordered by how many fixes each places inside the
-      bbox (most first; ties keep the lowest original ``path_id``).
-
-    The reordering is what makes ``path_id=0`` mean "this member's storm
-    of interest" downstream.  TempestExtremes numbers concurrent systems
-    arbitrarily, so without it a member whose storm landed on
-    ``path_id>=1`` -- while an unrelated low claimed ``path_id=0`` -- is
-    silently dropped by every reader that takes path 0 (the overlay, the
-    ensemble-mean track, the tc_msl rows): ~1 in 7 members for Hurricane
-    Sandy.  Out-of-domain paths sort to the back, where they stay NaN, so
-    NaN-aware plotting / scoring code is unaffected.
-    """
-    if arr.ndim != 4 or arr.shape[-1] != 4:
-        raise ValueError(f"tracks array must have shape [N, P, T, 4]; got {arr.shape}")
-    counts = _fixes_in_bbox(arr, lon_min, lon_max, lat_min, lat_max).sum(axis=-1)
-    order = np.argsort(-counts, axis=1, kind="stable")  # most in-bbox fixes first
-    member_idx = np.arange(arr.shape[0])[:, None]
-    out = arr[member_idx, order].copy()
-    out[counts[member_idx, order] == 0] = np.nan  # paths with no in-bbox fix
-    return out
-
-
 def ensemble_mean_track(
     arr: np.ndarray, path_id: int = 0
 ) -> Tuple[np.ndarray, np.ndarray]:

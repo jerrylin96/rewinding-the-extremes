@@ -8,7 +8,8 @@ conventions:
   from the tc_tracks job -- pass `--tc-hold-jid <jobid>` so Ian's PCA waits for it.
 
 Both load the shared `survival_<case>.npz` for the makani-specific free-end
-divergence censoring (a no-op for PNW).  The light compare step
+divergence censoring (live in both cases: 778/1000 PNW and 867/1000 Ian members
+survive the 66 h window).  The light compare step
 (`synoptic_pca_compare.py`, makani vs the paper's cBottle npz) is run afterward,
 interactively.
 

@@ -18,7 +18,8 @@
 
 Covers ``warm_core_from_case``, which resolves the per-case default for
 the tempest warm-core thickness filter from ``tc_tracks.warm_core`` in
-the case YAML.  No zarr I/O or qsub submission is exercised.
+the case YAML, and ``anchor_free_end_frames``, the one mode -> frames rule.
+No zarr I/O or qsub submission is exercised.
 """
 
 from __future__ import annotations
@@ -31,7 +32,8 @@ SCRIPT_DIR = os.path.abspath(
 )
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "_shared"))
 
-from _dispatch_lib import warm_core_from_case  # noqa: E402
+import pytest  # noqa: E402
+from _dispatch_lib import anchor_free_end_frames, warm_core_from_case  # noqa: E402
 
 
 def test_warm_core_true_when_set():
@@ -49,3 +51,12 @@ def test_warm_core_defaults_false_when_key_absent():
 
 def test_warm_core_false_when_no_tc_block():
     assert warm_core_from_case({}) is False
+
+
+def test_anchor_free_end_frames_per_mode():
+    # The anchor is the pinned frame; the free end is the other window end.
+    assert anchor_free_end_frames("end") == (11, 0)
+    assert anchor_free_end_frames("start") == (0, 11)
+    assert anchor_free_end_frames("both") == (0, None)
+    with pytest.raises(ValueError):
+        anchor_free_end_frames("forward")

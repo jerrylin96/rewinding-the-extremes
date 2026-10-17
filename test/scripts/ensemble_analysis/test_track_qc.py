@@ -14,16 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for the round-5 unified track QC (``track_qc``).
+"""Unit tests for the unified track QC (``track_qc``).
 
 Exercises anchor-first storm-of-interest resolution and the exclusion
-taxonomy against synthetic parquets, including the three cases the round-5
-spec calls out explicitly: an anchor-reaching path that is not the stored
-path 0, a 2-fix path touching the anchor window (``insufficient_fixes``, not
-analyzable), and a coherent path that never approaches the anchor
-(``unanchored``).  Also covers the exact-frame subset / free-end MSL
-percentile and the storm-of-interest array reduction the figure scripts
-draw.  Pure NumPy / pandas / pyarrow -- no zarr, matplotlib, or cartopy.
+taxonomy against synthetic parquets: an anchor-reaching path that is not the
+stored path 0, a 2-fix path touching the anchor window (``insufficient_fixes``),
+a coherent path that never approaches the anchor (``unanchored``), and a storm
+with no fix at the free-end frame (``no_free_end_fix``: never replaced by a fix
+from another frame).  Also covers the ERA5 reference checks that raise instead
+of degrading, the per-mode frames, the free-end targets and percentile, the
+storm-of-interest array the figures draw, and the rotated-frame targets.  Pure
+NumPy / pandas / pyarrow -- no zarr, matplotlib, or cartopy.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ import pytest
 np = pytest.importorskip("numpy")
 pytest.importorskip("pandas")
 pytest.importorskip("pyarrow")
+pytest.importorskip("yaml")
 
 SCRIPT_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts")
@@ -44,16 +46,11 @@ sys.path.insert(0, os.path.join(SCRIPT_DIR, "ensemble_analysis"))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "ensemble_analysis", "submission_scripts"))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "_shared"))
 
+from tc_track_targets import rotated_track_targets  # noqa: E402
 from tc_tracks_io import save_tracks_parquet, tracks_in_domain  # noqa: E402
-from track_qc import (  # noqa: E402
-    compute_track_qc,
-    compute_track_qc_arrays,
-    resolve_storm_of_interest,
-)
+from track_qc import compute_track_qc, compute_track_qc_arrays  # noqa: E402
 
 T = 12
-ANCHOR_FRAME = 11  # end-mode: the pinned landfall frame
-FREE_END_FRAME = 0  # end-mode: the free (IC) end
 TRACK_BOX = (-85.0, -60.0, 25.0, 45.0)  # lon_min, lon_max, lat_min, lat_max
 
 
@@ -61,38 +58,39 @@ def _lon360(x: float) -> float:
     return x % 360.0
 
 
-def _era5() -> np.ndarray:
-    """ERA5 track [1,1,12,4]: NE-bound, free end (26N,-78E), anchor (40N,-74E)."""
+def _pos(t: int):
+    """ERA5's storm at frame t: NE-bound from (26N,-78E) to (40N,-74E)."""
+    return 26.0 + t * 14.0 / 11.0, -78.0 + t * 4.0 / 11.0
+
+
+def _era5(frames=range(T)) -> np.ndarray:
+    """ERA5 track [1,1,12,4]; free end (frame 0) MSL 980 hPa."""
     arr = np.full((1, 1, T, 4), np.nan)
-    for t in range(T):
-        lat = 26.0 + t * (40.0 - 26.0) / 11.0
-        lon = _lon360(-78.0 + t * (-74.0 - -78.0) / 11.0)
-        # free-end (frame 0) central MSL = 980 hPa
-        arr[0, 0, t] = [lat, lon, 98000.0, 30.0]
+    for t in frames:
+        lat, lon = _pos(t)
+        arr[0, 0, t] = [lat, _lon360(lon), 98000.0, 30.0]
     return arr
 
 
-def _storm(msl_pa: float = 99000.0, skip_frame0: bool = False, frames=range(T)):
+def _storm(msl_pa: float = 99000.0, frames=range(T)) -> np.ndarray:
     p = np.full((T, 4), np.nan)
     for t in frames:
-        if skip_frame0 and t == 0:
-            continue
-        lat = 26.0 + t * (40.0 - 26.0) / 11.0
-        lon = _lon360(-78.0 + t * (-74.0 - -78.0) / 11.0)
-        p[t] = [lat, lon, msl_pa, 30.0]
+        lat, lon = _pos(t)
+        p[t] = [lat, _lon360(lon), msl_pa, 30.0]
     return p
 
 
 def _ensemble() -> np.ndarray:
     """Six members, one per outcome the taxonomy must separate."""
     arr = np.full((6, 3, T, 4), np.nan)
-    # m0 analyzable, storm on path 0, exact free-end fix (990 hPa @ frame 0)
+    # m0 analyzable, storm on path 0 (990 hPa at the free end)
     arr[0, 0] = _storm(msl_pa=99000.0)
     # m1 analyzable but the storm lives on path 1 (path 0 is a far system)
     for t in range(T):
         arr[1, 0, t] = [10.0, 40.0, 100500.0, 15.0]
-    arr[1, 1] = _storm(msl_pa=97000.0)  # 970 hPa @ frame 0
-    # m2 insufficient_fixes: 2 in-domain fixes at the anchor window
+    arr[1, 1] = _storm(msl_pa=97000.0)
+    # m2 insufficient_fixes: 2 in-domain fixes at the anchor window (and no
+    # free-end fix either: the earlier reason wins)
     arr[2, 0] = _storm(frames=[10, 11])
     # m3 unanchored: coherent storm near (30,-80), never near the anchor
     for t in range(T):
@@ -100,8 +98,8 @@ def _ensemble() -> np.ndarray:
     # m4 no_track: only a far-away system, no in-domain fix
     for t in range(T):
         arr[4, 0, t] = [10.0, 40.0, 100500.0, 15.0]
-    # m5 analyzable with a nearest-frame free-end fallback (no frame-0 fix)
-    arr[5, 0] = _storm(msl_pa=99500.0, skip_frame0=True)
+    # m5 no_free_end_fix: the storm forms one frame after the free end
+    arr[5, 0] = _storm(msl_pa=99500.0, frames=range(1, T))
     return arr
 
 
@@ -109,12 +107,8 @@ def _ensemble() -> np.ndarray:
 def qc(tmp_path):
     pq = str(tmp_path / "tc_tracks_end.parquet")
     save_tracks_parquet(pq, _ensemble(), era5_arr=_era5())
-    return compute_track_qc(
-        pq,
-        track_box=TRACK_BOX,
-        anchor_frame=ANCHOR_FRAME,
-        free_end_frame=FREE_END_FRAME,
-    )
+    _ens, _era5_arr, out = compute_track_qc(pq, track_box=TRACK_BOX, mode="end")
+    return out
 
 
 class TestTaxonomy:
@@ -125,147 +119,176 @@ class TestTaxonomy:
             "insufficient_fixes",
             "unanchored",
             "no_track",
-            "",
+            "no_free_end_fix",
         ]
 
     def test_analyzable_and_anchored_masks(self, qc):
-        assert qc.analyzable.tolist() == [True, True, False, False, False, True]
-        # insufficient_fixes reached the anchor -> anchored True but not analyzable
+        assert qc.analyzable.tolist() == [True, True, False, False, False, False]
         assert qc.anchored.tolist() == [True, True, True, False, False, True]
 
     def test_storm_on_non_path0_is_resolved(self, qc):
-        # m1's storm is stored on path 1; resolution recovers it.
         assert qc.resolved_path_id.tolist() == [0, 1, 0, -1, -1, 0]
 
     def test_resolved_domain_fix_counts(self, qc):
-        # Resolved-path in-domain fix count (0 where nothing resolved).
         assert qc.table["n_domain_fixes"].tolist() == [12, 12, 2, 0, 0, 11]
-
-    def test_two_fix_anchor_touch_is_insufficient(self, qc):
-        row = qc.table.iloc[2]
-        assert row["anchored"] and not row["analyzable"]
-        assert row["exclusion"] == "insufficient_fixes"
-        assert row["n_domain_fixes"] == 2
 
     def test_counts_partition(self, qc):
         c = qc.counts()
-        assert c["total"] == 6
-        assert c["analyzable"] == 3
-        assert c["excluded"] == 3
-        assert c["no_track"] == 1
-        assert c["unanchored"] == 1
-        assert c["insufficient_fixes"] == 1
-        # excluded == sum of the three reasons
-        assert c["excluded"] == c["no_track"] + c["unanchored"] + c["insufficient_fixes"]
+        assert (c["total"], c["analyzable"], c["excluded"]) == (6, 2, 4)
+        for reason in ("no_track", "unanchored", "insufficient_fixes", "no_free_end_fix"):
+            assert c[reason] == 1
+        assert qc.summary() == (
+            "2/6 analyzable (excluded: no_track=1 unanchored=1 "
+            "insufficient_fixes=1 no_free_end_fix=1)"
+        )
+
+    def test_frames_come_from_the_mode(self, qc):
+        assert (qc.config["anchor_frame"], qc.config["free_end_frame"]) == (11, 0)
 
 
 class TestFreeEnd:
-    def test_exact_frame_excludes_fallback(self, qc):
-        # m0, m1 have exact frame-0 fixes; m5 fell back -> analyzable but not exact.
-        assert qc.exact_frame.tolist() == [True, True, False, False, False, False]
-        assert qc.fe_fallback.tolist() == [False, False, True, False, False, True]
+    def test_targets_are_exact_frame_and_nan_for_excluded(self, qc):
+        fet = qc.free_end_targets()
+        np.testing.assert_allclose(fet["fe_lat_deg"][[0, 1]], 26.0)
+        np.testing.assert_allclose(fet["fe_msl_hpa"][[0, 1]], [990.0, 970.0])
+        # m5's frame-1 fix is never used as its free end.
+        assert np.isnan(fet["fe_lat_deg"][[2, 3, 4, 5]]).all()
+        assert np.isfinite(fet["fe_dist_era5_km"][[0, 1]]).all()
 
-    def test_free_end_targets_nan_for_excluded(self, qc):
-        fet = qc.free_end_targets()  # analyzable-only by default
-        lat = fet["fe_lat_deg"]
-        assert np.isfinite(lat[[0, 1, 5]]).all()
-        assert np.isnan(lat[[2, 3, 4]]).all()
-        # distance from ERA5 is finite exactly where the fix is.
-        assert np.isfinite(fet["fe_dist_era5_km"][0])
-
-    def test_era5_msl_pct_over_exact_frame(self, qc):
-        # exact-frame members m0 (990 hPa) and m1 (970) vs ERA5 980 -> 1/2 below.
+    def test_era5_msl_pct_over_analyzable(self, qc):
+        # m0 (990 hPa) and m1 (970) vs ERA5 980 -> 1/2 at or below.
         pct, n = qc.era5_free_end_msl_pct()
         assert n == 2
         assert pct == pytest.approx(50.0)
 
 
-class TestStormOfInterestArray:
-    def test_reduces_to_resolved_path(self):
-        ens, era5 = _ensemble(), _era5()
-        reordered, qc = resolve_storm_of_interest(
-            ens,
-            era5,
-            track_box=TRACK_BOX,
-            anchor_frame=ANCHOR_FRAME,
-            free_end_frame=FREE_END_FRAME,
-        )
-        assert reordered.shape == (6, 1, T, 4)
-        # m1's resolved storm (original path 1) is now at index 0.
-        assert np.allclose(reordered[1, 0], ens[1, 1], equal_nan=True)
-        # unanchored (m3) and no_track (m4) come back all-NaN (skipped in drawing).
-        assert np.isnan(reordered[3, 0]).all()
-        assert np.isnan(reordered[4, 0]).all()
-        # insufficient_fixes (m2) keeps its short resolved path.
-        assert np.isfinite(reordered[2, 0]).any()
+class TestModes:
+    def test_start_mode_needs_the_last_frame(self):
+        # Start-conditioning: anchor at frame 0, free end at the last frame.
+        ens = np.full((2, 1, T, 4), np.nan)
+        ens[0, 0] = _storm()
+        ens[1, 0] = _storm(frames=range(0, T - 1))  # lost one frame early
+        qc = compute_track_qc_arrays(ens, _era5(), track_box=TRACK_BOX, mode="start")
+        assert (qc.config["anchor_frame"], qc.config["free_end_frame"]) == (0, 11)
+        assert qc.table["exclusion"].tolist() == ["", "no_free_end_fix"]
+        assert qc.era5_free_end["lat"] == pytest.approx(40.0)
 
-    def test_reordered_domain_membership(self):
-        ens, era5 = _ensemble(), _era5()
-        reordered, _ = resolve_storm_of_interest(
-            ens,
-            era5,
-            track_box=TRACK_BOX,
-            anchor_frame=ANCHOR_FRAME,
-            free_end_frame=FREE_END_FRAME,
-        )
-        in_dom = tracks_in_domain(reordered, *TRACK_BOX)[:, 0]
-        # Every resolved storm (m0, m1, m2, m5) touches the track box.
-        assert in_dom[[0, 1, 2, 5]].all()
-        assert not in_dom[[3, 4]].any()
+    def test_both_mode_has_no_free_end(self):
+        ens = np.full((1, 1, T, 4), np.nan)
+        ens[0, 0] = _storm(frames=range(0, T - 1))
+        qc = compute_track_qc_arrays(ens, _era5(), track_box=TRACK_BOX, mode="both")
+        assert qc.era5_free_end is None
+        assert qc.analyzable.tolist() == [True]
+        with pytest.raises(ValueError, match="no free end"):
+            qc.free_end_targets()
+
+    def test_unknown_mode_raises(self):
+        with pytest.raises(ValueError, match="mode"):
+            compute_track_qc_arrays(
+                _ensemble(), _era5(), track_box=TRACK_BOX, mode="forward"
+            )
+
+
+class TestEra5Reference:
+    def test_missing_anchor_fix_raises(self):
+        with pytest.raises(ValueError, match="anchor frame 11"):
+            compute_track_qc_arrays(
+                _ensemble(), _era5(frames=range(0, T - 1)), track_box=TRACK_BOX, mode="end"
+            )
+
+    def test_missing_free_end_fix_raises(self):
+        with pytest.raises(ValueError, match="free-end frame 0"):
+            compute_track_qc_arrays(
+                _ensemble(), _era5(frames=range(1, T)), track_box=TRACK_BOX, mode="end"
+            )
+
+    def test_path0_outside_the_track_box_raises(self):
+        # ERA5 path 0 is some other system: its anchor fix is not in the box.
+        era5 = _era5()
+        era5[0, 0, :, :2] = [10.0, 40.0]
+        with pytest.raises(ValueError, match="outside the track box"):
+            compute_track_qc_arrays(_ensemble(), era5, track_box=TRACK_BOX, mode="end")
+
+    def test_era5_required(self):
+        with pytest.raises(ValueError, match="ERA5"):
+            compute_track_qc_arrays(_ensemble(), None, track_box=TRACK_BOX, mode="end")
+
+
+class TestMemberAxis:
+    def test_n_members_padding(self, tmp_path):
+        # The parquet has no rows for a member the tracker found nothing in, so
+        # trailing members are no_track.
+        pq = str(tmp_path / "tc_tracks_end.parquet")
+        save_tracks_parquet(pq, _ensemble(), era5_arr=_era5())
+        _e, _r, qc = compute_track_qc(pq, track_box=TRACK_BOX, mode="end", n_members=8)
+        assert qc.n_members == 8
+        assert qc.table["exclusion"].tolist()[6:] == ["no_track", "no_track"]
+
+    def test_fewer_members_than_tracks_raises(self):
+        with pytest.raises(ValueError, match="n_members=4"):
+            compute_track_qc_arrays(
+                _ensemble(), _era5(), track_box=TRACK_BOX, mode="end", n_members=4
+            )
+
+    def test_anchor_window_past_the_array_is_unanchored(self):
+        # No member has a fix at frames 9-11, so the tracker array stops at
+        # frame 8: nobody reaches the anchor (no domain-only stand-in).
+        ens = _storm(frames=range(0, 9))[None, None, :9]
+        qc = compute_track_qc_arrays(ens, _era5(), track_box=TRACK_BOX, mode="end")
+        assert qc.table["exclusion"].tolist() == ["unanchored"]
 
 
 class TestTaxonomyOrdering:
-    def test_no_track_beats_out_of_domain_anchor_fix(self, tmp_path):
+    def test_no_track_beats_out_of_domain_anchor_fix(self):
         # A path can reach the anchor via an out-of-domain window fix while
-        # having no in-domain fix at all.  The spec's order makes that
-        # no_track (checked first), not insufficient_fixes.
+        # having no in-domain fix at all: that is no_track, checked first.
         box = (-80.0, -75.0, 38.0, 42.0)  # tight box; anchor sits near the edge
         era5 = np.full((1, 1, T, 4), np.nan)
         for t in range(T):
             era5[0, 0, t] = [38.0 + t * 4.0 / 11.0, _lon360(-77.5), 98000.0, 30.0]
-        # anchor (frame 11) = (42, -77.5), free end (frame 0) = (38, -77.5).
         ens = np.full((2, 1, T, 4), np.nan)
         # m0: single fix ~330 km from the anchor but out of the box (lon -73.5).
         ens[0, 0, 11] = [42.0, _lon360(-73.5), 99000.0, 30.0]
         # m1: a normal in-box analyzable storm.
         for t in range(T):
             ens[1, 0, t] = [38.0 + t * 4.0 / 11.0, _lon360(-77.5), 99000.0, 30.0]
-        pq = str(tmp_path / "tc_tracks_end.parquet")
-        save_tracks_parquet(pq, ens, era5_arr=era5)
-        qc = compute_track_qc(
-            pq, track_box=box, anchor_frame=ANCHOR_FRAME, free_end_frame=FREE_END_FRAME
-        )
+        qc = compute_track_qc_arrays(ens, era5, track_box=box, mode="end")
         assert qc.table["exclusion"].tolist() == ["no_track", ""]
         assert qc.resolved_path_id.tolist() == [-1, 0]
 
 
-class TestDegradation:
-    def test_undefined_anchor_falls_back_to_domain_rule(self, tmp_path):
-        # Anchor frame beyond the lead axis -> anchor undefined; resolution
-        # degrades to "most in-domain fixes", no member is 'unanchored'.
-        pq = str(tmp_path / "tc_tracks_end.parquet")
-        save_tracks_parquet(pq, _ensemble(), era5_arr=_era5())
-        qc = compute_track_qc_arrays(
-            _ensemble(),
-            _era5(),
-            track_box=TRACK_BOX,
-            anchor_frame=999,
-            free_end_frame=FREE_END_FRAME,
-        )
-        assert qc.era5_anchor is None
-        assert qc.config["anchor_defined"] is False
-        assert int((qc.table["exclusion"] == "unanchored").sum()) == 0
+class TestStormOfInterestArray:
+    def test_draws_only_the_analyzable_storms(self, qc):
+        ens = _ensemble()
+        soi = qc.storm_of_interest_array(ens)
+        assert soi.shape == (6, 1, T, 4)
+        # m1's storm (original path 1) is now at index 0.
+        assert np.allclose(soi[1, 0], ens[1, 1], equal_nan=True)
+        # Every excluded member, including a full storm with no free-end fix
+        # (m5), is all-NaN: the figures draw the statistics' population.
+        assert np.isnan(soi[[2, 3, 4, 5]]).all()
+        in_dom = tracks_in_domain(soi, *TRACK_BOX)[:, 0]
+        assert in_dom.tolist() == [True, True, False, False, False, False]
 
-    def test_n_members_padding(self, tmp_path):
-        # Requesting more members than the parquet has -> extras are no_track.
-        pq = str(tmp_path / "tc_tracks_end.parquet")
-        save_tracks_parquet(pq, _ensemble(), era5_arr=_era5())
-        qc = compute_track_qc(
-            pq,
-            track_box=TRACK_BOX,
-            anchor_frame=ANCHOR_FRAME,
-            free_end_frame=FREE_END_FRAME,
-            n_members=8,
-        )
-        assert qc.n_members == 8
-        assert qc.table["exclusion"].tolist()[6:] == ["no_track", "no_track"]
+
+class TestRotatedTargets:
+    def test_along_track_frame(self, qc):
+        era5 = _era5()
+        targets = qc.free_end_targets()
+        targets["fe_lat_deg"][1] += 1.0  # one member a degree north of ERA5
+        targets["fe_lat_deg"][2] = 26.0  # a third fix for the cloud frame
+        targets["fe_lon_deg"][2] = -78.5
+        rotated, info = rotated_track_targets(era5, targets, qc.era5_free_end, 0)
+        assert rotated["fe_along_km"][0] == pytest.approx(0.0, abs=1e-6)
+        assert rotated["fe_along_km"][1] > 0  # north is along ERA5's NE motion
+        assert 0.0 < info["era5_motion_bearing_deg"] < 90.0
+
+    def test_missing_neighbour_fix_raises(self, qc):
+        era5 = _era5()
+        era5[0, 0, 1] = np.nan
+        with pytest.raises(ValueError, match="frames 0, 1"):
+            rotated_track_targets(era5, qc.free_end_targets(), qc.era5_free_end, 0)
+
+    def test_too_few_fixes_raises(self, qc):
+        with pytest.raises(ValueError, match="need >= 3"):
+            rotated_track_targets(_era5(), qc.free_end_targets(), qc.era5_free_end, 0)
