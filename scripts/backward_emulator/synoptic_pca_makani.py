@@ -40,18 +40,17 @@ numerically unstable while the video-diffusion ensemble cannot:
   * The count of admitted members is reported and saved as ``n_analyzable``.
     Measured (Oct 2026): 778 of 1000 for the PNW ridge and 867 of 1000 for Ian,
     so censoring is live in both cases.  This is a divergence count, distinct
-    from the paper's track-QC count (cBottle Ian "N=993 analyzable"), which
-    drops members with no resolvable storm.  ``--no-pca-censor`` reverts to the
+    from the paper's track-QC count, which drops members with no resolvable
+    storm.  ``--no-pca-censor`` reverts to the
     paper's all-member convention.
 
 This censoring is the same divergence criterion the spread/RMSE/CRPS and ageostrophic
 diagnostics use, so "diverged" means one thing across the whole comparison.
 
-Ian's track targets come from the paper's track QC (`case_track_qc`), the rule its
-own regression figure uses: each member's storm of interest is the path that
-reaches the landfall anchor, and track-excluded members are NaN (dropped from the
-regression, as in the paper).  The npz records ``target_source="track_qc"`` so
-`synoptic_pca_compare.py` can tell these from path-0 targets.
+Ian's track regression here is a log line only: the targets come from the paper's
+track QC (`case_track_qc`), and track-excluded members are NaN (dropped from the
+regression, as in the paper).  The npz stores no track targets;
+`synoptic_pca_compare.py` resolves them from the tracks parquet itself.
 
 Reuses `compute_synoptic_pca._pca` (SVD + sign-fix) and `pca_stats` (OLS + CV)
 verbatim.
@@ -85,7 +84,8 @@ import _dispatch_lib as dl  # noqa: E402
 from latlon_metrics import cos_lat_weights, select_pixels  # noqa: E402
 from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
 
-FREE_END_FRAME = 0  # forward frame 0 = the unpinned window start (end-mode precursor)
+# Forward frame 0 = the unpinned window start (end-mode precursor).
+FREE_END_FRAME = dl.anchor_free_end_frames("end")[1]
 
 
 def build_feature_matrix_latlon(
@@ -281,18 +281,12 @@ def main(argv=None) -> None:
     else:
         if not args.tc_parquet:
             raise SystemExit("--impact-kind track needs --tc-parquet (the makani tracks).")
-        from case_track_qc import free_end_target_matrix, load_track_qc, qc_summary
+        from case_track_qc import free_end_target_matrix, load_track_qc
         _ens, _era5, qc = load_track_qc(args.tc_parquet, case, n_members=makani.n_members)
-        print(f"[syn-pca-mk] track QC: {qc_summary(qc)}")
+        print(f"[syn-pca-mk] track QC: {qc.summary()}")
         tgt = free_end_target_matrix(qc)[analyzable]  # [Na,4]; track-excluded rows NaN
-        names = ["tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa"]
-        for j, nm in enumerate(names):
+        for j, nm in enumerate(("tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa")):
             reg[nm] = regression_summary(scores, tgt[:, j], n_pc=args.n_pc)
-        payload["target_track_fe"] = tgt.astype(np.float32)
-        payload["target_names"] = np.array(names)
-        payload["target_source"] = np.array("track_qc")
-        payload["track_era5_fe"] = np.array(
-            [qc.era5_free_end[k] for k in ("lat", "lon", "msl_hpa")], np.float32)
 
     for nm, r in reg.items():
         print(f"[syn-pca-mk]   {nm}: R2_insample={r['r2_insample']:.3f} "

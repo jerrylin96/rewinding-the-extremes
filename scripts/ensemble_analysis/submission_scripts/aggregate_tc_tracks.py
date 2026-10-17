@@ -3,9 +3,10 @@
 Reads the three per-mode ``tc_tracks_<mode>.parquet`` files (written by
 ``plot_ensemble_tc_tracks.py``) and renders one multi-row figure per case.
 ``track_qc`` resolves each member's storm of interest anchor-first (the
-tracker path reaching the ERA5 fix at the pinned end -- the landfall frame
-under end-conditioning, frame 0 otherwise) and reduces the raw all-paths
-array to that one path; the maps and trajectories draw the resolved storm.
+tracker path reaching the ERA5 fix at the pinned end -- the last frame under
+end-conditioning, frame 0 otherwise) and reduces the raw all-paths array to
+the analyzable members' storms; the maps and trajectories draw exactly that
+population.
 
 Row 1 is the 3-panel side-by-side track map: one panel per available
 conditioning mode (end / start / both), each member's resolved storm
@@ -23,8 +24,8 @@ gold.  A shaded 5–95% band shows the member envelope at each step, and
 on the end- and start-conditioned rows a whisker + star marks where ERA5
 falls within that envelope at the *free* (unconditioned) end — lead 0
 under end-conditioning, the final lead under start-conditioning — labelled
-with track_qc's exact-frame ``ERA5 pN`` percentile.  The x-axis is the
-local wall-clock keyed to the case's IANA timezone.
+with track_qc's ``ERA5 pN`` percentile over the analyzable members.  The
+x-axis is the local wall-clock keyed to the case's IANA timezone.
 
 Outputs (in --output-dir):
     tc_tracks.png   - multi-row case figure (track maps + tc_msl trajectories)
@@ -61,7 +62,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parent))
 sys.path.insert(0, str(SCRIPT_DIR.parent.parent / "_shared"))
 
-from _dispatch_lib import wrap_lon_0_360  # noqa: E402
+from _dispatch_lib import anchor_free_end_frames, wrap_lon_0_360  # noqa: E402
 from local_time_axis import format_local_time_axis  # noqa: E402
 from plot_style import (  # noqa: E402
     AXIS_LABEL_SIZE,
@@ -86,16 +87,10 @@ MODE_LABELS = {
 
 MEMBER_TRACK_CMAP = plt.cm.jet
 
-MIN_PATH_LENGTH = 3
-
 # Index of the resolved storm-of-interest path after track_qc reduces each
 # member to one path (TrackQC.storm_of_interest_array puts it at index 0).
 PRIMARY_PATH_ID = 0
 
-# Free-end frame per conditioning mode (the unconditioned end): the IC (frame
-# 0) under end-conditioning, the last lead under start-conditioning.  Both-end
-# conditioning pins both ends -- resolve against the IC anchor, no free end.
-FREE_END_FRAME = {"end": 0, "start": 11}
 
 # Spaghetti style mirrors aggregate_free_end_states.py so the two
 # figures read as the same family of plot.
@@ -189,14 +184,11 @@ def _draw_track_map_panel(
     # dashed frame marks exactly the region the in-domain counts cover.
     draw_domain_box(ax, [_lon_min, _lon_max, lat_min, lat_max])
 
-    # The "free end" — the end of each track that wasn't anchored to ERA5
-    # by the conditioning — is the most informative endpoint to highlight:
-    # under end-conditioning, the free end is the *start* (members
-    # diverge backwards from a common landfall fix); under start-
-    # conditioning, the free end is the *last* fix; under both-end
-    # conditioning, neither end is free, so no marker is drawn.
-    free_end_idx_lookup = {"end": "first", "start": "last"}
-    free_end_pick = free_end_idx_lookup.get(mode)
+    # The "free end" -- the end of each track that wasn't anchored to ERA5
+    # by the conditioning -- is the most informative endpoint to highlight
+    # (_dispatch_lib.anchor_free_end_frames; both-end conditioning has none,
+    # so no marker).
+    free_end_frame = anchor_free_end_frames(mode)[1]
 
     n_plotted = 0
     n_free_end_dots = 0
@@ -205,7 +197,7 @@ def _draw_track_map_panel(
             tc_lats = tc_tracks_np[member_idx, path_id, :, 0]
             tc_lons = tc_tracks_np[member_idx, path_id, :, 1]
             valid = ~np.isnan(tc_lats) & ~np.isnan(tc_lons)
-            if valid.sum() < MIN_PATH_LENGTH:
+            if not valid.any():  # excluded by track_qc
                 continue
             member_color = MEMBER_TRACK_CMAP(member_idx / max(1, n_members - 1))
             ax.plot(
@@ -217,11 +209,10 @@ def _draw_track_map_panel(
                 transform=ccrs.PlateCarree(),
                 zorder=2,
             )
-            if free_end_pick is not None:
-                end_i = 0 if free_end_pick == "first" else -1
+            if free_end_frame is not None:
                 ax.plot(
-                    tc_lons[valid][end_i],
-                    tc_lats[valid][end_i],
+                    tc_lons[free_end_frame],
+                    tc_lats[free_end_frame],
                     "o",
                     color=member_color,
                     markersize=4.5,
@@ -239,7 +230,7 @@ def _draw_track_map_panel(
     mean_valid_n = 0
     if mean_lats.size:
         valid_mean = ~np.isnan(mean_lats) & ~np.isnan(mean_lons)
-        if valid_mean.sum() >= MIN_PATH_LENGTH:
+        if valid_mean.any():
             ax.plot(
                 mean_lons[valid_mean],
                 mean_lats[valid_mean],
@@ -269,7 +260,7 @@ def _draw_track_map_panel(
             era5_lats = era5_tracks[0, path_id, :, 0]
             era5_lons = era5_tracks[0, path_id, :, 1]
             valid_era5 = ~np.isnan(era5_lats) & ~np.isnan(era5_lons)
-            if valid_era5.sum() < MIN_PATH_LENGTH:
+            if not valid_era5.any():
                 continue
             label = "ERA5" if path_id == 0 else None
             ax.plot(
@@ -299,8 +290,8 @@ def _draw_track_map_panel(
     )
     ax.legend(loc="lower left", fontsize=LEGEND_SIZE, framealpha=0.8)
     free_end_msg = (
-        f" + {n_free_end_dots} free-end dots ({free_end_pick})"
-        if free_end_pick is not None
+        f" + {n_free_end_dots} free-end dots (frame {free_end_frame})"
+        if free_end_frame is not None
         else ""
     )
     print(
@@ -334,8 +325,8 @@ def _draw_tc_msl_trajectory(
     ensemble envelope, and for end-/start-conditioning a whisker + star
     annotates where ERA5 sits within that envelope at the free
     (unconditioned) end — lead 0 for end-conditioning, the final lead for
-    start-conditioning — labelled with ERA5's percentile rank among the
-    surviving members (the value, band bounds and member count go to the
+    start-conditioning — labelled with track_qc's ERA5 percentile over the
+    analyzable members (the value, band bounds and member count go to the
     run log).  Returns ``True`` if any member or
     ERA5 trajectory was plotted; ``False`` if the parquet had no usable
     tc_msl at this path id (e.g. tracker missed it entirely).
@@ -472,14 +463,11 @@ def _draw_tc_msl_trajectory(
 
     # --- Free-end envelope call-out -------------------------------------
     # The "free end" is the trajectory endpoint not pinned by the
-    # conditioning (mirrors the map panels' free_end_idx_lookup): under
-    # end-conditioning members fan out backward from the anchored landfall,
-    # so the free end is lead 0 (first step); under start-conditioning they
-    # fan out forward from the anchored IC, so it is the final lead step.
-    # Both-end conditioning pins both ends — no free end — so we skip it.
-    free_end_pick = {"end": "first", "start": "last"}.get(mode)
-    if free_end_pick is not None:
-        free_idx = 0 if free_end_pick == "first" else n_steps - 1
+    # conditioning (_dispatch_lib.anchor_free_end_frames): lead 0 under
+    # end-conditioning, the final lead under start-conditioning.  Both-end
+    # conditioning pins both ends -- no free end -- so we skip it.
+    free_idx = anchor_free_end_frames(mode)[1]
+    if free_idx is not None:
         free_lead = float(lead_hours[free_idx])
         lo_fe = env_lo[free_idx]
         hi_fe = env_hi[free_idx]
@@ -509,16 +497,11 @@ def _draw_tc_msl_trajectory(
 
             if np.isfinite(era5_fe):
                 inside = lo_fe <= era5_fe <= hi_fe
-                # Percentile rank of ERA5 among the members plotted at the free
-                # end (fraction with MSL at or below ERA5).  Lower MSL = deeper
-                # = stronger, so a small rank means ERA5 is stronger than most.
-                rank = 100.0 * float(np.mean(members_fe <= era5_fe))
-                # Prefer the unified-QC percentile (track_qc's exact-frame
-                # analyzable subset -- the single source of truth the track-
-                # stats report quotes); fall back to the plotted-member rank
-                # when it is unavailable.
-                have_qc = era5_pct is not None and np.isfinite(era5_pct)
-                label_pct = float(era5_pct) if have_qc else rank
+                # track_qc's percentile over the analyzable members (the
+                # members plotted here): fraction with MSL at or below ERA5.
+                # Lower MSL = deeper = stronger, so a small value means ERA5 is
+                # stronger than most.
+                label_pct = float(era5_pct)
                 ax.plot(
                     free_lead,
                     era5_fe,
@@ -560,9 +543,8 @@ def _draw_tc_msl_trajectory(
                     f"  [{mode}] tc_msl free end (lead {free_lead:.0f}h, "
                     f"idx {free_idx}): ERA5={era5_fe:.2f} hPa, "
                     f"5-95%=[{lo_fe:.2f}, {hi_fe:.2f}] hPa, {verdict} band, "
-                    f"p{label_pct:.0f} "
-                    f"({'QC exact-frame n=' + str(era5_pct_n) if have_qc else 'plotted-member'}"
-                    f"; plotted-member rank p{rank:.0f}), n_surv={n_surv_fe}"
+                    f"p{label_pct:.0f} (analyzable n={era5_pct_n}), "
+                    f"n_surv={n_surv_fe}"
                 )
             else:
                 print(
@@ -758,17 +740,6 @@ def make_figure(
     print(f"Saved: {out_path}")
 
 
-def _mode_anchor_frame(mode: str, landfall_frame: int, n_leads: int) -> int:
-    """Pinned-end anchor frame for one mode (matches track_qc consumers).
-
-    End-conditioning pins the landfall frame (last lead if the case sets
-    none); start- and both-conditioning pin frame 0.
-    """
-    if mode == "start" or mode == "both":
-        return 0
-    return landfall_frame if 0 <= landfall_frame < n_leads else n_leads - 1
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--output-dir", required=True)
@@ -799,14 +770,6 @@ def main() -> None:
         "matches cBottle's 6 h cadence).",
     )
     parser.add_argument(
-        "--landfall-frame",
-        type=int,
-        default=-1,
-        help="Pinned-end anchor frame for end-conditioning (the case YAML's "
-        "tc_tracks.landfall_frame; last lead when unset).  Drives track_qc's "
-        "storm-of-interest resolution and the 'ERA5 pN' annotation.",
-    )
-    parser.add_argument(
         "--anchor-radius-km",
         type=float,
         default=ANCHOR_RADIUS_KM,
@@ -828,35 +791,25 @@ def main() -> None:
         ens, era5 = _load_mode_tracks(output_dir, mode)
         if ens is None:
             continue
-        # Unified QC: resolve each member's storm of interest anchor-first,
-        # then reduce to that one path for drawing.  The MSL-percentile
-        # annotation uses the same QC's exact-frame analyzable subset -- one
-        # definition shared with the track-stats report (no baked-npz read).
-        n_total = ens.shape[0]
-        n_leads = ens.shape[2]
-        anchor_frame = _mode_anchor_frame(mode, args.landfall_frame, n_leads)
-        try:
-            qc = compute_track_qc_arrays(
-                ens,
-                era5,
-                track_box=track_box,
-                anchor_frame=anchor_frame,
-                free_end_frame=FREE_END_FRAME.get(mode, 0),
-                anchor_radius_km=args.anchor_radius_km,
-            )
-        except ValueError as exc:
-            print(f"  [{mode}] track_qc skipped ({exc}); dropping this mode.")
-            continue
-        counts = qc.counts()
+        # Unified QC: resolve each member's storm of interest anchor-first and
+        # reduce to the analyzable members' storms; the MSL-percentile
+        # annotation comes from the same QC (one definition shared with the
+        # track-stats report).
+        qc = compute_track_qc_arrays(
+            ens,
+            era5,
+            track_box=track_box,
+            mode=mode,
+            anchor_radius_km=args.anchor_radius_km,
+        )
         print(
-            f"  [{mode}] unified QC (anchor frame {anchor_frame}): "
-            f"{counts['analyzable']}/{n_total} members analyzable "
-            f"({counts['excluded']} excluded)"
+            f"  [{mode}] unified QC (anchor frame {qc.config['anchor_frame']}): "
+            f"{qc.summary()}"
         )
         mode_tracks[mode] = qc.storm_of_interest_array(ens)
         # ERA5's storm of interest is its path 0 (the fix that defines the anchor).
-        mode_era5[mode] = era5[:, 0:1] if era5 is not None else None
-        if mode in FREE_END_FRAME:
+        mode_era5[mode] = era5[:, 0:1]
+        if qc.era5_free_end is not None:
             era5_pct_by_mode[mode] = qc.era5_free_end_msl_pct()
 
     if not mode_tracks:

@@ -45,7 +45,7 @@ Usage:
         --case-name          "Hurricane Sandy" \\
         --variable z500 --variable msl \\
         --lon-min -100 --lon-max -30 --lat-min 25 --lat-max 75 \\
-        --impact-kind track --tc-parquet /path/tc_tracks_end.parquet \\
+        --impact-kind track \\
         --tc-tracker tempest --tc-domain -85 -60 25 45 --landfall-frame 11
 """
 
@@ -68,9 +68,7 @@ SHARED_DIR = SCRIPT_DIR.parent.parent / "_shared"
 sys.path.insert(0, str(SHARED_DIR))
 sys.path.insert(0, str(ENSEMBLE_ANALYSIS_DIR))
 
-from _dispatch_lib import lead_hours  # noqa: E402
-from tc_tracks_io import load_tracks_parquet, restrict_to_domain  # noqa: E402
-from track_qc import compute_track_qc  # noqa: E402
+from _dispatch_lib import anchor_free_end_frames, lead_hours  # noqa: E402
 
 from custom_utils.diagnostics import (  # noqa: E402
     domain_hpx_indices,
@@ -146,21 +144,14 @@ _domain_hpx_indices = domain_hpx_indices
 
 
 def _pick_free_end_frame(mode: str) -> int:
-    """Frame index of the unconditioned end for one mode.
-
-    cBottle always generates 12-frame windows in this pipeline, so the
-    free end of a start-conditioned run is fixed at frame 11.  If the
-    window length ever changes, update this function rather than
-    silently inferring from ``n_leads``.
-    """
-    if mode == "end":
-        return 0
-    if mode == "start":
-        return 11
-    raise ValueError(
-        f"synoptic_pca does not support mode '{mode}'. "
-        f"Eligible modes: 'start', 'end'."
-    )
+    """Frame index of the unconditioned end for one mode."""
+    free_end = anchor_free_end_frames(mode)[1]
+    if free_end is None:
+        raise ValueError(
+            f"synoptic_pca does not support mode '{mode}'. "
+            f"Eligible modes: 'start', 'end'."
+        )
+    return free_end
 
 
 # ---------------------------------------------------------------------------
@@ -581,50 +572,6 @@ def _percentile_member_fields_box(
 # ---------------------------------------------------------------------------
 
 
-def _load_member_tracks_from_parquet(
-    parquet_path: str,
-    n_members: int,
-    n_leads: int,
-    tc_domain: Sequence[float],
-) -> Tuple[np.ndarray, np.ndarray, bool]:
-    """Primary-path (lat, lon) tracks for every member + the ERA5 track.
-
-    Reads the per-mode tc_tracks parquet (written by the tc_tracks
-    diagnostic), restricts to ``tc_domain`` (out-of-domain fixes -> NaN),
-    and returns ``(member_track [N, n_leads, 2], era5_track [n_leads, 2],
-    available)``.  When the parquet is missing -- the tc_tracks diagnostic
-    has not run yet -- returns NaN-filled arrays with ``available=False``
-    so the aggregator can render the precursor maps without the track
-    panel rather than failing the whole run.
-    """
-    member_track = np.full((n_members, n_leads, 2), np.nan, dtype=np.float32)
-    era5_track = np.full((n_leads, 2), np.nan, dtype=np.float32)
-    if not Path(parquet_path).exists():
-        print(
-            f"[syn-pca] WARNING: tc_tracks parquet not found: {parquet_path}\n"
-            f"          run the tc_tracks diagnostic first for the impact "
-            f"track panel; precursor maps will still be produced."
-        )
-        return member_track, era5_track, False
-
-    tracks = load_tracks_parquet(str(parquet_path))
-    lon_min, lon_max, lat_min, lat_max = tc_domain
-    ens = tracks.get("ensemble")
-    if ens is not None:
-        ens = restrict_to_domain(ens, lon_min, lon_max, lat_min, lat_max)
-        T = min(int(ens.shape[2]), n_leads)
-        M = min(int(ens.shape[0]), n_members)
-        member_track[:M, :T, 0] = ens[:M, 0, :T, 0]  # tc_lat
-        member_track[:M, :T, 1] = ens[:M, 0, :T, 1]  # tc_lon
-    era = tracks.get("era5")
-    if era is not None:
-        era = restrict_to_domain(era, lon_min, lon_max, lat_min, lat_max)
-        T = min(int(era.shape[2]), n_leads)
-        era5_track[:T, 0] = era[0, 0, :T, 0]
-        era5_track[:T, 1] = era[0, 0, :T, 1]
-    return member_track, era5_track, True
-
-
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -734,12 +681,6 @@ def main() -> None:
         default="none",
         help="Mask applied to the scalar-impact bbox reduction.",
     )
-    parser.add_argument(
-        "--tc-parquet",
-        type=str,
-        default=None,
-        help="Path to the per-mode tc_tracks parquet for --impact-kind track.",
-    )
     parser.add_argument("--tc-tracker", type=str, default=None)
     parser.add_argument(
         "--tc-domain",
@@ -747,7 +688,7 @@ def main() -> None:
         nargs=4,
         default=None,
         metavar=("LON_MIN", "LON_MAX", "LAT_MIN", "LAT_MAX"),
-        help="Track domain box (tracks outside it are dropped to NaN).",
+        help="The case's track box (regions.track), recorded for the track QC.",
     )
     parser.add_argument("--landfall-frame", type=int, default=-1)
 
@@ -1119,21 +1060,6 @@ def main() -> None:
     tc_tracker = args.tc_tracker or ""
     tc_domain = np.zeros(0, dtype=np.float32)
     landfall_frame = int(args.landfall_frame)
-    member_track_latlon = np.zeros((0, 0, 0), dtype=np.float32)
-    era5_track_latlon = np.zeros((0, 0), dtype=np.float32)
-    # Baked free-end track targets, resolved by the round-5 track QC (the rule
-    # the aggregators apply), for npz readers outside this pipeline.  Empty
-    # unless impact_kind == "track"; populated in the track branch below.
-    track_npz = {
-        "track_target_fe": np.zeros((0, 4), dtype=np.float32),  # [N, 4]
-        "track_target_source": np.array(""),
-        "track_analyzable": np.zeros(0, dtype=bool),  # [N]
-        "track_era5_fe": np.zeros(0, dtype=np.float32),  # [3] (lat, lon, msl_hpa)
-        "track_anchor_frame": np.int32(-1),
-        "track_qc_counts": np.zeros(0, dtype=np.int32),  # [4]
-        "track_era5_fe_msl_pct": np.float32(np.nan),
-        "track_n_fallback": np.int32(0),
-    }
 
     if impact_kind == "scalar":
         if not impact_variable or args.impact_bbox is None:
@@ -1293,61 +1219,13 @@ def main() -> None:
                 f"scales={ladder_scales_acc} n_pix={ladder_npix_acc}"
             )
     elif impact_kind == "track":
-        if not args.tc_parquet or args.tc_domain is None:
+        # Track targets and tracks are not stored here: every consumer resolves
+        # them from the tracks parquet through track_qc, the one rule.
+        if args.tc_domain is None or not tc_tracker:
             raise SystemExit(
-                "ERROR: --impact-kind track requires --tc-parquet and --tc-domain."
+                "ERROR: --impact-kind track requires --tc-domain and --tc-tracker."
             )
-        t0 = time.time()
         tc_domain = np.asarray(args.tc_domain, dtype=np.float32)
-        member_track_latlon, era5_track_latlon, available = (
-            _load_member_tracks_from_parquet(
-                args.tc_parquet, n_members, n_leads, args.tc_domain
-            )
-        )
-        if not available:
-            # Parquet missing -> fall back to maps-only; aggregator skips panel.
-            impact_kind = "none"
-            member_track_latlon = np.zeros((0, 0, 0), dtype=np.float32)
-            era5_track_latlon = np.zeros((0, 0), dtype=np.float32)
-        else:
-            n_tracked = int(np.isfinite(member_track_latlon[:, :, 0]).any(axis=1).sum())
-            print(
-                f"[syn-pca] impact track : {time.time() - t0:.1f}s  "
-                f"tracker={tc_tracker} members with track={n_tracked}/{n_members}"
-            )
-            # Bake the free-end targets from the raw all-paths parquet through
-            # the round-5 track QC, the same resolution aggregate_synoptic_pca
-            # and synoptic_pca_track_stats apply (they recompute it from the
-            # parquet; the baked copy serves other npz readers).  Never path 0:
-            # it can be another storm.  Anchor = the pinned end: frame 0 for
-            # start-conditioning, the landfall frame (last frame if unset)
-            # otherwise.  A baking failure degrades rather than sinking the run.
-            anchor_frame = (
-                0
-                if args.mode == "start"
-                else (landfall_frame if 0 <= landfall_frame < n_leads else n_leads - 1)
-            )
-            try:
-                qc = compute_track_qc(
-                    args.tc_parquet,
-                    track_box=tuple(float(v) for v in args.tc_domain),
-                    anchor_frame=anchor_frame,
-                    free_end_frame=free_end_frame,
-                    n_members=n_members,
-                )
-                track_npz = qc.free_end_npz_arrays()
-                c = qc.counts()
-                print(
-                    f"[syn-pca] track targets (track QC, anchor frame "
-                    f"{anchor_frame}): {c['analyzable']}/{c['total']} analyzable "
-                    f"(no_track={c['no_track']} unanchored={c['unanchored']} "
-                    f"insufficient_fixes={c['insufficient_fixes']})"
-                )
-            except Exception as exc:  # noqa: BLE001 - degrade, do not crash
-                print(
-                    f"[syn-pca] WARNING: could not bake free-end track targets "
-                    f"({exc}); the npz will carry empty track_* arrays."
-                )
 
     # --- Save -----------------------------------------------------------
     output_dir = Path(args.output_dir)
@@ -1439,13 +1317,6 @@ def main() -> None:
         tc_tracker=np.array(tc_tracker),
         tc_domain=tc_domain,  # [4] or empty
         landfall_frame=np.int32(landfall_frame),
-        member_track_latlon=member_track_latlon.astype(
-            np.float32
-        ),  # [N, n_leads, 2] or empty
-        era5_track_latlon=era5_track_latlon.astype(np.float32),  # [n_leads, 2] or empty
-        # Baked track-QC free-end targets (empty unless impact_kind == "track").
-        # See track_qc.TrackQC.free_end_npz_arrays for the keys.
-        **track_npz,
     )
     print(f"[syn-pca] wrote {npz_path}")
     print("[syn-pca] done.")

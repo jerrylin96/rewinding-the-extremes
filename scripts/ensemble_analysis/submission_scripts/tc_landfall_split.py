@@ -12,10 +12,10 @@ Reads the ``end``-mode ``tc_tracks_end.parquet`` written upstream by
 ``plot_ensemble_tc_tracks.py`` and renders a 2-row figure:
 
 ``track_qc`` resolves each member's storm of interest anchor-first (the
-tracker path reaching the ERA5 SC-landfall fix at ``--landfall-frame``)
-and marks a member analyzable when that path has >=3 valid fixes in the
-track detection box.  The split is over the analyzable population, on the
-resolved path:
+tracker path reaching the ERA5 fix at the pinned SC-landfall frame) and
+marks a member analyzable when that path has >=3 valid fixes in the track
+detection box and a fix at the free (initial-condition) end.  The split is
+over the analyzable population, on the resolved path:
 
     a.) members that make landfall in Florida (a resolved-path fix in the
         Florida box), and
@@ -23,7 +23,8 @@ resolved path:
         requires reaching the end-conditioned SC-landfall anchor, every
         bypass member is anchored toward South Carolina.
 
-The excluded members (no_track / unanchored / insufficient_fixes) form
+The excluded members (no_track / unanchored / insufficient_fixes /
+no_free_end_fix) form
 the inspect set -- the ones outside the clean FL/SC story, logged so they
 can be eyeballed with animate_ensemble.py.
 
@@ -31,8 +32,7 @@ Every track is colored by its central MSL at the *initial condition* —
 the free (unconstrained) end under end-conditioning — on a colorbar
 shared across both panels, so the contrast is literally "how strong was
 the storm the model freely chose to start from, given a weak SC
-landfall."  The free-end fix falls back to the nearest valid frame when
-the resolved path has no IC-frame fix (flagged).  The Florida box (which
+landfall."  The Florida box (which
 defines the split) and the South Carolina box (illustrating the
 end-conditioning landfall region) are drawn on both panels in the two
 group colors, and ERA5 (which did make Florida landfall) is overlaid on
@@ -55,7 +55,6 @@ Usage:
         --fl-lon-min -83.5 --fl-lon-max -80.0 --fl-lat-min 24.5 --fl-lat-max 30.0 \\
         --sc-lon-min -81.5 --sc-lon-max -78.5 --sc-lat-min 32.0 --sc-lat-max 34.5 \\
         --fl-label Florida --sc-label "South Carolina" \\
-        --landfall-frame 11 \\
         --title "Hurricane Ian — End-Conditioned Landfall Split" \\
         --start-time 2022-09-28T00:00:00Z \\
         --timezone America/New_York
@@ -98,21 +97,12 @@ from plot_style import (  # noqa: E402
     draw_domain_box,
     format_bbox,
 )
-from tc_tracks_io import (  # noqa: E402
-    load_tracks_parquet,
-    tracks_in_domain,
-)
-from track_qc import (  # noqa: E402
-    ANCHOR_RADIUS_KM,
-    TrackQC,
-    compute_track_qc_arrays,
-)
+from tc_tracks_io import tracks_in_domain  # noqa: E402
+from track_qc import ANCHOR_RADIUS_KM, TrackQC, compute_track_qc  # noqa: E402
 
-# The resolved storm-of-interest path is placed at index 0 by
-# ``TrackQC.storm_of_interest_array`` (see track_qc.py); a track needs at least
-# this many valid fixes to be drawn (analyzable members already clear it).
+# ``TrackQC.storm_of_interest_array`` places each analyzable member's storm at
+# path index 0 (see track_qc.py).
 PRIMARY_PATH_ID = 0
-MIN_PATH_LENGTH = 3
 
 # Categorical group colors.  Florida = warm (greater impact), bypass-to-SC
 # = cool.  Chosen distinct from the sequential intensity colormap below so
@@ -222,8 +212,6 @@ def _draw_era5(ax, era5_tracks: np.ndarray) -> None:
         era5_lats = era5_tracks[0, path_id, :, 0]
         era5_lons = era5_tracks[0, path_id, :, 1]
         valid = ~np.isnan(era5_lats) & ~np.isnan(era5_lons)
-        if valid.sum() < MIN_PATH_LENGTH:
-            continue
         label = "ERA5" if path_id == 0 else None
         ax.plot(
             era5_lons[valid],
@@ -276,10 +264,7 @@ def _draw_landfall_map_panel(
         tc_lats = ens[m, PRIMARY_PATH_ID, :, 0]
         tc_lons = ens[m, PRIMARY_PATH_ID, :, 1]
         valid = ~np.isnan(tc_lats) & ~np.isnan(tc_lons)
-        if valid.sum() < MIN_PATH_LENGTH:
-            continue
-        msl = ic_msl_hpa[j]
-        color = INTENSITY_CMAP(norm(msl)) if np.isfinite(msl) else "0.6"
+        color = INTENSITY_CMAP(norm(ic_msl_hpa[j]))
         ax.plot(
             tc_lons[valid],
             tc_lats[valid],
@@ -528,7 +513,7 @@ def make_figure(
     # Florida = a fix in fl_box, bypass = analyzable but no fl_box fix.  Because
     # analyzable already requires reaching the end-conditioned SC-landfall
     # anchor, every bypass member is anchored toward SC.  The inspect set is the
-    # excluded members (no_track / unanchored / insufficient_fixes) -- the ones
+    # excluded members (every exclusion reason) -- the ones
     # outside the clean FL/SC story, worth eyeballing with animate_ensemble.py.
     analyzable = qc.analyzable
     hit_fl = tracks_in_domain(ens, *fl_extent)[:, PRIMARY_PATH_ID]
@@ -537,10 +522,7 @@ def make_figure(
     inspect_idx = np.flatnonzero(~analyzable)
 
     fe_msl = qc.table["fe_msl_hpa"].to_numpy(dtype=float)
-    fe_fallback = qc.fe_fallback
     fl_ic, bypass_ic = fe_msl[fl_idx], fe_msl[bypass_idx]
-    fl_fb = int(fe_fallback[fl_idx].sum())
-    bypass_fb = int(fe_fallback[bypass_idx].sum())
 
     qc_counts = qc.counts()
     total = qc_counts["total"]
@@ -557,15 +539,7 @@ def make_figure(
         f"bypass (not {fl_label})={n_bypass} ({_pct(n_bypass):.1f}%), "
         f"excluded={n_excl} ({_pct(n_excl):.1f}%)"
     )
-    print(
-        f"  excluded taxonomy: no_track={qc_counts['no_track']} / "
-        f"unanchored={qc_counts['unanchored']} / "
-        f"insufficient_fixes={qc_counts['insufficient_fixes']}"
-    )
-    print(
-        f"  free-end fix fallbacks (nearest valid frame): "
-        f"{fl_label}={fl_fb}, bypass={bypass_fb}"
-    )
+    print(f"  track QC: {qc.summary()}")
     # Inspect set = the excluded members.  Surface the indices + a ready-to-run
     # animate_ensemble.py command so the MSL field evolution can be eyeballed
     # (several have little or no usable track).
@@ -695,15 +669,6 @@ def main() -> None:
         help=f"Lead-time step in hours (default: {DEFAULT_TIMESTEP_HOURS}).",
     )
     parser.add_argument(
-        "--landfall-frame",
-        type=int,
-        required=True,
-        help="Pinned-end anchor frame for the end-conditioned split (the case "
-        "YAML's tc_tracks.landfall_frame; the SC landfall frame for Ian).  A "
-        "member is analyzable when its anchor-resolved storm path has >=3 "
-        "in-domain fixes.",
-    )
-    parser.add_argument(
         "--anchor-radius-km",
         type=float,
         default=ANCHOR_RADIUS_KM,
@@ -728,32 +693,22 @@ def main() -> None:
     fl_extent = (args.fl_lon_min, args.fl_lon_max, args.fl_lat_min, args.fl_lat_max)
     sc_extent = (args.sc_lon_min, args.sc_lon_max, args.sc_lat_min, args.sc_lat_max)
 
-    tracks = load_tracks_parquet(str(parquet))
-    ens = tracks.get("ensemble")
-    if ens is None:
-        raise SystemExit(f"ERROR: no ensemble rows in {parquet}")
-    era5 = tracks.get("era5")
-
     # Unified QC: resolve each member's storm of interest anchor-first (end
-    # mode -> the landfall frame is the anchor, frame 0 the free end), then
-    # reduce the raw all-paths array to that one path for drawing.
-    qc = compute_track_qc_arrays(
-        ens,
-        era5,
+    # mode: the pinned last frame is the anchor, frame 0 the free end), then
+    # reduce the raw all-paths array to the analyzable storms for drawing.
+    ens, era5, qc = compute_track_qc(
+        str(parquet),
         track_box=extent,
-        anchor_frame=args.landfall_frame,
-        free_end_frame=0,
+        mode="end",
         anchor_radius_km=args.anchor_radius_km,
     )
-    counts = qc.counts()
     print(
         f"[landfall_split] track domain {format_bbox(list(extent))}, anchor "
-        f"frame {args.landfall_frame}: {counts['analyzable']}/{counts['total']} "
-        f"members analyzable ({counts['excluded']} excluded)"
+        f"frame {qc.config['anchor_frame']}: {qc.summary()}"
     )
     ens = qc.storm_of_interest_array(ens)
     # ERA5's storm of interest is its path 0 (the fix that defines the anchor).
-    era5 = era5[:, 0:1] if era5 is not None else None
+    era5 = era5[:, 0:1]
 
     make_figure(
         ens,

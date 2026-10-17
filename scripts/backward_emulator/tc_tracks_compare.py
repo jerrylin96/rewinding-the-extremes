@@ -17,8 +17,8 @@ Key points:
   reported noting cBottle's field was upsampled from HEALPix L6.
 * **The pinned present (forward frame -1) is already ERA5 truth** in makani
   (`pred == truth` at the anchor), so no ERA5 frame-replacement is needed.
-* **Tracking is global**; all paths are saved. The Ian track-box restriction happens
-  at consumption (the synoptic-PCA `--tc-domain`, the aggregator's domain).
+* **Tracking is global**; all paths are saved. The storm of interest and the Ian
+  track box are applied at consumption, by the paper's track QC (`case_track_qc`).
 * Output is a parquet in the paper's schema (`save_tracks_parquet`), so it feeds the
   **Ian synoptic-PCA impact target** and the TC-track aggregator unchanged.
 

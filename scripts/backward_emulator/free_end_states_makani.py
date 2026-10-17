@@ -48,7 +48,8 @@ for _p in (str(BW_DIR), str(SHARED)):
 
 import _dispatch_lib as dl  # noqa: E402
 
-FREE_END_FRAME = 0  # forward frame 0 = the unpinned window start (end-mode precursor)
+# Forward frame 0 = the unpinned window start (end-mode precursor).
+FREE_END_FRAME = dl.anchor_free_end_frames("end")[1]
 
 
 # --------------------------------------------------------------------------- #

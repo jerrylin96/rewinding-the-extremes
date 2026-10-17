@@ -63,7 +63,7 @@ if str(EA_DIR) not in sys.path:  # appended: never shadow our modules
     sys.path.append(str(EA_DIR))
 
 import _dispatch_lib as dl  # noqa: E402
-from case_track_qc import load_track_qc, qc_summary  # noqa: E402
+from case_track_qc import load_track_qc  # noqa: E402
 
 _R_EARTH_KM = 6371.0
 
@@ -94,9 +94,9 @@ def _to_hpa(msl: np.ndarray) -> np.ndarray:
 def primary_msl_band(ens: np.ndarray, qlo: float = 10, qhi: float = 90):
     """Per-lead (p_lo, median, p_hi) of each member's path-0 min-MSLP (hPa).
 
-    ``ens`` is ``[N, P, T, 4]`` already restricted-to-domain (path 0 = storm of
-    interest).  Pure numpy -- the unit-tested reduction under the central-pressure
-    panel.
+    ``ens`` is ``[N, P, T, 4]`` reduced by the track QC (path 0 = each analyzable
+    member's storm of interest; excluded members all-NaN).  Pure numpy -- the
+    unit-tested reduction under the central-pressure panel.
     """
     msl = _to_hpa(ens[:, 0, :, 2])  # [N, T]
     with np.errstate(all="ignore"):
@@ -354,8 +354,8 @@ def survivor_mask(survival_npz: str, n_members: int, n_leads: int) -> np.ndarray
 def _load(parquet: str, case: Dict) -> Tuple[np.ndarray, np.ndarray, object]:
     """``(storm-of-interest tracks [N, 1, T, 4], ERA5 path 0, track QC)``.
 
-    The paper's track figure draws exactly this: each member's anchor-resolved
-    path, and ERA5's path 0 (the reference the QC anchors on).
+    The paper's track figure draws exactly this: each analyzable member's
+    anchor-resolved path, and ERA5's path 0 (the reference the QC anchors on).
     """
     ens, era5, qc = load_track_qc(parquet, case)
     return qc.storm_of_interest_array(ens), era5[:, 0:1], qc
@@ -849,7 +849,7 @@ def main(argv=None) -> None:
     # track QC AND alive at the free-end frame.
     m_ens, m_era5, m_qc = _load(args.makani_parquet, case)
     keep = m_qc.analyzable.copy()
-    print(f"[tc-plot] makani track QC: {qc_summary(m_qc)}")
+    print(f"[tc-plot] makani track QC: {m_qc.summary()}")
     if not args.no_censor:
         if not args.survival_npz:
             raise SystemExit("[tc-plot] --survival-npz is required (or pass "
@@ -867,7 +867,7 @@ def main(argv=None) -> None:
     if args.cbottle_parquet and Path(args.cbottle_parquet).exists():
         c_ens, c_era5, c_qc = _load(args.cbottle_parquet, case)
         c_keep = c_qc.analyzable.copy()
-        print(f"[tc-plot] cBottle track QC: {qc_summary(c_qc)}")
+        print(f"[tc-plot] cBottle track QC: {c_qc.summary()}")
         models["cbottle"] = {
             "label": "Video diffusion (cBottle)", "ens": c_ens[c_keep], "era5": c_era5,
             "era5_ls": "--", "era5_label": "ERA5 (round-trip)",

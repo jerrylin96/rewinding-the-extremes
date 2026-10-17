@@ -52,7 +52,6 @@ from _dispatch_lib import (  # noqa: E402
     list_cases,
     load_case,
     require_region,
-    resolve_landfall_frame,
     resolve_timezone,
     start_time_iso_from_case,
     submit_qsub,
@@ -93,7 +92,6 @@ def _submit_inspect_animation(
     parquet: Path,
     tracker_dir: str,
     track_box: tuple[float, float, float, float],
-    landfall_frame: int,
     anchor_radius_km: float,
     ensemble_size: int,
     vmin: float,
@@ -103,7 +101,7 @@ def _submit_inspect_animation(
     """Animate the MSL field of the inspect-set members.
 
     The inspect set is the unified-QC *excluded* members (no_track /
-    unanchored / insufficient_fixes) -- the ones outside the clean FL/SC
+    unanchored / insufficient_fixes / no_free_end_fix) -- the ones outside the clean FL/SC
     story.  Resolves the (already-existing) end-mode parquet with
     ``track_qc``, then submits an ``animate_ensemble.py`` job that writes one
     ``msl`` MP4 per member to ``<tracker_dir>/residual_msl_anim``.  Animating
@@ -119,11 +117,10 @@ def _submit_inspect_animation(
 
     from track_qc import compute_track_qc  # noqa: E402
 
-    qc = compute_track_qc(
+    _ens, _era5, qc = compute_track_qc(
         str(parquet),
         track_box=track_box,
-        anchor_frame=landfall_frame,
-        free_end_frame=0,
+        mode="end",
         anchor_radius_km=anchor_radius_km,
     )
     members = np.flatnonzero(~qc.analyzable)
@@ -208,15 +205,6 @@ def dispatch(
     fl_box = require_region(case, fl_region)
     sc_box = require_region(case, sc_region)
 
-    # The end-conditioned split resolves each member's storm anchor-first, so
-    # it needs the pinned-end (landfall) frame the ensemble was conditioned on.
-    landfall_frame = resolve_landfall_frame(case)
-    if landfall_frame < 0:
-        raise SystemExit(
-            f"ERROR: case '{case_name}' has no tc_tracks.landfall_frame; the "
-            "end-conditioned landfall split needs a pinned-end anchor frame."
-        )
-
     output_root = output_root_override or f"{case['base']}/diagnostics"
     tracker_dir = tc_tracks_dir(output_root, tracker)
 
@@ -264,8 +252,6 @@ def dispatch(
         fl_label,
         "--sc-label",
         sc_label,
-        "--landfall-frame",
-        str(landfall_frame),
         "--title",
         f"{case['display_name']} — End-Conditioned Landfall Split",
         "--start-time",
@@ -298,7 +284,6 @@ def dispatch(
             parquet=parquet,
             tracker_dir=tracker_dir,
             track_box=track_box,
-            landfall_frame=landfall_frame,
             anchor_radius_km=DEFAULT_ANCHOR_RADIUS_KM,
             ensemble_size=case_ensemble_size(case),
             vmin=anim_vmin,

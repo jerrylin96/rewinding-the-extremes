@@ -281,7 +281,53 @@ def _load_mode(output_dir: Path, mode: str) -> dict | None:
         return None
     diag = dict(np.load(path, allow_pickle=True))
     _to_display_units(diag)
+    if str(_scalar(diag.get("impact_kind", np.array("none")))) == "track":
+        _attach_track_qc(diag, output_dir, mode)
     return diag
+
+
+def _attach_track_qc(diag: dict, output_dir: Path, mode: str) -> None:
+    """Resolve a TC case's tracks once through ``track_qc``; every panel uses it.
+
+    Sets ``diag["track_qc"]`` (the regression's population and targets) and
+    ``diag["member_track_latlon"]`` ``[N, n_leads, 2]`` / ``diag["era5_track_latlon"]``
+    ``[n_leads, 2]`` (lat, lon): each analyzable member's storm of interest,
+    NaN for excluded members, and ERA5's path 0.  Tracks stored in the npz by
+    older runs are replaced, never read.
+    """
+    tracker = str(_scalar(diag.get("tc_tracker", np.array("tempest"))))
+    parquet = tc_tracks_parquet_path(str(output_dir.parent), mode, tracker)
+    if not Path(parquet).exists():
+        raise SystemExit(f"[aggregate_synoptic_pca] mode '{mode}': {parquet} missing.")
+    track_box = np.asarray(diag.get("tc_domain", np.zeros(0)), dtype=float).reshape(-1)
+    if track_box.size != 4:
+        raise SystemExit(
+            f"[aggregate_synoptic_pca] mode '{mode}': npz has no track box (tc_domain)."
+        )
+    n_members = int(np.asarray(diag["pc_scores"]).shape[0])
+    ens, era5, qc = compute_track_qc(
+        parquet,
+        track_box=tuple(float(v) for v in track_box),
+        mode=mode,
+        n_members=n_members,
+    )
+    if qc.config["free_end_frame"] != int(_scalar(diag["free_end_frame"])):
+        raise SystemExit(
+            f"[aggregate_synoptic_pca] mode '{mode}': npz free end frame "
+            f"{int(_scalar(diag['free_end_frame']))} != track_qc's "
+            f"{qc.config['free_end_frame']}."
+        )
+    n_leads = int(np.asarray(diag["lead_hours"]).size)
+    soi = qc.storm_of_interest_array(ens)[:, 0, :n_leads, :2]  # [n_ens, T, 2]
+    member_track = np.full((n_members, n_leads, 2), np.nan, dtype=np.float32)
+    member_track[: soi.shape[0], : soi.shape[1]] = soi
+    era5_track = np.full((n_leads, 2), np.nan, dtype=np.float32)
+    era5_ll = era5[0, 0, :n_leads, :2]
+    era5_track[: era5_ll.shape[0]] = era5_ll
+    diag["track_qc"] = qc
+    diag["member_track_latlon"] = member_track
+    diag["era5_track_latlon"] = era5_track
+    print(f"[aggregate_synoptic_pca] {mode} track QC: {qc.summary()}")
 
 
 def _mode_label(mode: str) -> str:
@@ -641,7 +687,7 @@ def _impact_track_panel(
 ) -> None:
     """Track-impact map panel.
 
-    Every member's storm track is coloured by its PC percentile
+    Every analyzable member's storm track is coloured by its PC percentile
     (``member_pct``) at low alpha, with a dot marking each track's free
     end, the observed ERA5 track (dashed), and the landfall marker on top.
     """
@@ -660,15 +706,12 @@ def _impact_track_panel(
     gl.xlabel_style = {"size": TICK_LABEL_SIZE_DENSE}
     gl.ylabel_style = {"size": TICK_LABEL_SIZE_DENSE}
 
-    # Every member coloured by its PC percentile, with a dot marking each
-    # track's free end -- the conditioning-free, diverging endpoint.  This
-    # mirrors the tc_tracks static-map convention (aggregate_tc_tracks.py
-    # ._draw_track_map_panel): under end-conditioning the free end is the
-    # track *start*; under start-conditioning it is the *last* fix.  Tracks
-    # are NaN-padded to the lead axis, so the dot sits on the first / last
-    # *valid* fix.
+    # Every analyzable member coloured by its PC percentile, with a dot marking
+    # its fix at the free-end frame -- the conditioning-free, diverging
+    # endpoint (the tc_tracks static-map convention, aggregate_tc_tracks.py).
+    # Excluded members are all-NaN and draw nothing.
     member_colors = cmap(norm(member_pct))  # [N, 4]
-    free_end_pick = {"end": "first", "start": "last"}.get(mode)
+    free_end = diag["track_qc"].config["free_end_frame"]
     for i in range(member_track.shape[0]):
         lat_i = member_track[i, :, 0]
         lon_i = member_track[i, :, 1]
@@ -681,15 +724,11 @@ def _impact_track_panel(
             transform=ccrs.PlateCarree(),
             zorder=1,
         )
-        if free_end_pick is None:
+        if free_end is None or not np.isfinite(lat_i[free_end]):
             continue
-        valid = np.flatnonzero(np.isfinite(lat_i) & np.isfinite(lon_i))
-        if valid.size == 0:
-            continue
-        end_i = valid[0] if free_end_pick == "first" else valid[-1]
         ax.plot(
-            lon_i[end_i],
-            lat_i[end_i],
+            lon_i[free_end],
+            lat_i[free_end],
             "o",
             color=member_colors[i],
             markersize=4.5,
@@ -2724,15 +2763,13 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     """Predicted-vs-ensemble-member free-end track/intensity regression (TC cases).
 
     The TC twin of :func:`plot_precursor_impact`'s predicted-vs-ensemble-member panel.
-    Resolves each member's storm of interest anchor-first from the raw all-paths
-    tc_tracks parquet through ``track_qc`` -- the round-5 unified QC, the same
-    definition ``synoptic_pca_track_stats`` and the paper use -- rather than the
-    superseded path-0 targets baked into the frozen npz.  For each free-end
+    Uses the mode's ``track_qc`` result (``diag["track_qc"]``, resolved from the
+    raw all-paths tc_tracks parquet -- the definition ``synoptic_pca_track_stats``
+    and the paper use).  For each free-end
     target (latitude, longitude, great-circle distance from the ERA5 fix,
     central MSL) the leading-PC OLS prediction is scattered against the ensemble-member
     value over the *analyzable* members, with in-sample + 10-fold CV R^2 and an
-    ERA5 marker.  Returns early for non-TC cases or when the parquet / track
-    domain is unavailable.
+    ERA5 marker.  Returns early for non-TC cases.
     """
     impact_kind = str(_scalar(diag.get("impact_kind", np.array("none"))))
     if impact_kind != "track":
@@ -2745,42 +2782,10 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
         return
     pcs = scores[:, :n_pc]
 
-    # Round-5 unified QC: resolve the storm of interest anchor-first from the
-    # raw parquet, a sibling of this figure's synoptic_pca dir at
-    # <diagnostics>/tc_tracks/<tracker>/tc_tracks_<mode>.parquet.  free_end_targets
-    # NaNs the non-analyzable members, so the regression runs over exactly the
-    # analyzable population the report quotes.
-    track_box = np.asarray(diag.get("tc_domain", np.zeros(0)), dtype=float).reshape(-1)
-    if track_box.size != 4:
-        return
-    tracker = str(_scalar(diag.get("tc_tracker", np.array("tempest"))))
-    parquet = tc_tracks_parquet_path(str(out_path.parent.parent), mode, tracker)
-    if not Path(parquet).exists():
-        print(
-            f"[aggregate_synoptic_pca] track regression: {parquet} missing; "
-            f"skipping mode '{mode}'."
-        )
-        return
-    free_end_frame = int(_scalar(diag["free_end_frame"]))
-    n_leads = int(np.asarray(diag["lead_hours"]).size)
-    landfall_frame = int(_scalar(diag.get("landfall_frame", np.int32(-1))))
-    anchor_frame = (
-        0
-        if mode == "start"
-        else (landfall_frame if 0 <= landfall_frame < n_leads else n_leads - 1)
-    )
-    qc = compute_track_qc(
-        parquet,
-        track_box=(
-            float(track_box[0]),
-            float(track_box[1]),
-            float(track_box[2]),
-            float(track_box[3]),
-        ),
-        anchor_frame=anchor_frame,
-        free_end_frame=free_end_frame,
-        n_members=int(scores.shape[0]),
-    )
+    # The one track QC, resolved once per mode by _attach_track_qc:
+    # free_end_targets NaNs the non-analyzable members, so the regression runs
+    # over exactly the analyzable population the report quotes.
+    qc = diag["track_qc"]
     targets = qc.free_end_targets()  # analyzable-only (excluded members NaN)
     fe_anch = np.column_stack(
         [
