@@ -37,10 +37,11 @@ Definition (do not weaken or extend it):
                                  before, the free end).
 
 Every TC track analysis (``synoptic_pca_track_stats``, ``tc_landfall_split``,
-``aggregate_tc_tracks``, ``plot_ensemble_tc_tracks``, ``aggregate_synoptic_pca``
-and the backward-emulator comparison) reads this table's ``analyzable`` mask and
-resolved path and reports its own ``n``; no other track filter exists in the
-analysis layer, and no track target or track is stored for later reuse.
+``aggregate_tc_tracks``, ``combine_tc_tracks``, ``plot_ensemble_tc_tracks``,
+``aggregate_synoptic_pca`` and the backward-emulator comparison) reads this
+table's ``analyzable`` mask and resolved path and reports its own ``n``; no
+other track filter exists in the analysis layer, and no track target or track
+is stored for later reuse.
 
 Kept dependency-light (NumPy + pandas + the parquet reader) so a stats-only
 login-node run does not pull cartopy / matplotlib.

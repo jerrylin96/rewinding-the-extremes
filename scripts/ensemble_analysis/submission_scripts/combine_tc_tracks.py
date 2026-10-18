@@ -8,9 +8,11 @@ to a conditioning mode (end / start / both, matching
 column titles appear only on the top row, and subplot labels (``a.)``,
 ``b.)``, ...) are placed inside the top-left of each panel.
 
-Each row uses its own case's ``regions.track`` lat/lon extent so the
-individual maps remain visually identical to the corresponding panels
-in the per-case ``tc_tracks.png``.
+Each row uses its own case's ``regions.track`` lat/lon extent, and each
+panel draws what the per-case ``tc_tracks.png`` draws: ``track_qc`` resolves
+every member's storm of interest and only the analyzable members' storms are
+drawn, with a dot at the free-end frame (none under both-conditioning) and
+ERA5's path 0 as the reference.
 
 Usage:
     python combine_tc_tracks.py \\
@@ -40,6 +42,7 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))
 sys.path.insert(0, str(SCRIPT_DIR.parent.parent / "_shared"))
 
 from _dispatch_lib import (  # noqa: E402
+    anchor_free_end_frames,
     load_case,
     require_region,
     tc_tracks_parquet_path,
@@ -52,7 +55,7 @@ from plot_style import (  # noqa: E402
     TITLE_SIZE,
     add_subplot_labels,
 )
-from tc_tracks_io import load_tracks_parquet  # noqa: E402
+from track_qc import compute_track_qc  # noqa: E402
 
 # Mode ordering (left -> right) and human labels are taken straight from
 # ``aggregate_tc_tracks.py`` so the per-row layout matches the per-case
@@ -65,28 +68,24 @@ MODE_LABELS: dict[str, str] = {
 }
 
 MEMBER_TRACK_CMAP = plt.cm.jet
-MIN_PATH_LENGTH = 3
 
 
 def _load_case_tracks(
     case: dict[str, Any], tracker: str
 ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray | None]]:
-    """Load each mode's ensemble + ERA5 tracks for a case."""
+    """Each mode's analyzable storms (track_qc) + ERA5 path 0 for a case."""
     diag_root = f"{case['base']}/diagnostics"
+    box = tuple(float(v) for v in require_region(case, "track"))
     mode_tracks: dict[str, np.ndarray] = {}
     mode_era5: dict[str, np.ndarray | None] = {}
     for mode in MODE_ORDER:
         parquet = Path(tc_tracks_parquet_path(diag_root, mode, tracker))
         if not parquet.exists():
-            print(f"WARNING: missing {parquet}; skipping ({case['name']}, {mode})")
-            continue
-        tracks = load_tracks_parquet(str(parquet))
-        ens = tracks.get("ensemble")
-        if ens is None:
-            print(f"WARNING: no ensemble rows in {parquet}; skipping")
-            continue
-        mode_tracks[mode] = ens
-        mode_era5[mode] = tracks.get("era5")
+            raise SystemExit(f"ERROR: missing {parquet} ({case['name']}, {mode})")
+        ens, era5, qc = compute_track_qc(str(parquet), track_box=box, mode=mode)
+        print(f"  [{case['name']}/{mode}] track QC: {qc.summary()}")
+        mode_tracks[mode] = qc.storm_of_interest_array(ens)
+        mode_era5[mode] = era5[:, 0:1]
     return mode_tracks, mode_era5
 
 
@@ -99,6 +98,7 @@ def _plot_panel(
     lon_max: float,
     lat_min: float,
     lat_max: float,
+    mode: str,
 ) -> int:
     """Render one ``(case, mode)`` panel onto ``ax`` and return # member tracks plotted."""
     ax.add_feature(cfeature.LAND, facecolor="#f0f0f0", edgecolor="none")
@@ -123,13 +123,14 @@ def _plot_panel(
     )
 
     n_members = ensemble_tracks.shape[0]
+    free_end = anchor_free_end_frames(mode)[1]
     n_plotted = 0
     for path_id in range(ensemble_tracks.shape[1]):
         for member_idx in range(n_members):
             tc_lats = ensemble_tracks[member_idx, path_id, :, 0]
             tc_lons = ensemble_tracks[member_idx, path_id, :, 1]
             valid = ~np.isnan(tc_lats) & ~np.isnan(tc_lons)
-            if valid.sum() < MIN_PATH_LENGTH:
+            if not valid.any():  # excluded by track_qc
                 continue
             color = MEMBER_TRACK_CMAP(member_idx / max(1, n_members - 1))
             ax.plot(
@@ -141,16 +142,17 @@ def _plot_panel(
                 transform=ccrs.PlateCarree(),
                 zorder=2,
             )
-            ax.plot(
-                tc_lons[valid][-1],
-                tc_lats[valid][-1],
-                "o",
-                color=color,
-                markersize=2,
-                alpha=0.4,
-                transform=ccrs.PlateCarree(),
-                zorder=2,
-            )
+            if free_end is not None:
+                ax.plot(
+                    tc_lons[free_end],
+                    tc_lats[free_end],
+                    "o",
+                    color=color,
+                    markersize=2,
+                    alpha=0.4,
+                    transform=ccrs.PlateCarree(),
+                    zorder=2,
+                )
             n_plotted += 1
 
     if era5_tracks is not None:
@@ -158,7 +160,7 @@ def _plot_panel(
             era5_lats = era5_tracks[0, path_id, :, 0]
             era5_lons = era5_tracks[0, path_id, :, 1]
             valid_era5 = ~np.isnan(era5_lats) & ~np.isnan(era5_lons)
-            if valid_era5.sum() < MIN_PATH_LENGTH:
+            if not valid_era5.any():
                 continue
             label = "ERA5" if path_id == 0 else None
             ax.plot(
@@ -212,32 +214,7 @@ def plot_combined(
 
         for col, mode in enumerate(MODE_ORDER):
             ax = axes[row, col]
-            ens = mode_tracks.get(mode)
-            if ens is None:
-                # Keep the panel for layout consistency but mark it empty
-                # so the grid remains visually aligned.
-                ax.set_facecolor("#f5f5f5")
-                ax.text(
-                    0.5,
-                    0.5,
-                    "no data",
-                    transform=ax.transAxes,
-                    ha="center",
-                    va="center",
-                    fontsize=14,
-                    color="#888888",
-                )
-                ax.set_extent(
-                    [
-                        wrap_lon_0_360(lon_min),
-                        wrap_lon_0_360(lon_max),
-                        lat_min,
-                        lat_max,
-                    ],
-                    crs=ccrs.PlateCarree(),
-                )
-                continue
-
+            ens = mode_tracks[mode]
             n_plotted = _plot_panel(
                 ax,
                 ensemble_tracks=ens,
@@ -246,6 +223,7 @@ def plot_combined(
                 lon_max=lon_max,
                 lat_min=lat_min,
                 lat_max=lat_max,
+                mode=mode,
             )
             print(f"  [{case['name']}/{mode}] plotted {n_plotted} member tracks")
 
