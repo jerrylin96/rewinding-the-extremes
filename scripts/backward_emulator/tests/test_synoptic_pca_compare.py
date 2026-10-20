@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -23,18 +24,20 @@ def _makani_npz(path, N=200):
     scores = rng.standard_normal((N, 10))
     y = scores[:, :8] @ np.array([2.0, -1, .5, 0, 0, 0, 0, 0]) + 1.0
     np.savez(path, model="makani", case_name="Test", free_end_frame=0,
+             impact_kind="scalar",
              pc_scores=scores.astype(np.float32),
              explained_variance_ratio=np.linspace(0.4, 0.0, 10).astype(np.float32),
              era5_pc_percentile=np.full(8, 50.0, np.float32),
              target_scalar=y.astype(np.float32), target_names=np.array(["t2m"]))
 
 
-def _cbottle_npz(path, N=200, L=12):
+def _cbottle_npz(path, N=200, L=12, case_name="Test"):
     rng = np.random.default_rng(1)
     scores = rng.standard_normal((N, 10))
     mis = rng.standard_normal((N, L)).astype(np.float32)
     mis[:, 0] = scores[:, :8] @ np.array([1.0, 1, 0, 0, 0, 0, 0, 0])  # free-end col
-    np.savez(path, model="cbottle", case_name="Test", free_end_frame=0,
+    np.savez(path, model="cbottle", case_name=case_name, free_end_frame=0,
+             impact_kind="scalar",
              pc_scores=scores.astype(np.float32),
              explained_variance_ratio=np.linspace(0.3, 0.0, 10).astype(np.float32),
              era5_pc_percentile=np.full(8, 40.0, np.float32),
@@ -61,6 +64,15 @@ def test_r2_table_both_models(tmp_path):
     assert ("makani", "t2m") in tbl and ("cbottle", "t2m") in tbl
     assert tbl[("makani", "t2m")]["r2_insample"] > 0.99  # linear signal
     assert np.isfinite(tbl[("cbottle", "t2m")]["r2_cv"])
+
+
+def test_compare_without_case_refuses_npz_from_two_cases(tmp_path):
+    mk, cb = tmp_path / "mk.npz", tmp_path / "cb.npz"
+    _makani_npz(mk)
+    _cbottle_npz(cb, case_name="Other")
+    with pytest.raises(SystemExit, match="case 'Other', but .*mk.npz has 'Test'"):
+        spc.main(["--makani-npz", str(mk), "--cbottle-npz", str(cb),
+                  "--out-dir", str(tmp_path / "out")])
 
 
 def test_dispatch_pnw_scalar_with_land_mask(tmp_path):

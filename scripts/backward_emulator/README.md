@@ -112,6 +112,11 @@ These misuses used to produce plausible output, and are now errors:
   (or an explicit `--no-censor`) and refuses a mask whose shape is not the tracks'
   `(members, leads)`: the full-horizon `survival_full.npz` would censor at 180 h, not
   66 h.
+* **PCA-file pairing.** Before reading anything else, both comparison scripts refuse
+  a PCA npz from another case (its `case_name` must be the `--case` YAML's display
+  name, or makani's without `--case`), another conditioning mode (free end not at
+  frame 0) or another impact kind (`case_track_qc.check_pca_npzs`). They cannot tell
+  two ensembles of one case apart: no file carries an ensemble ID (GitHub issue #6).
 
 Regenerating the two Ian figures (light jobs, minutes):
 
