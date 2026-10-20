@@ -63,6 +63,23 @@ def mode_frames(mode: str) -> List[int]:
     return MODE_FRAMES[mode]
 
 
+def anchor_free_end_frames(mode: str) -> Tuple[int, Optional[int]]:
+    """``(anchor_frame, free_end_frame)`` for a conditioning mode.
+
+    The anchor is the pinned frame where every member coincides with ERA5 (the
+    conditioned frame; frame 0 under both-conditioning).  The free end is the
+    other end of the window, and ``None`` under both-conditioning, which pins
+    both ends.  The one definition every free-end diagnostic uses.
+    """
+    first, last = MODE_FRAMES["both"]
+    frames = {"end": (last, first), "start": (first, last), "both": (first, None)}
+    if mode not in frames:
+        raise ValueError(
+            f"Unknown conditioning mode '{mode}'. Valid modes: {sorted(frames)}"
+        )
+    return frames[mode]
+
+
 def frames_suffix(frames: Sequence[int]) -> str:
     """Filename suffix for a frame list: [0] -> 'f0', [0,11] -> 'f0_11'."""
     return "f" + "_".join(str(f) for f in frames)

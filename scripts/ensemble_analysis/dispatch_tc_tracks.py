@@ -49,7 +49,6 @@ from _dispatch_lib import (  # noqa: E402
     list_cases,
     load_case,
     require_region,
-    resolve_landfall_frame,
     resolve_timezone,
     start_time_iso_from_case,
     submit_qsub,
@@ -140,10 +139,6 @@ def submit_tc_tracks_for_mode(
         str(lat_min),
         "--lat-max",
         str(lat_max),
-        # Pinned-end anchor frame for the --animate track_qc resolution
-        # (end-conditioning); -1 -> last lead.
-        "--landfall-frame",
-        str(resolve_landfall_frame(case)),
         "--animate",
     ]
     # The worker silently ignores --warm-core for non-tempest trackers
@@ -193,10 +188,6 @@ def submit_aggregator(
         str(lat_min),
         "--lat-max",
         str(lat_max),
-        # Pinned-end anchor frame for track_qc's storm-of-interest resolution
-        # (end-conditioning) and the 'ERA5 pN' annotation; -1 -> last lead.
-        "--landfall-frame",
-        str(resolve_landfall_frame(case)),
         "--title",
         f"{case['display_name']} Storm Tracks",
         # start_time + timezone drive the local wall-clock x-axis on the

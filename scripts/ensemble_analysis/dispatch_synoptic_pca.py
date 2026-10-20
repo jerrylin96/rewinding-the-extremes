@@ -67,7 +67,6 @@ from _dispatch_lib import (  # noqa: E402
     resolve_timezone,
     start_time_iso_from_case,
     submit_qsub,
-    tc_tracks_parquet_path,
     trackers_from_case,
     validate_zarrs_exist,
 )
@@ -247,16 +246,15 @@ def _resolve_impact_variable(case: Dict[str, Any]) -> str:
 
 def resolve_impact_args(
     case: Dict[str, Any],
-    mode: str,
-    output_root: str,
     *,
     impact_variable_override: Optional[str],
     tracker_override: Optional[str],
 ) -> List[str]:
     """Build the impact-related compute args for one mode.
 
-    Cases with a ``tc_tracks`` block get the TC-track impact (reusing the
-    cached per-mode parquet); all others get the scalar impact.
+    Cases with a ``tc_tracks`` block get the TC-track impact (the figures
+    resolve the tracks from the per-mode parquet through track_qc); all others
+    get the scalar impact.
     """
     tc_block = case.get("tc_tracks")
     if tc_block:
@@ -265,12 +263,9 @@ def resolve_impact_args(
         )
         tracker = trackers[0]
         lon_min, lon_max, lat_min, lat_max = require_region(case, "track")
-        parquet = tc_tracks_parquet_path(output_root, mode, tracker)
         return [
             "--impact-kind",
             "track",
-            "--tc-parquet",
-            parquet,
             "--tc-tracker",
             tracker,
             "--tc-domain",
@@ -376,8 +371,6 @@ def submit_pca_for_mode(
         script_args += ["--conditioning-frame", str(frame)]
     script_args += resolve_impact_args(
         case,
-        mode,
-        output_root,
         impact_variable_override=impact_variable_override,
         tracker_override=tracker_override,
     )

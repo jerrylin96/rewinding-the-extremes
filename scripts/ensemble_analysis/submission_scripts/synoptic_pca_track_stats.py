@@ -21,14 +21,14 @@ population.  Writes a single self-contained report per mode:
     member range (e.g. deepest/weakest central MSL) is quotable
     directly.
 
-2.  **Unified track QC (round 5)** -- ``track_qc.compute_track_qc``
-    resolves each member's storm of interest anchor-first (the tracker
-    path reaching the ERA5 fix at the pinned end -- landfall frame under
-    end-conditioning, frame 0 under start-conditioning) and marks a
-    member analyzable when that resolved path has at least three valid
-    fixes in the track domain.  Every statistic below runs over the
-    analyzable population; the exclusion taxonomy (no_track / unanchored
-    / insufficient_fixes) is reported once.  No per-script anchoring or
+2.  **Unified track QC** -- ``track_qc.compute_track_qc`` resolves each
+    member's storm of interest anchor-first (the tracker path reaching the
+    ERA5 fix at the pinned end -- the last frame under end-conditioning,
+    frame 0 under start-conditioning) and marks a member analyzable when
+    that path has at least three valid fixes in the track domain and a fix
+    at the free-end frame.  Every statistic below runs over the analyzable
+    population; the exclusion taxonomy (no_track / unanchored /
+    insufficient_fixes / no_free_end_fix) is reported once.  No per-script anchoring or
     coherence filter remains here -- ``track_qc`` is the sole authority.
 
 3.  **Per-PC sorting table** -- for each leading PC, the Spearman rank
@@ -49,8 +49,8 @@ population.  Writes a single self-contained report per mode:
     cross-validated R^2, and the F-test p-value.  Directly comparable
     with the scalar-impact regression the heatwave figure reports.
 
-5.  **ERA5 free-end MSL percentile** -- fraction of members with a
-    finite exact-frame fix whose central MSL is at or below ERA5's,
+5.  **ERA5 free-end MSL percentile** -- fraction of analyzable members
+    whose central MSL is at or below ERA5's,
     matching the definition behind the ``ERA5 p<N>`` annotation in
     ``aggregate_tc_tracks.py``.  Plus the fractions of finite free-end
     fixes east and north of the ERA5 free-end fix, so directional
@@ -71,12 +71,9 @@ population.  Writes a single self-contained report per mode:
     EOF) disqualifies the steering reading; a weak, smooth tail of a
     domain-scale pattern supports it.
 
-Track targets use each member's resolved storm-of-interest path.  The
-free-end fix is the fix at the free-end frame on that path, falling back
-to the nearest valid fix (fallbacks are flagged; the ERA5 MSL percentile
-uses the exact-frame subset).  Non-analyzable members are NaN in the
-targets, so every statistic runs over the analyzable population and
-reports its n.
+Track targets are the fix at the free-end frame on each member's resolved
+storm-of-interest path.  Non-analyzable members are NaN in the targets, so
+every statistic runs over the analyzable population and reports its n.
 
 Outputs (in --output-dir):
     synoptic_pca_track_stats_<mode>.csv   per-PC sorting table
@@ -449,39 +446,30 @@ def write_report(
         f"mode={mode} (free end = frame {free_end_frame}), n_members={n_members}",
         f"analyzable={counts['analyzable']}, excluded={counts['excluded']} "
         f"(no_track {counts['no_track']} / unanchored {counts['unanchored']} / "
-        f"insufficient_fixes {counts['insufficient_fixes']}); "
-        f"exact-frame free-end fixes={counts['exact_frame']}, "
-        f"nearest-frame fallbacks={counts['fe_fallback']}",
+        f"insufficient_fixes {counts['insufficient_fixes']} / "
+        f"no_free_end_fix {counts['no_free_end_fix']})",
         f"ERA5 free-end fix: {era5_ref['lat']:.2f}N {era5_ref['lon']:.2f}E, "
         f"{era5_ref['msl_hpa']:.1f} hPa",
     ]
 
     anchor = qc.era5_anchor
-    if anchor is not None:
-        lines += [
-            "",
-            "Unified track QC -- anchor-first storm-of-interest resolution "
-            f"(ERA5 anchor fix {anchor['lat']:.2f}N {anchor['lon']:.2f}E at "
-            f"frame {anchor['frame']} +-{ANCHOR_FRAME_WINDOW}, radius "
-            f"{anchor['radius_km']:g} km):",
-            f"  analyzable (resolved path, >=3 in-domain fixes): "
-            f"{counts['analyzable']}",
-            f"  excluded -- no_track (no in-domain fix)         : "
-            f"{counts['no_track']}",
-            f"  excluded -- unanchored (no path reaches anchor) : "
-            f"{counts['unanchored']}",
-            f"  excluded -- insufficient_fixes (<3 on resolved) : "
-            f"{counts['insufficient_fixes']}",
-        ]
-    else:
-        lines += [
-            "",
-            "Unified track QC: anchor window undefined for this mode; "
-            "resolution fell back to a domain-only rule (most in-domain fixes).",
-            f"  analyzable: {counts['analyzable']}, excluded: "
-            f"{counts['excluded']} (no_track {counts['no_track']}, "
-            f"insufficient_fixes {counts['insufficient_fixes']})",
-        ]
+    lines += [
+        "",
+        "Unified track QC -- anchor-first storm-of-interest resolution "
+        f"(ERA5 anchor fix {anchor['lat']:.2f}N {anchor['lon']:.2f}E at "
+        f"frame {qc.config['anchor_frame']} +-{ANCHOR_FRAME_WINDOW}, radius "
+        f"{qc.config['anchor_radius_km']:g} km):",
+        f"  analyzable                                      : "
+        f"{counts['analyzable']}",
+        f"  excluded -- no_track (no in-domain fix)         : "
+        f"{counts['no_track']}",
+        f"  excluded -- unanchored (no path reaches anchor) : "
+        f"{counts['unanchored']}",
+        f"  excluded -- insufficient_fixes (<3 on resolved) : "
+        f"{counts['insufficient_fixes']}",
+        f"  excluded -- no_free_end_fix (none at frame {free_end_frame:>2}): "
+        f"{counts['no_free_end_fix']}",
+    ]
 
     lines += [
         "",
@@ -518,9 +506,9 @@ def write_report(
         "the median flags free-end fixes far outside the storm cluster):",
         _fmt_df(summary),
         "",
-        f"ERA5 free-end central MSL percentile (exact-frame analyzable "
-        f"members, n={msl_n}; matches aggregate_tc_tracks's 'ERA5 p<N>' "
-        f"label): {msl_pct:.1f}",
+        f"ERA5 free-end central MSL percentile (analyzable members, "
+        f"n={msl_n}; matches aggregate_tc_tracks's 'ERA5 p<N>' label): "
+        f"{msl_pct:.1f}",
     ]
     if era5_rel:
         n_rel = era5_rel["n"]
@@ -603,16 +591,14 @@ def run_mode(
     tracker = tracker_override or str(np.asarray(diag["tc_tracker"]))
     parquet = tc_tracks_parquet_path(str(tracks_root), mode, tracker)
     if not Path(parquet).exists():
-        print(f"[track-stats] {parquet} missing; skipping mode '{mode}'.")
-        return
+        raise SystemExit(f"[track-stats] mode '{mode}': {parquet} missing.")
 
     track_box_arr = np.asarray(diag.get("tc_domain", np.zeros(0)), dtype=float).reshape(-1)
     if track_box_arr.size != 4:
-        print(
+        raise SystemExit(
             f"[track-stats] mode '{mode}': npz has no track domain (tc_domain); "
-            f"cannot resolve the storm of interest. Skipping."
+            f"cannot resolve the storm of interest."
         )
-        return
     track_box = (
         float(track_box_arr[0]),
         float(track_box_arr[1]),
@@ -621,32 +607,26 @@ def run_mode(
     )
 
     n_members = int(diag["n_members"])
-    free_end_frame = int(diag["free_end_frame"])
-    n_leads = int(np.asarray(diag["lead_hours"]).size)
-
-    # The anchor is the *pinned* end -- the frame where every conditioned
-    # member must coincide with ERA5: the landfall frame (last frame if the
-    # case sets none) under end-conditioning, frame 0 under start-conditioning.
-    landfall_frame = int(diag.get("landfall_frame", np.int32(-1)))
-    if mode == "start":
-        anchor_frame = 0
-    else:
-        anchor_frame = landfall_frame if 0 <= landfall_frame < n_leads else n_leads - 1
 
     # Single QC authority: anchor-first storm-of-interest resolution.  Targets
     # are NaN for non-analyzable members, so every statistic below runs over
     # the one analyzable population.
-    qc = compute_track_qc(
+    _ens, era5, qc = compute_track_qc(
         parquet,
         track_box=track_box,
-        anchor_frame=anchor_frame,
-        free_end_frame=free_end_frame,
+        mode=mode,
         n_members=n_members,
         anchor_radius_km=anchor_radius_km,
     )
+    free_end_frame = int(qc.config["free_end_frame"])
+    if free_end_frame != int(diag["free_end_frame"]):
+        raise SystemExit(
+            f"[track-stats] mode '{mode}': npz free end frame "
+            f"{int(diag['free_end_frame'])} != track_qc's {free_end_frame}."
+        )
     era5_ref = qc.era5_free_end
     targets = qc.free_end_targets()
-    rotated, rotated_info = rotated_track_targets(parquet, targets, free_end_frame)
+    rotated, rotated_info = rotated_track_targets(era5, targets, era5_ref, free_end_frame)
     targets.update(rotated)
     pc_scores = np.asarray(diag["pc_scores"], dtype=np.float64)
     evr = np.asarray(diag["explained_variance_ratio"], dtype=np.float64)

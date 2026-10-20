@@ -14,6 +14,13 @@ Reads the makani npz (`synoptic_pca_makani.py`) and the cBottle npz (the paper's
 `compute_synoptic_pca.py` output, `synoptic_pca_end.npz`), normalising both schemas
 into one shape.  Degrades to makani-only if the cBottle npz is absent.
 
+**Track targets (Ian) come from the paper's track QC only.**  For a track case
+(npz ``impact_kind == "track"``) each model's targets are resolved from its tracks
+parquet (`--makani-parquet`, `--cbottle-parquet`, both required) through
+`case_track_qc`; track targets stored in an npz are never read (the paper's older
+npz files hold path-0 targets, and for Ian 19 cBottle members carry another storm
+there).
+
 Figure conventions match the other compare figures: the models are displayed as
 "Autoregressive" and "Video diffusion (cBottle)" (npz-internal keys stay
 makani/cbottle), targets get the paper's spelled-out names, and the scatter's
@@ -40,6 +47,7 @@ for _p in (str(BW_DIR), str(SHARED)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+import _dispatch_lib as dl  # noqa: E402
 from synoptic_pca_makani import regression_summary  # noqa: E402
 
 # Display names, shared with the other compare figures (ageostrophic, TC tracks,
@@ -57,6 +65,8 @@ _TARGET_LABELS = {
     "tc_msl_hpa": ("free-end\ncentral MSL", "hPa"),
     "t2m": ("land-mean t2m", "K"),
 }
+# Track target names, in `case_track_qc.TARGET_COLUMNS` order.
+_TRACK_NAMES = ("tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa")
 
 
 def _model_label(mkey: str, m: Dict) -> str:
@@ -113,22 +123,42 @@ def _read_pca_npz(path: str) -> Dict:
                               if "impact_variable" in keys else "")
     out["impact_mask_kind"] = (str(z["impact_mask_kind"])
                                if "impact_mask_kind" in keys else "")
+    # PC-score rows -> member ids: makani stores its survivor mask; cBottle's rows
+    # are all members.
+    out["analyzable"] = (np.asarray(z["analyzable"], bool)
+                         if "analyzable" in keys else None)
+    out["impact_kind"] = str(z["impact_kind"]) if "impact_kind" in keys else ""
+    if out["impact_kind"] == "track":  # targets come from the tracks parquet
+        return out
     if "target_scalar" in keys:  # makani scalar
         nm = str(z["target_names"][0]) if "target_names" in keys else "impact"
         out["targets"][nm] = np.asarray(z["target_scalar"], float)
-    elif "target_track_fe" in keys:  # makani track
-        names = [str(x) for x in z["target_names"]]
-        tgt = np.asarray(z["target_track_fe"], float)
-        for j, nm in enumerate(names):
-            out["targets"][nm] = tgt[:, j]
     elif "member_impact_scalar" in keys and np.asarray(z["member_impact_scalar"]).size:
         nm = str(z["impact_variable"]) if "impact_variable" in keys else "impact"
         out["targets"][nm] = np.asarray(z["member_impact_scalar"], float)[:, fe]
-    elif "track_target_fe" in keys and np.asarray(z["track_target_fe"]).size:
-        tgt = np.asarray(z["track_target_fe"], float)  # [N,4]
-        for j, nm in enumerate(["tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa"]):
-            out["targets"][nm] = tgt[:, j]
     return out
+
+
+def _track_targets(m: Dict, parquet: str, case: Dict, name: str) -> None:
+    """Set ``m``'s targets to the paper's track-QC free-end targets.
+
+    ``name`` labels the log lines (the model key); the paper's npz stores no
+    model name.
+    """
+    from case_track_qc import free_end_target_matrix, load_track_qc
+
+    n_rows = m["pc_scores"].shape[0]
+    rows = m["analyzable"]
+    _ens, _era5, qc = load_track_qc(
+        parquet, case, n_members=rows.size if rows is not None else n_rows)
+    tgt = free_end_target_matrix(qc)
+    if rows is not None:
+        tgt = tgt[rows]
+    if tgt.shape[0] != n_rows:
+        raise SystemExit(f"[pca-cmp] {name}: {tgt.shape[0]} track rows != "
+                         f"{n_rows} PC-score rows")
+    m["targets"] = {nm: tgt[:, j] for j, nm in enumerate(_TRACK_NAMES)}
+    print(f"[pca-cmp] {name} track QC from {parquet}: {qc.summary()}")
 
 
 def _r2_table(models: Dict[str, Dict], n_pc: int = 8) -> Dict:
@@ -319,6 +349,11 @@ def main(argv=None) -> None:
     p.add_argument("--makani-npz", required=True)
     p.add_argument("--cbottle-npz", default=None,
                    help="Paper's synoptic_pca_end.npz for cBottle (optional).")
+    p.add_argument("--makani-parquet", default=None,
+                   help="makani tracks parquet; required for a track case (Ian).")
+    p.add_argument("--cbottle-parquet", default=None,
+                   help="cBottle tracks parquet (the paper's tc_tracks_end.parquet); "
+                   "required for a track case (Ian).")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--case", default="")
     p.add_argument("--n-pc", type=int, default=8)
@@ -329,6 +364,17 @@ def main(argv=None) -> None:
         models["cbottle"] = _read_pca_npz(args.cbottle_npz)
     else:
         print("[pca-cmp] WARNING: no cBottle npz; makani-only.", file=sys.stderr)
+
+    # Track targets: only the paper's track QC (see the module docstring).
+    parquets = {"makani": args.makani_parquet, "cbottle": args.cbottle_parquet}
+    for mkey, m in models.items():
+        if m["impact_kind"] != "track":
+            continue
+        if not parquets.get(mkey):
+            raise SystemExit(f"[pca-cmp] {mkey} is a track case; pass --{mkey}-parquet.")
+        if not args.case:
+            raise SystemExit("[pca-cmp] --case is required for a track case.")
+        _track_targets(m, parquets[mkey], dl.load_case(args.case), name=mkey)
 
     # ``--case`` (the slug, e.g. "ian") keys the output filenames; the figure
     # titles use the npz's stored display name (e.g. "Hurricane Ian") when one

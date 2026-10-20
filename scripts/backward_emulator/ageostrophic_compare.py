@@ -258,8 +258,10 @@ def main(argv=None) -> None:
             makani, cache_path=cache, makani_analysis_dir=args.makani_analysis_dir)
         alive = surv["alive"]
         survival = surv["survival"]
+        # Forward frame 0 is the window start, 66 h back; frame -1 is the
+        # pinned present (always 1.0).
         print(f"[ageo-cmp] survivor censoring: survival@66h="
-              f"{float(np.asarray(survival)[-1]):.3f}")
+              f"{float(np.asarray(survival)[0]):.3f}")
 
     models: Dict[str, Dict] = {
         "makani": {

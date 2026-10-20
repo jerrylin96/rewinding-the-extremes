@@ -732,7 +732,6 @@ def animate_tracks(
     lat_max,
     era5_tracks_np=None,
     mode=None,
-    landfall_frame=-1,
     anchor_radius_km=ANCHOR_RADIUS_KM,
 ):
     """Create an MP4 animation of ensemble TC tracks evolving over time.
@@ -741,56 +740,37 @@ def animate_tracks(
     it stays well-behaved across the dateline) on top of the per-member
     spaghetti, with the ERA5 reference drawn last when present.
 
-    Track drawing inherits the round-5 resolution rule: ``track_qc``
-    resolves each member's storm of interest anchor-first (the tracker path
-    reaching the ERA5 fix at the pinned end — the landfall frame under
-    end-conditioning, frame 0 otherwise) and the animation draws that one
-    path per member, so unrelated systems can't bias the mean or clutter
-    the map.  Members with no anchor-reaching storm are dropped from the
-    animation.  The parquet on disk keeps every original track.  When ERA5
-    is unavailable (no anchor reference) the raw primary path is drawn.
+    Track drawing uses the one QC rule: ``track_qc`` resolves each member's
+    storm of interest anchor-first (the tracker path reaching the ERA5 fix at
+    the pinned end) and the animation draws the analyzable members' storms
+    only, so unrelated systems can't bias the mean or clutter the map.  The
+    parquet on disk keeps every original track.  The ERA5 reference is
+    required.
 
     When ``mode`` is ``"end"`` or ``"start"`` a per-member dot is drawn
     at the *free* end of each member's track — the end that wasn't
     anchored to ERA5 by the conditioning — so the spread of free-end
-    landing/starting positions is visible from the first frame.  The
-    dots sit on the full-track endpoint, not the leading-edge step, so
-    for start-conditioning they preview future endpoints as the
-    spaghetti grows toward them.
+    landing/starting positions is visible from the first frame.  For
+    start-conditioning the dots preview the endpoints as the spaghetti grows
+    toward them.
     """
     print(f"Animating tracks to {out_path}...")
-    n_total = tc_tracks_np.shape[0]
-    if era5_tracks_np is not None:
-        n_leads = tc_tracks_np.shape[2]
-        anchor_frame = (
-            0
-            if mode in ("start", "both")
-            else (landfall_frame if 0 <= landfall_frame < n_leads else n_leads - 1)
-        )
-        qc = compute_track_qc_arrays(
-            tc_tracks_np,
-            era5_tracks_np,
-            track_box=(lon_min, lon_max, lat_min, lat_max),
-            anchor_frame=anchor_frame,
-            free_end_frame=0,
-            anchor_radius_km=anchor_radius_km,
-        )
-        tc_tracks_np = qc.storm_of_interest_array(tc_tracks_np)
-        # ERA5's storm of interest is its path 0 (defines the anchor).
-        era5_tracks_np = era5_tracks_np[:, 0:1]
-        counts = qc.counts()
-        print(
-            f"  Anchor-first resolution (frame {anchor_frame}): "
-            f"{counts['analyzable']}/{n_total} members analyzable "
-            f"({counts['excluded']} excluded)."
-        )
-    else:
-        # No ERA5 reference => no anchor; fall back to the raw primary path.
-        tc_tracks_np = tc_tracks_np[:, 0:1]
-        print(
-            "  No ERA5 reference; drawing the raw primary path per member "
-            "(no anchor-first resolution)."
-        )
+    if era5_tracks_np is None:
+        raise ValueError("animate_tracks: the ERA5 reference track is required")
+    qc = compute_track_qc_arrays(
+        tc_tracks_np,
+        era5_tracks_np,
+        track_box=(lon_min, lon_max, lat_min, lat_max),
+        mode=mode,
+        anchor_radius_km=anchor_radius_km,
+    )
+    tc_tracks_np = qc.storm_of_interest_array(tc_tracks_np)
+    # ERA5's storm of interest is its path 0 (defines the anchor).
+    era5_tracks_np = era5_tracks_np[:, 0:1]
+    print(
+        f"  Anchor-first resolution (frame {qc.config['anchor_frame']}): "
+        f"{qc.summary()}"
+    )
     fig = plt.figure(figsize=(14, 8))
     writer = animation.FFMpegWriter(
         fps=2, metadata=dict(artist="earth2studio"), bitrate=1800
@@ -808,26 +788,18 @@ def animate_tracks(
     # slices it up to the current step inside the frame loop.
     mean_lats, mean_lons = ensemble_mean_track(tc_tracks_np, path_id=0)
 
-    # Per-member free-end fixes (the end that wasn't anchored to ERA5).
-    # Pre-computed once so the frame loop just scatters a fixed set of
-    # (lat, lon) points each frame.  Empty list for mode == "both" or
-    # mode is None — neither end is "free" under both-end conditioning
-    # so there is nothing distinctive to mark.
+    # Per-member free-end fixes (the end that wasn't anchored to ERA5), at the
+    # free-end frame itself.  Pre-computed once so the frame loop just scatters
+    # a fixed set of (lat, lon) points each frame.  Empty under both-end
+    # conditioning, which has no free end.
     free_end_fixes: list = []
-    free_end_pick = {"end": "first", "start": "last"}.get(mode or "")
-    if free_end_pick is not None:
-        for path_id in range(tc_tracks_np.shape[1]):
-            for member_idx in range(tc_tracks_np.shape[0]):
-                m_lats = tc_tracks_np[member_idx, path_id, :, 0]
-                m_lons = tc_tracks_np[member_idx, path_id, :, 1]
-                m_valid = ~np.isnan(m_lats) & ~np.isnan(m_lons)
-                if m_valid.sum() < 2:
-                    continue
-                idx = 0 if free_end_pick == "first" else -1
-                color = cmap(member_idx / max(1, tc_tracks_np.shape[0] - 1))
-                free_end_fixes.append(
-                    (m_lons[m_valid][idx], m_lats[m_valid][idx], color)
-                )
+    fe = qc.config["free_end_frame"]
+    if fe is not None:
+        for member_idx in np.flatnonzero(qc.analyzable):
+            color = cmap(member_idx / max(1, tc_tracks_np.shape[0] - 1))
+            free_end_fixes.append(
+                (tc_tracks_np[member_idx, 0, fe, 1], tc_tracks_np[member_idx, 0, fe, 0], color)
+            )
 
     with writer.saving(fig, out_path, dpi=120):
         for t in range(n_timesteps):
@@ -1075,15 +1047,9 @@ def main():
         "their post-tropical landfall phase, which the canonical setup "
         "truncates at extratropical transition).",
     )
-    parser.add_argument(
-        "--landfall-frame",
-        type=int,
-        default=-1,
-        help="Pinned-end anchor frame (the case YAML's tc_tracks.landfall_"
-        "frame; last lead when unset) for the --animate track_qc storm-of-"
-        "interest resolution under end-conditioning.",
-    )
     args = parser.parse_args()
+    if args.animate and not args.era5_zarr:
+        raise SystemExit("ERROR: --animate needs --era5-zarr (the track QC reference).")
 
     if args.warm_core and args.tracker != "tempest":
         print(
@@ -1119,9 +1085,9 @@ def main():
             "will still be plotted)."
         )
     elif args.conditioning and not args.era5_zarr:
-        print(
-            "WARNING: --conditioning provided without --era5-zarr; "
-            "ERA5 replacement disabled."
+        raise SystemExit(
+            "ERROR: --conditioning needs --era5-zarr: the conditioned frames "
+            "are tracked on the ERA5 they were pinned to."
         )
 
     if args.tracker == "tempest":
@@ -1167,6 +1133,13 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
+    # Save raw tracks for downstream use (long-format parquet, schema in
+    # tc_tracks_io.py — keeps tc_msl + tc_w10m alongside lat/lon for the
+    # TC intensity / trajectory analysis notebooks).
+    tracks_path = os.path.join(args.output_dir, f"tc_tracks_{args.mode}.parquet")
+    save_tracks_parquet(tracks_path, tc_tracks_np, era5_arr=era5_tracks_np)
+    print(f"Saved raw tracks to {tracks_path}")
+
     if args.animate:
         anim_path = os.path.join(args.output_dir, f"tc_tracks_{args.mode}.mp4")
         animate_tracks(
@@ -1182,15 +1155,7 @@ def main():
             args.lat_max,
             era5_tracks_np=era5_tracks_np,
             mode=args.mode,
-            landfall_frame=args.landfall_frame,
         )
-
-    # Save raw tracks for downstream use (long-format parquet, schema in
-    # tc_tracks_io.py — keeps tc_msl + tc_w10m alongside lat/lon for the
-    # TC intensity / trajectory analysis notebooks).
-    tracks_path = os.path.join(args.output_dir, f"tc_tracks_{args.mode}.parquet")
-    save_tracks_parquet(tracks_path, tc_tracks_np, era5_arr=era5_tracks_np)
-    print(f"Saved raw tracks to {tracks_path}")
 
 
 if __name__ == "__main__":
