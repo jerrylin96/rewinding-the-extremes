@@ -59,25 +59,17 @@ emulator destabilizes beyond that.
    no `sst` channel — so the masked pixels are identical for both methods.
    (makani's own land mask is the LSM invariant via `ensemble_horizon.domain_weights`;
    for the comparison we use one shared ERA5 mask so both models mask the same pixels.)
-
-## Open scientific decision: survivor censoring
-
-The autoregressive emulator's members go unstable and blow up (one member at
-1e8 K destroys a 1000-member mean), so makani's settled methodology computes every
-distributional statistic over **survivors** — a member is censored from its first
-failing lead onward — and reports the **survival fraction** alongside. cBottle's
-end-conditioned members are all valid, so they need no censoring.
-
-Whether our comparison reducer needs censoring hinges on one empirical number:
-**the survival fraction at 66 h**. Measured (Oct 2026): 778/1000 for the PNW ridge
-and 867/1000 for Ian, so censoring is live in both cases, and the PNW ridge loses
-more members than Ian (the original expectation was the reverse). Check it with
-makani's existing `analysis/ensemble_horizon.py` /
-`plot_ensemble_horizon.py` (torch-free; the `range` detector works from the field
-dumps alone) on the first 12 frames. If survival ≈ 100 % at 66 h, the naive
-all-member stats stand; if not, `latlon_metrics.reduce_selected` gains a per-member
-`alive` mask (all-True for cBottle) so both models reduce over survivors identically,
-and a survival-fraction panel is added where makani appears.
+5. **makani statistics are over survivors.** makani's members can go numerically
+   unstable (one member at 1e8 K destroys a 1000-member mean), so each member is
+   censored from its first failing lead onward (`survival.py`: makani's `range`
+   detector and thresholds; once failed, always failed). Every makani statistic is
+   over the members alive at that lead, and the survival fraction is reported with
+   it. At 66 h, 778/1000 members survive for the PNW ridge and 867/1000 for Ian.
+   cBottle's members are all numerically valid and are not censored. Track
+   statistics also pass through the track QC (Fail-loud guards), so the two Ian
+   populations are selected differently: makani's 867 are its survivors, all of
+   which have a free-end fix; cBottle's 947 are the members whose storm is detected
+   at the free end.
 
 ## Fail-loud guards
 
