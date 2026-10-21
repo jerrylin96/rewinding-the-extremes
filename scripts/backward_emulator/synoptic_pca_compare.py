@@ -12,7 +12,8 @@ both from each npz's stored PC scores + impact target -- is:
 
 Reads the makani npz (`synoptic_pca_makani.py`) and the cBottle npz (the paper's own
 `compute_synoptic_pca.py` output, `synoptic_pca_end.npz`), normalising both schemas
-into one shape.  Degrades to makani-only if the cBottle npz is absent.
+into one shape.  Without `--cbottle-npz` it runs makani-only; a cBottle path that
+is given but does not exist is an error, never a makani-only run.
 
 **Track targets (Ian) come from the paper's track QC only.**  For a track case
 (npz ``impact_kind == "track"``) each model's targets are resolved from its tracks
@@ -20,6 +21,10 @@ parquet (`--makani-parquet`, `--cbottle-parquet`, both required) through
 `case_track_qc`; track targets stored in an npz are never read (the paper's older
 npz files hold path-0 targets, and for Ian 19 cBottle members carry another storm
 there).
+
+Before anything is read, `case_track_qc.check_pca_npzs` refuses an npz from another
+case (the `--case` YAML's display name, or makani's without `--case`), another
+conditioning mode (free end not at frame 0), or another impact kind.
 
 Figure conventions match the other compare figures: the models are displayed as
 "Autoregressive" and "Video diffusion (cBottle)" (npz-internal keys stay
@@ -48,6 +53,7 @@ for _p in (str(BW_DIR), str(SHARED)):
         sys.path.insert(0, _p)
 
 import _dispatch_lib as dl  # noqa: E402
+import case_track_qc as cq  # noqa: E402
 from synoptic_pca_makani import regression_summary  # noqa: E402
 
 # Display names, shared with the other compare figures (ageostrophic, TC tracks,
@@ -87,10 +93,10 @@ def _read_pca_npz(path: str) -> Dict:
     z = np.load(path, allow_pickle=True)
     keys = set(z.files)
     scores = z["pc_scores"]
-    fe = int(z["free_end_frame"]) if "free_end_frame" in keys else 0
+    fe = int(z["free_end_frame"])
     out: Dict = {
         "model": str(z["model"]) if "model" in keys else Path(path).stem,
-        "case": str(z["case_name"]) if "case_name" in keys else "",
+        "case": str(z["case_name"]),
         "evr": np.asarray(z["explained_variance_ratio"], float),
         "pc_scores": np.asarray(scores, float),
         "era5_pc_percentile": (np.asarray(z["era5_pc_percentile"], float)
@@ -127,7 +133,7 @@ def _read_pca_npz(path: str) -> Dict:
     # are all members.
     out["analyzable"] = (np.asarray(z["analyzable"], bool)
                          if "analyzable" in keys else None)
-    out["impact_kind"] = str(z["impact_kind"]) if "impact_kind" in keys else ""
+    out["impact_kind"] = str(z["impact_kind"])
     if out["impact_kind"] == "track":  # targets come from the tracks parquet
         return out
     if "target_scalar" in keys:  # makani scalar
@@ -145,13 +151,11 @@ def _track_targets(m: Dict, parquet: str, case: Dict, name: str) -> None:
     ``name`` labels the log lines (the model key); the paper's npz stores no
     model name.
     """
-    from case_track_qc import free_end_target_matrix, load_track_qc
-
     n_rows = m["pc_scores"].shape[0]
     rows = m["analyzable"]
-    _ens, _era5, qc = load_track_qc(
+    _ens, _era5, qc = cq.load_track_qc(
         parquet, case, n_members=rows.size if rows is not None else n_rows)
-    tgt = free_end_target_matrix(qc)
+    tgt = cq.free_end_target_matrix(qc)
     if rows is not None:
         tgt = tgt[rows]
     if tgt.shape[0] != n_rows:
@@ -348,7 +352,8 @@ def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--makani-npz", required=True)
     p.add_argument("--cbottle-npz", default=None,
-                   help="Paper's synoptic_pca_end.npz for cBottle (optional).")
+                   help="Paper's synoptic_pca_end.npz for cBottle; omit for a "
+                   "makani-only run.")
     p.add_argument("--makani-parquet", default=None,
                    help="makani tracks parquet; required for a track case (Ian).")
     p.add_argument("--cbottle-parquet", default=None,
@@ -359,11 +364,15 @@ def main(argv=None) -> None:
     p.add_argument("--n-pc", type=int, default=8)
     args = p.parse_args(argv)
 
-    models: Dict[str, Dict] = {"makani": _read_pca_npz(args.makani_npz)}
-    if args.cbottle_npz and Path(args.cbottle_npz).exists():
-        models["cbottle"] = _read_pca_npz(args.cbottle_npz)
+    npzs = {"makani": args.makani_npz}
+    if args.cbottle_npz is not None:  # a given path, even "", must load
+        npzs["cbottle"] = args.cbottle_npz
     else:
-        print("[pca-cmp] WARNING: no cBottle npz; makani-only.", file=sys.stderr)
+        print("[pca-cmp] WARNING: no --cbottle-npz; makani-only.", file=sys.stderr)
+    case_cfg = dl.load_case(args.case) if args.case else None
+    cq.check_pca_npzs(list(npzs.values()),
+                      case_cfg["display_name"] if case_cfg else None)
+    models: Dict[str, Dict] = {k: _read_pca_npz(p) for k, p in npzs.items()}
 
     # Track targets: only the paper's track QC (see the module docstring).
     parquets = {"makani": args.makani_parquet, "cbottle": args.cbottle_parquet}
@@ -372,9 +381,9 @@ def main(argv=None) -> None:
             continue
         if not parquets.get(mkey):
             raise SystemExit(f"[pca-cmp] {mkey} is a track case; pass --{mkey}-parquet.")
-        if not args.case:
+        if case_cfg is None:
             raise SystemExit("[pca-cmp] --case is required for a track case.")
-        _track_targets(m, parquets[mkey], dl.load_case(args.case), name=mkey)
+        _track_targets(m, parquets[mkey], case_cfg, name=mkey)
 
     # ``--case`` (the slug, e.g. "ian") keys the output filenames; the figure
     # titles use the npz's stored display name (e.g. "Hurricane Ian") when one

@@ -37,7 +37,9 @@ makani members are also censored to survivors: `--survival-npz` must be the 66 h
 mask (`survival_<case>.npz`, one column per tracked lead) and is required unless
 `--no-censor` is passed.  The PCA<->tracks join is by original member index: the
 PCA's analyzable set is `alive[:, FREE_END_FRAME=0]` of the same mask, and a length
-check falls back to flat colour rather than mis-colour.
+check falls back to flat colour rather than mis-colour.  Before any file is read,
+`case_track_qc.check_pca_npzs` refuses a colour npz from another case (the `--case`
+YAML's display name), another conditioning mode, or another impact kind.
 
 Light where it can be (numpy reductions + the PC-percentile join + the pattern-map
 reshape are unit-tested); the map + parquet read need `e2s-custom` (pandas, and cartopy
@@ -63,7 +65,7 @@ if str(EA_DIR) not in sys.path:  # appended: never shadow our modules
     sys.path.append(str(EA_DIR))
 
 import _dispatch_lib as dl  # noqa: E402
-from case_track_qc import load_track_qc  # noqa: E402
+from case_track_qc import check_pca_npzs, load_track_qc  # noqa: E402
 
 _R_EARTH_KM = 6371.0
 
@@ -810,7 +812,8 @@ def _plot(
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--makani-parquet", required=True)
-    p.add_argument("--cbottle-parquet", default=None)
+    p.add_argument("--cbottle-parquet", default=None,
+                   help="cBottle tracks parquet; omit for a makani-only figure.")
     p.add_argument("--case", default="ian")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--survival-npz", default=None,
@@ -841,6 +844,9 @@ def main(argv=None) -> None:
     box = dl.region_box(case, "track")
     if box is None:
         raise SystemExit(f"case '{args.case}' has no regions.track box.")
+    check_pca_npzs([p for p in (args.pca_makani_npz, args.pca_cbottle_npz)
+                    if p is not None],
+                   case["display_name"])
     lon_min, lon_max, lat_min, lat_max = box
     extent = [lon_min - args.margin, lon_max + args.margin,
               lat_min - args.margin, lat_max + args.margin]
@@ -864,7 +870,7 @@ def main(argv=None) -> None:
     print(f"[tc-plot] makani members plotted: {int(keep.sum())}")
 
     # cBottle: round-tripped ERA5 (dashed black baseline).
-    if args.cbottle_parquet and Path(args.cbottle_parquet).exists():
+    if args.cbottle_parquet is not None:  # a given path, even "", must load
         c_ens, c_era5, c_qc = _load(args.cbottle_parquet, case)
         c_keep = c_qc.analyzable.copy()
         print(f"[tc-plot] cBottle track QC: {c_qc.summary()}")
@@ -874,7 +880,7 @@ def main(argv=None) -> None:
             "keep": c_keep, "qc": c_qc}
         print(f"[tc-plot] cBottle members plotted: {int(c_keep.sum())}")
     else:
-        print("[tc-plot] WARNING: no cBottle parquet; makani-only.", file=sys.stderr)
+        print("[tc-plot] WARNING: no --cbottle-parquet; makani-only.", file=sys.stderr)
 
     T = m_ens.shape[2]
     lead_h = np.arange(T) * 6.0
@@ -889,7 +895,7 @@ def main(argv=None) -> None:
     pca_path: Dict[str, str] = {}
     for mkey, npz in (("makani", args.pca_makani_npz),
                       ("cbottle", args.pca_cbottle_npz)):
-        if npz and mkey in models:
+        if npz is not None and mkey in models:
             fe_lon = models[mkey]["qc"].free_end_targets()["fe_lon_deg"]  # [N]
             pca_by_model[mkey] = _load_pca_for_color(npz, fe_lon)
             pca_path[mkey] = npz

@@ -59,25 +59,17 @@ emulator destabilizes beyond that.
    no `sst` channel — so the masked pixels are identical for both methods.
    (makani's own land mask is the LSM invariant via `ensemble_horizon.domain_weights`;
    for the comparison we use one shared ERA5 mask so both models mask the same pixels.)
-
-## Open scientific decision: survivor censoring
-
-The autoregressive emulator's members go unstable and blow up (one member at
-1e8 K destroys a 1000-member mean), so makani's settled methodology computes every
-distributional statistic over **survivors** — a member is censored from its first
-failing lead onward — and reports the **survival fraction** alongside. cBottle's
-end-conditioned members are all valid, so they need no censoring.
-
-Whether our comparison reducer needs censoring hinges on one empirical number:
-**the survival fraction at 66 h**. Measured (Oct 2026): 778/1000 for the PNW ridge
-and 867/1000 for Ian, so censoring is live in both cases, and the PNW ridge loses
-more members than Ian (the original expectation was the reverse). Check it with
-makani's existing `analysis/ensemble_horizon.py` /
-`plot_ensemble_horizon.py` (torch-free; the `range` detector works from the field
-dumps alone) on the first 12 frames. If survival ≈ 100 % at 66 h, the naive
-all-member stats stand; if not, `latlon_metrics.reduce_selected` gains a per-member
-`alive` mask (all-True for cBottle) so both models reduce over survivors identically,
-and a survival-fraction panel is added where makani appears.
+5. **makani statistics are over survivors.** makani's members can go numerically
+   unstable (one member at 1e8 K destroys a 1000-member mean), so each member is
+   censored from its first failing lead onward (`survival.py`: makani's `range`
+   detector and thresholds; once failed, always failed). Every makani statistic is
+   over the members alive at that lead, and the survival fraction is reported with
+   it. At 66 h, 778/1000 members survive for the PNW ridge and 867/1000 for Ian.
+   cBottle's members are all numerically valid and are not censored. Track
+   statistics also pass through the track QC (Fail-loud guards), so the two Ian
+   populations are selected differently: makani's 867 are its survivors, all of
+   which have a free-end fix; cBottle's 947 are the members whose storm is detected
+   at the free end.
 
 ## Fail-loud guards
 
@@ -94,7 +86,9 @@ These misuses used to produce plausible output, and are now errors:
   no longer fall back to makani-only output when the overlay fails: the error is
   re-raised and nothing is written, because a makani-only `.npz`/figure written with
   exit 0 is byte-for-byte indistinguishable from an intentional run. `--no-cbottle`
-  remains the way to request a makani-only run.
+  remains the way to request a makani-only run. Likewise, `synoptic_pca_compare.py`
+  and `plot_tc_tracks_compare.py` fail on a `--cbottle-npz` / `--cbottle-parquet`
+  path that does not exist; omitting the flag is the way to run them makani-only.
 * **Storm of interest and population (Ian).** Every script that reads a tracks parquet
   goes through the paper's own track QC (`ensemble_analysis/track_qc.py`, via
   `case_track_qc.py`): a member's storm is the path within 500 km of ERA5 at the pinned
@@ -112,6 +106,11 @@ These misuses used to produce plausible output, and are now errors:
   (or an explicit `--no-censor`) and refuses a mask whose shape is not the tracks'
   `(members, leads)`: the full-horizon `survival_full.npz` would censor at 180 h, not
   66 h.
+* **PCA-file pairing.** Before reading anything else, both comparison scripts refuse
+  a PCA npz from another case (its `case_name` must be the `--case` YAML's display
+  name, or makani's without `--case`), another conditioning mode (free end not at
+  frame 0) or another impact kind (`case_track_qc.check_pca_npzs`). They cannot tell
+  two ensembles of one case apart: no file carries an ensemble ID (GitHub issue #6).
 
 Regenerating the two Ian figures (light jobs, minutes):
 

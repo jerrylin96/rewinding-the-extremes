@@ -138,24 +138,92 @@ def test_figure_requires_survival_mask(parquet, tmp_path):
                  "--out-dir", str(tmp_path)])
 
 
-def _cbottle_track_npz(path, n=6):
+def _savez(path, keys, over):
+    """``np.savez`` of ``keys`` updated by ``over``; a ``None`` value drops the key."""
+    keys = {**keys, **over}
+    np.savez(path, **{k: v for k, v in keys.items() if v is not None})
+
+
+@pytest.mark.parametrize("flag, name", [
+    ("--cbottle-parquet", "typo.parquet"),
+    ("--cbottle-parquet", ""),  # "" = an unset "$VAR"
+    ("--pca-cbottle-npz", ""),
+])
+def test_figure_refuses_a_missing_cbottle_path(parquet, tmp_path, flag, name):
+    path = str(tmp_path / name) if name else ""
+    with pytest.raises(FileNotFoundError):  # not a makani-only or flat-colour figure
+        tp.main(["--case", "ian", "--makani-parquet", parquet, "--no-censor",
+                 flag, path, "--out-dir", str(tmp_path / "out")])
+    assert not (tmp_path / "out").exists()
+
+
+def _cbottle_track_npz(path, n=6, **over):
     baked = np.zeros((n, 4))
     baked[1, :2] = WPAC
-    np.savez(path, model="cbottle", case_name="Hurricane Ian", free_end_frame=0,
-             impact_kind="track",
-             pc_scores=np.random.default_rng(0).standard_normal((n, 10)),
-             explained_variance_ratio=np.linspace(0.3, 0.0, 10),
-             track_target_fe=baked)
+    _savez(path, dict(model="cbottle", case_name="Hurricane Ian", free_end_frame=0,
+                      impact_kind="track",
+                      pc_scores=np.random.default_rng(0).standard_normal((n, 10)),
+                      explained_variance_ratio=np.linspace(0.3, 0.0, 10),
+                      track_target_fe=baked), over)
 
 
-def _makani_track_npz(path):
-    np.savez(path, model="makani", case_name="Hurricane Ian", free_end_frame=0,
-             impact_kind="track",
-             pc_scores=np.random.default_rng(1).standard_normal((5, 10)),
-             explained_variance_ratio=np.linspace(0.4, 0.0, 10),
-             analyzable=np.array([True, True, False, True, True, True]),
-             target_track_fe=np.zeros((5, 4)),
-             target_names=np.array(["tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa"]))
+def _makani_track_npz(path, **over):
+    _savez(path, dict(model="makani", case_name="Hurricane Ian", free_end_frame=0,
+                      impact_kind="track",
+                      pc_scores=np.random.default_rng(1).standard_normal((5, 10)),
+                      explained_variance_ratio=np.linspace(0.4, 0.0, 10),
+                      analyzable=np.array([True, True, False, True, True, True]),
+                      target_track_fe=np.zeros((5, 4)),
+                      target_names=np.array(["tc_lat", "tc_lon", "tc_dist_km",
+                                             "tc_msl_hpa"])), over)
+
+
+def test_pca_pairing_accepts_one_comparison(tmp_path):
+    _makani_track_npz(tmp_path / "mk.npz")
+    _cbottle_track_npz(tmp_path / "cb.npz")
+    paths = [str(tmp_path / "mk.npz"), str(tmp_path / "cb.npz")]
+    ctq.check_pca_npzs(paths, "Hurricane Ian")
+    ctq.check_pca_npzs(paths)  # no case: the first file is the reference
+
+
+@pytest.mark.parametrize("over, match", [
+    ({"case_name": "Hurricane Sandy"},
+     "case 'Hurricane Sandy', but the case YAML has 'Hurricane Ian'"),
+    ({"free_end_frame": 11}, "free end at frame 11"),  # a start-mode npz
+    ({"impact_kind": "scalar"}, "impact kind 'scalar', but .*mk.npz has 'track'"),
+    ({"free_end_frame": None}, "no free_end_frame"),  # refused, never defaulted
+])
+def test_pca_pairing_refuses_a_file_from_another_comparison(tmp_path, over, match):
+    _makani_track_npz(tmp_path / "mk.npz")
+    _cbottle_track_npz(tmp_path / "cb.npz", **over)
+    with pytest.raises(SystemExit, match=match):
+        ctq.check_pca_npzs([str(tmp_path / "mk.npz"), str(tmp_path / "cb.npz")],
+                           "Hurricane Ian")
+
+
+def test_pca_pairing_without_a_case_compares_the_files(tmp_path):
+    _makani_track_npz(tmp_path / "mk.npz", case_name="2021 Pacific Northwest Heat Wave")
+    _cbottle_track_npz(tmp_path / "cb.npz")
+    with pytest.raises(SystemExit, match="but .*mk.npz has '2021 Pacific"):
+        ctq.check_pca_npzs([str(tmp_path / "mk.npz"), str(tmp_path / "cb.npz")])
+
+
+def test_compare_refuses_another_cases_npz(parquet, tmp_path):
+    _makani_track_npz(tmp_path / "mk.npz")
+    _cbottle_track_npz(tmp_path / "cb.npz", case_name="Hurricane Sandy")
+    with pytest.raises(SystemExit, match="'Hurricane Sandy'"):
+        spc.main(["--makani-npz", str(tmp_path / "mk.npz"),
+                  "--cbottle-npz", str(tmp_path / "cb.npz"),
+                  "--makani-parquet", parquet, "--cbottle-parquet", parquet,
+                  "--case", "ian", "--out-dir", str(tmp_path / "out")])
+
+
+def test_figure_refuses_another_modes_colour_npz(parquet, tmp_path):
+    _cbottle_track_npz(tmp_path / "cb.npz", free_end_frame=11)
+    with pytest.raises(SystemExit, match="free end at frame 11"):
+        tp.main(["--case", "ian", "--makani-parquet", parquet, "--no-censor",
+                 "--pca-cbottle-npz", str(tmp_path / "cb.npz"),
+                 "--out-dir", str(tmp_path / "out")])
 
 
 def test_compare_never_reads_track_targets_from_an_npz(tmp_path):
