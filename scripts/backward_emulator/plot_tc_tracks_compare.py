@@ -844,7 +844,8 @@ def main(argv=None) -> None:
     box = dl.region_box(case, "track")
     if box is None:
         raise SystemExit(f"case '{args.case}' has no regions.track box.")
-    check_pca_npzs([p for p in (args.pca_makani_npz, args.pca_cbottle_npz) if p],
+    check_pca_npzs([p for p in (args.pca_makani_npz, args.pca_cbottle_npz)
+                    if p is not None],
                    case["display_name"])
     lon_min, lon_max, lat_min, lat_max = box
     extent = [lon_min - args.margin, lon_max + args.margin,
@@ -869,7 +870,7 @@ def main(argv=None) -> None:
     print(f"[tc-plot] makani members plotted: {int(keep.sum())}")
 
     # cBottle: round-tripped ERA5 (dashed black baseline).
-    if args.cbottle_parquet:  # a given path must load; only omitting it is makani-only
+    if args.cbottle_parquet is not None:  # a given path, even "", must load
         c_ens, c_era5, c_qc = _load(args.cbottle_parquet, case)
         c_keep = c_qc.analyzable.copy()
         print(f"[tc-plot] cBottle track QC: {c_qc.summary()}")
@@ -894,7 +895,7 @@ def main(argv=None) -> None:
     pca_path: Dict[str, str] = {}
     for mkey, npz in (("makani", args.pca_makani_npz),
                       ("cbottle", args.pca_cbottle_npz)):
-        if npz and mkey in models:
+        if npz is not None and mkey in models:
             fe_lon = models[mkey]["qc"].free_end_targets()["fe_lon_deg"]  # [N]
             pca_by_model[mkey] = _load_pca_for_color(npz, fe_lon)
             pca_path[mkey] = npz

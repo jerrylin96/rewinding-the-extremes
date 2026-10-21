@@ -144,11 +144,16 @@ def _savez(path, keys, over):
     np.savez(path, **{k: v for k, v in keys.items() if v is not None})
 
 
-def test_figure_refuses_a_missing_cbottle_parquet(parquet, tmp_path):
-    with pytest.raises(FileNotFoundError):  # not a makani-only figure with exit 0
+@pytest.mark.parametrize("flag, name", [
+    ("--cbottle-parquet", "typo.parquet"),
+    ("--cbottle-parquet", ""),  # "" = an unset "$VAR"
+    ("--pca-cbottle-npz", ""),
+])
+def test_figure_refuses_a_missing_cbottle_path(parquet, tmp_path, flag, name):
+    path = str(tmp_path / name) if name else ""
+    with pytest.raises(FileNotFoundError):  # not a makani-only or flat-colour figure
         tp.main(["--case", "ian", "--makani-parquet", parquet, "--no-censor",
-                 "--cbottle-parquet", str(tmp_path / "typo.parquet"),
-                 "--out-dir", str(tmp_path / "out")])
+                 flag, path, "--out-dir", str(tmp_path / "out")])
     assert not (tmp_path / "out").exists()
 
 

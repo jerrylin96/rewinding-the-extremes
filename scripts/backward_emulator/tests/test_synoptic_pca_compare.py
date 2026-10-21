@@ -75,11 +75,13 @@ def test_compare_without_case_refuses_npz_from_two_cases(tmp_path):
                   "--out-dir", str(tmp_path / "out")])
 
 
-def test_compare_refuses_a_missing_cbottle_npz(tmp_path):
+@pytest.mark.parametrize("cbottle", ["typo.npz", ""])  # "" = an unset "$VAR"
+def test_compare_refuses_a_missing_cbottle_npz(tmp_path, cbottle):
     mk = tmp_path / "mk.npz"
     _makani_npz(mk)
+    path = str(tmp_path / cbottle) if cbottle else ""
     with pytest.raises(FileNotFoundError):  # not a makani-only run with exit 0
-        spc.main(["--makani-npz", str(mk), "--cbottle-npz", str(tmp_path / "typo.npz"),
+        spc.main(["--makani-npz", str(mk), "--cbottle-npz", path,
                   "--out-dir", str(tmp_path / "out")])
     assert not (tmp_path / "out").exists()
 

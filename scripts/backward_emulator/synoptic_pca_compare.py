@@ -365,7 +365,7 @@ def main(argv=None) -> None:
     args = p.parse_args(argv)
 
     npzs = {"makani": args.makani_npz}
-    if args.cbottle_npz:  # a given path must load; only omitting it is makani-only
+    if args.cbottle_npz is not None:  # a given path, even "", must load
         npzs["cbottle"] = args.cbottle_npz
     else:
         print("[pca-cmp] WARNING: no --cbottle-npz; makani-only.", file=sys.stderr)
