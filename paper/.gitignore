@@ -1,0 +1,12 @@
+# LaTeX build outputs. These patterns apply only under paper/.
+*.aux
+*.log
+*.out
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.toc
+# The built papers, by exact name. Never *.pdf: figures are PDFs too.
+/extremes-on-rewind/main.pdf
+/run-it-back/main.pdf

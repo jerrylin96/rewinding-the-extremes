@@ -1,0 +1,339 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% AGUJournalTemplate.tex: this template file is for articles formatted with LaTeX
+%
+% This file includes commands and instructions
+% given in the order necessary to produce a final output that will
+% satisfy AGU requirements, including customized APA reference formatting.
+%
+% You may copy this file and give it your
+% article name, and enter your text.
+%
+% guidelines and troubleshooting are here: 
+
+%% To submit your paper:
+\documentclass[final]{agujournal2019}
+\makeatletter
+\def\@oddhead{}
+\def\@evenhead{}
+\makeatother
+\graphicspath{{figures/}} % committed figures live in paper/figures/ (FIGURES.md); LaTeX still falls back to the current directory
+\usepackage{url} %this package should fix any errors with URLs in refs.
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{siunitx}
+
+%% Enter journal name below.
+%% Choose from this list of Journals:
+%
+% JGR: Atmospheres
+% JGR: Biogeosciences
+% JGR: Earth Surface
+% JGR: Oceans
+% JGR: Planets
+% JGR: Solid Earth
+% JGR: Space Physics
+% Global Biogeochemical Cycles
+% Geophysical Research Letters
+% Paleoceanography and Paleoclimatology
+% Radio Science
+% Reviews of Geophysics
+% Tectonics
+% Space Weather
+% Water Resources Research
+% Geochemistry, Geophysics, Geosystems
+% Journal of Advances in Modeling Earth Systems (JAMES)
+% Earth's Future
+% Earth and Space Science
+% Geohealth
+%
+% ie, \journalname{Water Resources Research}
+
+\journalname{}
+
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  TITLE
+%
+% (A title should be specific, informative, and brief. Use
+% abbreviations only if they are defined in the abstract. Titles that
+% start with general keywords then specific terms are optimized in
+% searches)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Example: \title{This is a test title}
+
+\title{Extremes on Rewind: Generating 1,000-Member Ensembles Initialized at a Final Condition}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  AUTHORS AND AFFILIATIONS
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Authors are individuals who have significantly contributed to the
+% research and preparation of the article. Group authors are allowed, if
+% each author in the group is separately identified in an appendix.)
+
+% List authors by first name or initial followed by last name and
+% separated by commas. Use \affil{} to number affiliations, and
+% \thanks{} for author notes.
+% Additional author notes should be indicated with \thanks{} (for
+% example, for current addresses).
+
+% Example: \authors{A. B. Author\affil{1}\thanks{Current address, Antartica}, B. C. Author\affil{2,3}, and D. E.
+% Author\affil{3,4}\thanks{Also funded by Monsanto.}}
+
+\authors{Jerry Lin$^{1}$, Mu-Ting Chien$^{1}$, Mansi Sakarvadia$^{2}$, Elizabeth A. Barnes$^{1}$}
+
+
+% \affiliation{1}{First Affiliation}
+% \affiliation{2}{Second Affiliation}
+% \affiliation{3}{Third Affiliation}
+% \affiliation{4}{Fourth Affiliation}
+
+\affiliation{1}{Department of Computing \& Data Sciences, Boston University, Boston, MA, USA}
+\affiliation{2}{Department of Computer Science, University of Chicago, Chicago, IL, USA}
+%(repeat as many times as is necessary)
+
+
+% Corresponding author mailing address and e-mail address:
+
+% (include name and email addresses of the corresponding author.  More
+% than one corresponding author is allowed in this LaTeX file and for
+% publication; but only one corresponding author is allowed in our
+% editorial system.)
+
+% Example: \correspondingauthor{First and Last Name}{email@address.edu}
+
+\correspondingauthor{Jerry Lin}{jlin404@bu.edu}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% KEY POINTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  List up to three key points (at least one is required)
+%  Key Points summarize the main points and conclusions of the article
+%  Each must be 140 characters or fewer with no special characters or punctuation and must be complete sentences
+
+% Example:
+% \begin{keypoints}
+% \item	List up to three key points (at least one is required)
+% \item	Key Points summarize the main points and conclusions of the article
+% \item	Each must be 140 characters or fewer with no special characters or punctuation and must be complete sentences
+% \end{keypoints}
+
+\begin{keypoints}
+\item We use cBottle-video to directly sample plausible histories of chosen extreme events as 1000-member ensembles of 66-hour weather sequences.
+\item Possible histories of a given extreme are nearly as diverse as forward forecasts, producing 84 to 89 percent of their 500 hPa height spread.
+\item Leading antecedent height patterns explain 44 percent of Sandy track latitude variance but under 10 percent of PNW heatwave temperature spread.
+\end{keypoints}
+
+\begin{abstract}
+
+Scenario planning for rare, high-impact events often requires massive ensembles to stochastically sample relevant trajectories. Although autoregressive weather emulators can efficiently generate such ensembles, isolating trajectories of interest requires sifting through petabytes of data, a challenge that grows exponentially with lead time and rarity. In contrast, a non-autoregressive foundation model like Climate in a Bottle video (cBottle-video) can directly sample trajectories terminating in extremes, avoiding large-ensemble search. We use cBottle-video to generate 1000-member ensembles with start- and/or end-conditioning across three extreme events---the 2021 Pacific Northwest (PNW) heatwave, Superstorm Sandy, and Hurricane Ian. Antecedent 500 hPa geopotential height ($z_{500}$) spread at the free end of end-conditioned ensembles reaches 84--89\% of the final-state spread of start-conditioned ensembles, revealing substantial diversity consistent with each extreme event. For the 2021 PNW heatwave, end-conditioned ensemble members begin uniformly warmer than reanalysis and stay warm, replacing the observed rapid intensification with persistent antecedent heat. For Superstorm Sandy, the leading modes of $z_{500}$ at the antecedent end of the end-conditioned ensemble explain 44\% of the variance in track latitude, and roughly 10\% of ensemble members begin as stronger hurricanes than Sandy. For Hurricane Ian, variation in the first landfall location among end-conditioned trajectories underscores the importance of accounting for intermediate hazard exposure in risk planning.
+
+\end{abstract}
+
+\section*{Plain Language Summary}
+
+To prepare for extreme weather events, planners need to know how such events might unfold. Current methods for anticipating this involve running weather models many times from slightly different starting conditions and checking whether any of the resulting simulations produce the extreme event of interest---an inefficient process that becomes harder the longer the simulation and the rarer the event. In this paper, we introduce a fundamentally different approach, using an artificial intelligence model from the ``Climate in a Bottle'' family that generates entire multi-day weather sequences at once, rather than stepping forward in time. With this model, we can generate a thousand 66-hour weather sequences that all end in the same extreme event. We apply this method to three test cases: the 2021 Pacific Northwest heatwave, Superstorm Sandy, and Hurricane Ian. Our results show that the atmosphere could have taken very different paths to the same extreme event. If this approach proves robust, it could give emergency managers and policymakers a powerful new tool: the ability to ask ``what kind of weather patterns could lead to \textit{this} disaster?'' and get a thousand plausible answers.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  BODY TEXT
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction}
+
+Data-driven autoregressive weather emulators and their hybrid counterparts have revolutionized the field of weather forecasting, generating forecasts faster and  at lower computational cost than their purely physics-based counterparts \cite{Bi2023-bg, Lam2023-jq, Kochkov2024-uy, Watt-Meyer2025-oj, Bonev2025-dw, Yuval2026-pk}. While they cannot replace physics-based models given deficiencies in mechanistic interpretability, generalizability out-of-distribution, and reliability for forecasting record-breaking extremes \cite{Sun2025-mh, Zhang2026-lw, Craig2026-ex}, their ability to quickly generate huge ensembles makes them especially useful for sampling low-likelihood, high-impact events \cite{Mahesh2025-py, Mahesh2025-ue}. Unfortunately, generating samples of such events requires substantially larger ensembles of weather forecasts, often comprising petabytes of data---a problem that scales exponentially with lead time and event rarity \cite{Mahesh2025-ue}.
+
+The flexible design and full differentiability of this new generation of weather models, however, also facilitates new use cases that were previously impossible using conventional physics-based models. For example, full differentiability allows for the direct optimization of initial conditions to guide the state of the atmosphere towards a desired condition \cite{Whittaker2026-fe, Hakim2026-oy}. This has been used to amplify the intensity of the 2021 Pacific Northwest (PNW) heatwave in \citeA{Whittaker2026-fe} and alter the trajectory of Hurricane Fiona to more closely align with the anomalous track of Superstorm Sandy in \citeA{Hakim2026-oy}. Nonetheless, the optimization process perturbs these initial conditions only slightly by design, exploring a narrow neighborhood of the original state rather than the full distribution of initial conditions consistent with a given extreme event. Fortunately, the arrival of climate foundation models like Climate in a Bottle video (cBottle-video) has introduced a fundamentally different paradigm by allowing for the generation of weather sequences that share a final, rather than initial, condition \cite{Brenowitz2025-mz}. This is because cBottle-video, a video variant of the original cBottle de-noising diffusion model, generates twelve frames corresponding to a 66-hour weather sequence in parallel, with the option to condition an arbitrary subset of these frames on existing data \cite{Brenowitz2025-mz}. This inverts the usual forecasting question: rather than asking what an initial state produces when time is run forward, one can instead ask which antecedent conditions could culminate in a given extreme by directly generating an event's plausible histories and circumventing the need to filter them from a much larger ensemble.
+
+In this work, we present the first direct sampling of the distribution of trajectories that terminate at a chosen extreme event, using the flexible conditioning capability of the cBottle-video model to generate 1000-member ensembles. We apply this technique to three historical extreme events: the 2021 PNW heatwave, Superstorm Sandy, and Hurricane Ian. For completeness, we also generate 1000-member ensembles conditioned on the first frame (i.e. more analogous to how conventional weather forecasts are created) and conditioned at both the final and first frame (resulting in a form of interpolation between two atmospheric states). Across all three cases, the resulting ensembles reveal substantial trajectory diversity consistent with each extreme, yet the observed intensity at the unconditioned end lies in the tail of the generated ensemble.
+
+
+\section{Model Description and Methods}
+
+cBottle-video uses an adapted Song-UNet diffusion backbone augmented with a learned position embedding, time of day and time of year embedding, monthly mean sea surface temperature (SST) conditioning, and temporal self-attention layers \cite{Song2020-hs, Karras2022-xq, Ho2022-lf, Blattmann2023-zo, Brenowitz2025-mz}. To avoid geometric issues associated with getting convolutional filters to learn location-invariant patterns on a sphere, the model operates on a HEALPix (HPX64) equal-area spherical discretization with custom padding to allow for the flow of information between adjacent faces \cite{Karlbauer2024-nv}. In the HEALPix grid, which corresponds to 100 km resolution, the surface of the Earth is divided into 12 square faces of $64\times64=4{,}096$ pixels each (49,152 pixels globally), and the 64 in HPX64 denotes the number of pixels along one edge of one face \cite{Karlbauer2024-nv, Brenowitz2025-mz}.
+
+The model is trained using a score-based diffusion framework and a masked-conditioning training scheme in which mask patterns (i.e. random frame dropout, block-wise masking, endpoint interpolation, and full sequence masking) are randomly sampled during training to allow the model to infill arbitrary temporal gaps within a 66-hour (12 frame) weather sequence at 6-hour resolution \cite{Song2020-hs, voleti2022MCVD, Brenowitz2025-mz}. The model's training objective is shown in Equation \ref{eq:training_objective} and samples are generated by solving the reverse-time differential equation shown in Equation \ref{eq:sampling_step} using the stochastic sampler described in \citeA{Karras2022-xq}. 
+
+\begin{equation}
+\label{eq:training_objective}
+\arg\min_{\theta} \mathbb{E}_{\mathbf{x} \sim p_{\text{data}}} \mathbb{E}_{\sigma \sim p_\sigma} \mathbb{E}_{\epsilon \sim \mathcal{N}(0, \sigma^2 \mathbf{I})} \| \mathcal{D}_\theta(\mathbf{x} + \epsilon; \sigma) - \mathbf{x} \|^2
+\end{equation}
+
+\begin{equation}
+\label{eq:sampling_step}
+\frac{d\mathbf{x}}{d\sigma} = \frac{\mathbf{x} - \mathcal{D}_\theta(\mathbf{x}, \sigma)}{\sigma}
+\end{equation}
+
+The noise levels used during training are sampled from a log-uniform distribution whose limits ($\sigma_{\min} = 0.02$ to $\sigma_{\max} = 1000.0$) are chosen to span the lowest and highest variance modes of the data. To avoid overfitting at high noise levels, cBottle-video makes use of a mixture of experts approach similar to \citeA{Balaji2022-fc}. Further details regarding the model's architecture and training procedure can be found in \citeA{Brenowitz2025-mz}. 
+
+For our experiments, we load a pre-trained checkpoint of cBottle-video that is publicly available on Hugging Face using a modified version of earth2studio, an open-source software repository designed to streamline the inference and evaluation of deep-learning weather emulators \cite{Earth2Studio_Contributors_NVIDIA_Earth2Studio_2024}. Because implementations of different emulators are standardized under a common API, the original implementation of cBottle-video functions as an autoregressive model by default, and our fork of earth2studio subclasses this implementation to unlock the model's existing flexible conditioning capability. All ensembles generate 12 frames at a time, but end-conditioned ensembles are conditioned on the final frame, start-conditioned ensembles are conditioned on the first frame, and both-end conditioned ensembles are conditioned on both the first and final frames. Text S1 details the sampler settings and the seeding of the 1000 members. All conditioning frames and ground-truth evaluations make use of the ERA5 reanalysis dataset, which is provided at $0.25^{\circ}$ resolution on a lat-lon grid and regridded to HPX64 prior to being used for conditioning \cite{Hersbach2020-oh}. SST conditioning instead uses AMIP mid-month boundary-condition values interpolated to each frame's valid time, prescribed rather than coupled and identical across members \cite{Brenowitz2025-mz}. Further details regarding AMIP SST conditioning can be found in Text S1. Tropical cyclone tracks are extracted at 6-hourly intervals using the TempestExtremes tracker \cite{Ullrich2021-nm} applied to the $0.25^{\circ}$-regridded fields. Candidate storm centers are detected as minima of the mean sea level pressure (MSLP) field subject to a closed-contour criterion and the warm-core thickness criterion of \citeA{Zarzycki2017-fo}, then stitched into tracks subject to persistence, wind-speed, and latitude thresholds. The full tracker configuration is detailed in Text S3. Because the $0.25^{\circ}$ grid adds no information beyond the model's native HPX64 ($\sim$100~km) resolution, storm-center fixes are effectively resolved at that coarser scale.
+
+Given the fact that synoptic drivers for low-likelihood, high-impact events often extend a week or more prior, it is tempting to extend the ``rewound'' trajectories past 66 hours by running cBottle-video autoregressively (i.e. conditioning additional 66-hour trajectories using the endpoints of previously generated trajectories) \cite{White2023-fd}. However, longer trajectories into the past are likely better suited for follow-up work as the checkpoint used in the experiments shown here was not trained for, or evaluated on, autoregressive performance \cite{Brenowitz2025-mz}. Moreover, conditioned frames are reproduced with subtle but noticeable degradations (see Figures~S13-S15), motivating the development of methods that can mitigate compounding degradation in autoregressive rollouts, the training of a new video diffusion model with a context window that extends past 66 hours, or an autoregressive emulator that is trained from scratch to go backwards in time.
+
+\section{Results}
+
+\subsection{2021 Pacific Northwest heatwave}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{free_end_states_pnw_heatwave.png}
+ \setlength{\belowcaptionskip}{-1em}%
+
+\caption{For each conditioning set-up, the top two rows show the 2-meter temperature difference (member - ERA5) for the three warmest and three coolest ensemble members, with a land mask applied over the impact domain ($126^{\circ}$–$110^{\circ}$ W, $38^{\circ}$–$55^{\circ}$ N); the leftmost panel of each row is the ERA5 reference. The third row shows the trajectories of the mean 2-meter temperature over the same domain, with the aforementioned warmest and coolest members shown in red and blue, respectively.}
+
+ \label{fig:free_end_states_pnw_heatwave}
+\end{figure}
+
+In late June 2021, an extraordinary heatwave struck the Pacific Northwest, breaking all-time temperature records and causing hundreds to over a thousand excess deaths across the region \cite{Neal2022-wk, White2023-fd, Mass2024-zq}. The event was driven by a multi-day, strongly amplified 500~hPa geopotential height ($z_{500}$) ridge whose growth was reinforced by diabatic heating within an upstream North Pacific cyclone \cite{Neal2022-wk, Schumacher2022-gb}. Beneath the ridge, record surface temperatures arose from a combination of near-maximal solstice insolation under clear skies, adiabatic warming from enhanced subsidence and offshore flow, and reduced cooling as the Pacific marine layer was suppressed \cite{Neal2022-wk, Schumacher2022-gb, White2023-fd, Loikith2023-nt, Mass2024-zq, Ndoping2026-sc}. Although past heat waves shared similar ingredients, the June 2021 event was distinguished by the exceptional magnitude of several key dynamical factors, including record-breaking midtropospheric heights and temperatures and stronger thermal troughing/offshore flow than historical analogues \cite{Loikith2023-nt, Mass2024-zq}. Its lack of a close modern analogue also makes it a valuable case study for data-driven extreme-event sampling methods \cite{Mahesh2025-py, Whittaker2026-fe}.
+
+Our 66-hour backward trajectories for the 2021 PNW heatwave begin on June 25, 2021 at 6 PM UTC (11 AM PDT) and end on June 28, 2021 at 12 PM UTC (5 AM PDT). In Figure \ref{fig:free_end_states_pnw_heatwave}, we show mean 2-meter temperature ($T_{\mathrm{2m}}$) over a $126^{\circ}\mathrm{W}$--$110^{\circ}\mathrm{W}$, $38^{\circ}\mathrm{N}$--$55^{\circ}\mathrm{N}$ impact domain with a land mask across 1000-member ensembles for both end- and start-conditioned trajectories in the aforementioned time interval. Rather than reproducing the rapid warming trend observed in the ERA5 ground truth, the end-conditioned members (Figure \ref{fig:free_end_states_pnw_heatwave}q) are, without exception, warmer than ERA5 at the free-end (initial) frame and hold roughly steady while ERA5 strengthens past them into the June 27 peak. The simulated anomalous warmth therefore manifests as an overly intense initial state rather than a building heatwave, with the warmest members exceeding ERA5 by up to +5.8 K over land (Figure \ref{fig:free_end_states_pnw_heatwave}f--h). Similarly, the start-conditioned ensemble members underestimate the day-over-day rise in daily maxima seen in the ERA5 trajectory. Instead, some ensemble members exhibit a dampened diurnal cycle, underestimating both daytime heating and nighttime cooling over land. Because the free-end (final) frame (5 AM PDT) coincides with the diurnal minimum, the warmer-than-ERA5 ensemble members are consistent with the underestimated nighttime cooling noted above (Figure \ref{fig:free_end_states_pnw_heatwave}n--p,r).
+
+To quantify the role of large-scale synoptic patterns on the elevated surface temperatures seen in the end-conditioned ensemble members, we first compare the 500 hPa geopotential height composite anomalies over the $170^{\circ}\mathrm{W}$--$100^{\circ}\mathrm{W}$, $25^{\circ}\mathrm{N}$--$70^{\circ}\mathrm{N}$ synoptic domain using the warmest and coolest (by impact domain) deciles, shown in Figure \ref{fig:eof_regression_pnw_heatwave}. We then conduct an empirical orthogonal function (EOF) analysis of 500 hPa geopotential height anomalies on the synoptic domain across all members and perform two regressions to identify the relationship between the EOF-reconstructed geopotential height and the land-mean surface temperature. The first regression, represented by Equation \ref{eq:eof_regression_1_pnw_heatwave}, is a spatial regression of the EOF-reconstructed geopotential height anomaly ($\tilde{z}'_{500}(\mathbf{x})$) onto the land-mean surface temperature anomaly ($T'_{\mathrm{2m}}$). The slope $R(\mathbf{x})$, representing the change in the reconstructed $z_{500}$ anomaly field per unit change in the land-mean temperature anomaly ($T'_{\mathrm{2m}}$), is shown in Figure \ref{fig:eof_regression_pnw_heatwave}c. The second regression, represented in Equation \ref{eq:eof_regression_2_pnw_heatwave}, is a multiple linear regression that regresses the surface temperature ($T_{\mathrm{2m}}$) against the leading eight principal components (PCs) of the geopotential height precursor field. Figure \ref{fig:eof_regression_pnw_heatwave}d shows the relationship between the multiple linear regression prediction and the ensemble-member surface temperature. We provide further details in Text S2 regarding the EOF and PC conventions, the cross-validation strategy behind reported $R^2$ values, and the formula by which $R(\mathbf{x})$ is computed from the leading eight modes.
+
+\begin{equation}
+\label{eq:eof_regression_1_pnw_heatwave}
+    \tilde{z}'_{500}(\mathbf{x}) \approx R(\mathbf{x}) T'_{\mathrm{2m}}
+\end{equation}
+
+\begin{equation}
+\label{eq:eof_regression_2_pnw_heatwave}
+    \hat{T}_{\mathrm{2m}} = \beta_0 + \sum_{k=1}^{8} \beta_k \text{PC}_{k}
+\end{equation}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{eof_regression_pnw_heatwave.png}
+ \setlength{\belowcaptionskip}{-1em}%
+
+\caption{Precursor $z_{500}$ and land-mean $T_{\mathrm{2m}}$ relationships at the free-end frame \mbox{($t=0$)} for the 2021 PNW heatwave under end-conditioning, with EOF analysis conducted over the $170^{\circ}\mathrm{W}$--$100^{\circ}\mathrm{W}$, $25^{\circ}\mathrm{N}$--$70^{\circ}\mathrm{N}$ domain. (Top) Composite $z_{500}$ anomalies for the warmest (left) and coolest (right) deciles relative to the ensemble mean; dashed boxes indicate the region over which $T_{\mathrm{2m}}$ is averaged ($126^{\circ}\mathrm{W}$--$110^{\circ}\mathrm{W}$, $38^{\circ}\mathrm{N}$--$55^{\circ}\mathrm{N}$). (Bottom left) Slope of spatial regression of EOF-reconstructed $z_{500}$ anomaly onto land-mean $T_{\mathrm{2m}}$ anomaly ($\mathrm{m~K^{-1}}$). (Bottom right) Regressed precursor-index predictions vs. ensemble-member absolute land-mean $T_{\mathrm{2m}}$, highlighting the warmest (red) and coolest (blue) deciles alongside the ERA5 verification (star), 1:1 line, and regression statistics.}
+
+ \label{fig:eof_regression_pnw_heatwave}
+\end{figure}
+
+The decile-composite anomalies (Figure \ref{fig:eof_regression_pnw_heatwave}a,b) and the spatial regression slope $R(\mathbf{x})$ (Figure \ref{fig:eof_regression_pnw_heatwave}c) reveal a physically consistent relationship: the warmest members at the free end correspond to a positive $z_{500}$ ridge anomaly centered over the Pacific Northwest, while the coolest members feature a trough anomaly. However, this precursor variation is remarkably small: even between the temperature extremes, the warmest- and coolest-decile composites peak at only ${\sim}{\pm}10\mathrm{~m}$ relative to the ensemble mean (the plotted color range, set to the anomaly field's 99th percentile, saturates below these extrema), so the large-scale height pattern barely distinguishes warmer from cooler members. Consistent with this, the leading eight $z_{500}$ PCs of the end-conditioned ensemble explain only 9\% of the across-member variance in land-mean $T_{\mathrm{2m}}$ in-sample (8\% under 10-fold cross-validation; Figure \ref{fig:eof_regression_pnw_heatwave}d)---a weak but statistically robust link---compressing the observed $\sim4$ K spread into a $\sim1$ K predicted range. When conducting this regression on the start-conditioned ensemble, for which the free-end frame is the forecast outcome rather than the antecedent precursor, we also see a comparably weak link between the large-scale height field and the heatwave's average temperature over the impact domain. The leading eight $z_{500}$ PCs explain 8\% of the across-member variance in free-end land-mean $T_{\mathrm{2m}}$ (6\% under 10-fold cross-validation), indicating near-symmetry in explained surface temperature variance between the two conditioning directions. These same eight modes capture 62\% of the across-member variance of the free-end $z_{500}$ field under end-conditioning and 61\% under start-conditioning, so the small explained surface temperature variance is unlikely to stem from undue truncation of the PC basis.
+
+A plausible interpretation of this weak coupling lies in the persistence of the blocking ridge.
+Because the heat dome is a quasi-stationary, long-lived feature, its large-scale structure persists across the 66-hour interval, so the amplified ridge enters each member's free-end $z_{500}$ field largely as a shared ingredient pinned by the end state.
+Only the residual member-to-member modulation of that shared ridge remains to discriminate warmer members from cooler ones---a modulation whose sign is consistent with the expected ridge--temperature relationship (Figure \ref{fig:eof_regression_pnw_heatwave}a--c) but which explains under 10\% of the temperature spread (Figure \ref{fig:eof_regression_pnw_heatwave}d).
+Consequently, while the synoptic ridge is a necessary ingredient of the heat dome, the bulk of the $4\mathrm{~K}$ spread in the initial land-mean $T_{\mathrm{2m}}$ appears decoupled from the synoptic precursor at $t=0$, likely driven instead by learned variability stemming from smaller-scale thermal perturbations, local boundary layer dynamics, or other non-synoptic variables that remain unconstrained by the end state. Importantly, such processes like land feedbacks are not faithfully represented in the model due to missing variables like soil moisture \cite{Duan2024-jk, Rucker2026-xo}. 
+
+\subsection{Superstorm Sandy}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{sandy_tc_tracks.png}
+ \setlength{\belowcaptionskip}{-1em}%
+
+\caption{Superstorm Sandy track and intensity trajectories for the 1000-member ensembles generated across three conditioning modes (start, end, and both ends). Hurricane tracks are mapped using TempestExtremes \cite{Ullrich2021-nm}. In all plots, the ERA5 trajectory is plotted as a dashed line, and in subplots (d--f) the ensemble member whose central-pressure trajectory is closest to ERA5's (in mean-squared error) is shown in gold. Blue tick marks at the free-end edge of subplots (d) and (e) denote the ensemble's 5th and 95th intensity percentiles, and the annotated percentile is that of the ERA5 value among the members.}
+
+ \label{fig:sandy_tc_tracks}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{sandy_start_eof1.png}
+ \setlength{\belowcaptionskip}{-1em}%
+
+\caption{EOF analysis of the Superstorm Sandy case for start-conditioned ensembles on the 500 hPa geopotential height ($z_{500}$) field over the domain $100^{\circ}$--$30^{\circ}$~W, $25^{\circ}$--$75^{\circ}$~N at the free-end frame (October 30, 2012, 12 AM UTC). The first row shows the evolution of ERA5 $z_{500}$, the second row the start-conditioned ensemble-mean difference from ERA5, and the third through fifth rows $z_{500}$ anomalies relative to the ensemble mean for individual members at the 5th, 50th, and 95th percentiles of the first EOF. The final row shows the EOF1 loading and hurricane tracks colored by each member's EOF1 percentile; ERA5 sits at the 0th percentile of this mode. The dashed box in the loading panel shows the track-plotting domain ($85^{\circ}$--$60^{\circ}$~W, $25^{\circ}$--$45^{\circ}$~N).}
+
+ \label{fig:sandy_start_eof1}
+\end{figure}
+
+In October of 2012, Superstorm Sandy struck the Eastern Seaboard nearly perpendicularly, having made an anomalous westward turn into the New Jersey coast that claimed over a hundred lives and caused billions of dollars in damages \cite{Centers-for-Disease-Control-and-Prevention-CDC-2013-ua, Hall2013-yl, Barnes2013-np}. This trajectory, steered by a shift in the mean winds and a blocking event caused by cyclonic wave-breaking, lacked precedent in the historical record and is estimated to have a $\sim$700-year return period based on a 50,000-year simulation \cite{Hall2013-yl, Barnes2013-np}. Given the unique circumstances that facilitated Sandy's anomalous track and intensification, better understanding the governing dynamics that could transform otherwise ordinary storms into similar gray swans is of high scientific and societal importance \cite{Galarneau2013-ff, Hakim2026-oy}. Most recently, \citeA{Hakim2026-oy} optimized initial conditions for five ``ordinary'' hurricanes with northward tracks over the western Atlantic at a similar time of year to also make landfall on the coast. While their results indicate that highly specific perturbations to an ordinary hurricane can yield Sandy-like outcomes, a 1000-member ensemble experiment that randomly perturbed initial conditions for one of these hurricanes (Fiona) did not yield any similar outcomes. This motivates our approach of conditioning at the end, as small perturbations to one set of initial conditions cannot fully sample the diversity in starting conditions that ultimately end in Sandy-like landfall.
+
+For our 1000-member ensembles, we choose the 66-hour interval starting on October 27, 2012 at 6 AM UTC (2 AM EDT) and ending on October 30, 2012 at 12 AM UTC (October 29, 8 PM EDT), spanning Sandy's approach and New Jersey landfall. We map the tracks and intensity trajectories (central MSLP) of these ensemble members alongside the ERA5 ground truth in Figure \ref{fig:sandy_tc_tracks}. In the end-conditioned ensemble, members pinned to Sandy's historical landfall state at $t=66$~h exhibit large diversity in initial hurricane positions at $t=0$~h (Figure \ref{fig:sandy_tc_tracks}a), with member storm centers beginning at a wide range of locations across the western Atlantic and lying a median of ${\sim}440$~km from the observed starting position. They also exhibit a broad range in intensity, with MSLP ranging from a minimum of 958~hPa to a maximum of 998~hPa (Figure \ref{fig:sandy_tc_tracks}d). Moreover, the end-conditioned tracks show no evidence of discrete clustering, suggesting that the model's generated distribution of antecedent states consistent with Sandy's landfall forms a smooth continuum that end-conditioning can traverse directly---a sampling that may be intractable using initial-condition perturbation. In terms of storm-center positional spread, this antecedent diversity is comparable in magnitude to the corresponding free-end spread of the start-conditioned ensemble (Figure \ref{fig:sandy_tc_tracks}b). At the free-end (final) frame of the interval for the start-conditioned ensemble, member storm centers lie a median of ${\sim}590$~km from the observed landfall fix, and 99.3\% of them sit east of it. Because the interval closes at the true landfall hour, members offshore at the free end may still strike the coast at later times, so we characterize track diversity at the common free-end time rather than by eventual landfall. Both-end conditioning, by contrast, restricts tracks to a narrow corridor interpolating between the two pinned states (Figure \ref{fig:sandy_tc_tracks}c,f). Surprisingly, while the intensities of the start-conditioned hurricanes span a wide range (954 to 996~hPa; Figure \ref{fig:sandy_tc_tracks}e), none of them reproduce the rapid intensification seen with Superstorm Sandy: no member is as deep as Sandy's observed 950.7~hPa at the free-end (final) frame.
+
+To quantify how strongly the large-scale flow organizes the diversity at the free end for both end- and start-conditioned ensembles, we perform an EOF analysis of the free-end $z_{500}$ field analogous to that done for the 2021 PNW heatwave case. We conduct this analysis over the domain $100^{\circ}$--$30^{\circ}$~W, $25^{\circ}$--$75^{\circ}$~N and regress four per-member storm properties at the free-end frame---latitude, longitude, great-circle distance from the ERA5 storm fix, and central MSLP, identified from each member's resolved storm track---on the leading eight principal components, exactly paralleling Equation \ref{eq:eof_regression_2_pnw_heatwave}. Unlike the 2021 PNW heatwave case, however, we are forced to exclude a small subset of ensemble members from our analysis, as Sandy's extratropical transition can weaken the TempestExtremes tracker's ability to follow the storm continuously. These excluded members---those in which no storm is tracked within the track domain at all---account for 4.4\% of the end-conditioned ensemble and 0.1\% of the start-conditioned ensemble, leaving 956 and 999 analyzable members respectively. All reported $R^2$ values are deterministic 10-fold cross-validated values. We provide additional details regarding the tracker settings and our identification of each member's storm in Text S3.
+
+Under end-conditioning, where the free end is the precursor, the leading eight PCs explain 44\% of the cross-member variance in antecedent storm latitude, 29\% in distance from the observed antecedent fix, and roughly 15\% in each of longitude and intensity (Figure~S2). Because predictors and targets are evaluated at the same free-end frame, these regressions measure organization rather than steering causality: a displaced storm also imprints its own signature on $z_{500}$, and we verify below which modes are large-scale environmental. Furthermore, no single synoptic mode carries the end-conditioned organization. EOF2 (11.6\% of the $z_{500}$ field's variance) covaries with the antecedent track only weakly, and this is not an artifact of the coordinate axes: no orientation we tested increases the Spearman rank correlation above $\rho \approx -0.23$, barely stronger than the $-0.20$ value obtained when using latitude alone. ERA5 itself sits at the 4th percentile of PC2. The strongest single-PC sorter (PC6, $\rho \approx -0.42$) has its loading (EOF6) extremum on the storm itself, indicating that it partly encodes storm position rather than the ambient flow, and the next strongest sorters (PC7, PC8) share this position leakage. The moderate multi-PC organization of the antecedent state (29--44\%) is therefore distributed across several modes rather than attributable to a single steering pattern, consistent with the antecedent diversity residing substantially in the storm's own prior state.
+
+Under start-conditioning, by contrast, the large-scale height field organizes this diversity far more strongly. The start-conditioned ensemble, which has near-zero exclusions, marks the ceiling of this relationship: the leading eight PCs explain 78\% of the variance in latitude, 63\% in distance, 45\% in longitude, and 20\% in MSLP (Figure~S3). The contrast with the 2021 PNW heatwave case holds in both conditioning directions: the same eight-PC regression explains at most 8\% of the temperature diversity, but 44\% of Sandy's antecedent storm latitude variance under end-conditioning and 78\% of its final-frame storm latitude variance under start-conditioning. Furthermore, a single mode does emerge under start-conditioning to organize this spread. EOF1 (15\% of the $z_{500}$ field's variance; Figure \ref{fig:sandy_start_eof1}) functions as a landfall-proximity axis: members in its lowest percentiles end the interval at the coast near Sandy's observed position, while members in its highest percentiles end far offshore to the southeast. The observed event is extreme along exactly this landfall-proximity axis---the ERA5 $z_{500}$ field and Hurricane Sandy sit at the 0th percentile of PC1 and free-end MSLP, respectively. Indeed, the regression evaluated at ERA5's own synoptic state extrapolates to a free-end position essentially coincident with the observed landfall (predicted distance ${\approx}0$~km), but no ensemble members sample that extreme tail of the distribution. This null result is consistent with the extreme nature of Hurricane Sandy's trajectory and other work documenting the difficulty in sampling it using conventional ``forward" ensembles \cite{Hall2013-yl, Hakim2026-oy}.
+
+\subsection{Hurricane Ian}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{ian_landfall_split.png}
+ \setlength{\belowcaptionskip}{-1em}%
+\caption{Hurricane Ian track and intensity trajectories for the end-conditioned ensemble split across two cases---making initial landfall in Florida vs. bypassing Florida entirely.
+Tracks connect 6-hourly TempestExtremes storm-center fixes \cite{Ullrich2021-nm}, effectively resolved at the model's native HPX64 ($\sim 100$~km) scale (Section 2); the angularity is a discrete-sampling artifact, most pronounced where the central-pressure minimum is weak or diffuse (e.g., near genesis), and does not reflect physical track variability.
+Hurricane Ian's actual trajectory and intensity are plotted as dashed lines in subplots a and c.}
+ \label{fig:ian_landfall_split}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{ian_start_eof_tracks.png}
+ \setlength{\belowcaptionskip}{-1em}%
+\caption{The two leading start-conditioned $z_{500}$ EOFs for the Hurricane Ian case, computed at the free-end frame (September 30, 2022, 18:00 UTC) over the domain $110^{\circ}$--$50^{\circ}$~W, $15^{\circ}$--$50^{\circ}$~N.
+Each row pairs one EOF's loading pattern (left; the dashed box marks the track domain shown at right) with the member storm tracks and free-end fixes over the track domain ($90^{\circ}$--$70^{\circ}$~W, $20^{\circ}$--$36^{\circ}$~N), colored by each member's percentile on that row's PC score; the dashed black line is the ERA5 track and the star its free-end fix.
+EOF1 (a, b; 18.4\% of the $z_{500}$ field's variance) stays weak over the storm itself, and its PC sorts members along the coast; ERA5 sits at its interior 76th percentile.
+EOF2 (c, d; 13.3\% of the $z_{500}$ field's variance) is a broad, single-signed ridge extending far beyond the storm, and its PC sorts members shoreward, toward the observed fix; ERA5 sits at its 96.6th percentile.}
+ \label{fig:ian_start_eof_tracks}
+\end{figure}
+
+In September 2022, Hurricane Ian devastated the southeastern United States, striking Florida as a Category 4 storm and South Carolina as a Category 1. With over \$112 billion in damages and more than 150 fatalities, it ranks as the costliest hurricane in Florida's history and the third costliest in U.S. history \cite{bucci2023hurricaneian, Hauptman2024-xt}. Because Ian made multiple U.S. landfalls, it serves as a prime example of a single system inflicting sequential damage across distinct regions. For end-conditioned ensembles, such events highlight both the variation in dynamical precursors and the specific upstream regions placed at risk. Consequently, Hurricane Ian offers a compelling test for end-conditioned ensembles: given the observed landfall location in South Carolina, is the spatial diversity of preceding tracks coherently organized by the antecedent large-scale height field?
+
+To answer this question, we choose a 66-hour interval spanning Ian's approach, Florida landfall, and final South Carolina landfall, starting on September 28, 2022 at 00:00 UTC (September 27, 8:00 PM EDT) and ending on September 30, 2022 at 18:00 UTC (September 30, 2:00 PM EDT). Tracks and central-pressure trajectories for all three conditioning modes are shown in Figure~S1. Across the end-conditioned ensemble members, $88.4\%$ (884 members) make landfall in Florida (Figure \ref{fig:ian_landfall_split}a) and a small minority ($10.9\%$, 109 members) bypass Florida entirely, traveling north along the Atlantic coast (Figure \ref{fig:ian_landfall_split}b). The remaining $0.7\%$ (7 members) do not have a trackable storm in the detection domain. The Florida-landfall criterion and the track quality control behind these counts are given in Text S3. However, this antecedent track diversity---of which the Florida-versus-bypass bifurcation is one expression---is only weakly organized by the large-scale height field. While the eight leading PC modes capture 73\% of the antecedent $z_{500}$ field's variance across all 1000 members, the EOF regression analysis on the 993 analyzable members explains no more than $5\%$ of variance in antecedent latitude, longitude, and great-circle distance from the observed fix and only $13\%$ in intensity.
+
+Under start-conditioning---where the ensemble is pinned to Ian's initial state in the Gulf of Mexico and the 66-hour endpoint is left free---the large-scale height field organizes the free-end track far more strongly than under end-conditioning, consistent with the behavior observed for Sandy. The leading eight principal components, computed over the $110^{\circ}$--$50^{\circ}$~W, $15^{\circ}$--$50^{\circ}$~N domain, explain 48\% of the cross-member variance in free-end longitude (comparable to Sandy's start-mode 45\%), 33\% in latitude, and 21\% in great-circle distance from the observed fix (Figure~S5). All three are far more than the $\sim$5\% organized under end-conditioning (Figure~S4), indicating a sharper start-versus-end asymmetry than that of Sandy. As with Sandy, this organization is carried by environmental modes rather than storm-position imprints. Furthermore, the two leading modes separate cleanly: EOF1 organizes how far along the coast an ensemble member ends the interval, while EOF2 organizes its final-frame distance from the coast. Along the EOF1 axis, which explains $\sim$18.4\% of the $z_{500}$ field's variance (Figure \ref{fig:ian_start_eof_tracks}a,b), PC1 sorts free-end latitude and longitude at $\rho = 0.37$ and $0.40$, respectively, and Ian sits in the middle of the ensemble while the corresponding ERA5 $z_{500}$ height field falls at the 76th percentile of PC1. Along the EOF2 axis, which explains 13.3\% of the $z_{500}$ field's variance (Figure \ref{fig:ian_start_eof_tracks}c,d), PC2 sorts free-end longitude and distance from the observed fix at $\rho = -0.33$ and $-0.30$, respectively. Here, Ian sits ${\sim}300$~km shoreward of the ensemble's mean free-end position---west of 82.9\% of member fixes---and the ERA5 $z_{500}$ state falls at the 96.6th percentile of PC2. This is the same edge geometry seen in Sandy's start-conditioned ensemble, where ERA5 sits at the 0th percentile of the mode that organizes landfall proximity. In terms of intensity, Ian also sits at the tail of both start- and end-conditioned ensembles, with an intensity exceeding 98\% of members in both conditioning directions (Figure~S1, Figure \ref{fig:ian_landfall_split}c). We note that roughly 22\% of start-conditioned members (208 of 965) weaken below the tracker's detection threshold before the interval closes and are measured at their last valid fix rather than exactly at 66 hours.
+
+\section{Discussion}
+
+Generative video diffusion climate emulators like cBottle-video allow one to ask questions that are impractical for traditional physics-based and data-driven autoregressive models. Those approaches, though methodologically distinct, address the same fundamental question (variational assimilation and adjoint sensitivity being partial exceptions): what trajectories are possible given an initial, instantaneous state of the atmosphere? The question we seek to answer instead is: given a realized extreme, is there a diverse set of synoptic histories that could have produced it? Our experiments indicate that this is the case. For Hurricanes Sandy and Ian, generated hurricane tracks over the 66 hour window are nearly as diverse backward as forward. Trajectories conditioned on Hurricane Ian making landfall in South Carolina imply material consequences: varying tracks make prior landfall in very different parts of Florida, or skip Florida altogether. For the 2021 PNW heatwave, alternative histories consistent with the same end state show an earlier onset with persistently elevated temperatures, rather than a rapid multi-day intensification. Understanding these generated histories, however, requires examining where this antecedent diversity lives and how it is organized.
+
+Across all three cases, the geopotential height field organizes only a minority of the antecedent diversity: the leading eight modes explain just 44\% of hurricane track latitude for Sandy, $\sim$5\% of hurricane track longitude for Ian, and 8\% of the impact-domain land-mean $T_{\mathrm{2m}}$ for the 2021 PNW heatwave. For the hurricanes, this exposes a marked asymmetry---the height field organizes free-end storm position far more strongly when that free end is the forecast outcome (78\% for Sandy's latitude, 48\% for Ian's longitude) than when it is the antecedent. By contrast, the heatwave exhibits near-symmetry with weak organization in both directions (8\% backward vs. 6\% forward cross-validated), bounding the asymmetry to the storm cases while demonstrating that low explanatory power is not an inherent artifact of reverse-time conditioning. Nor is this decoupling a symptom of an underpowered analysis: end-conditioned ensembles retain 84--89\% of the start-conditioned $z_{500}$ spread, the leading eight modes capture 62\% and 73\% of the free-end height variance for the heatwave and Ian, respectively (making basis truncation an unlikely explanation), and storm-position leakage in end-conditioned modes means the true environmental organization is even weaker than reported, with the antecedent diversity residing substantially in the storm's own prior state. What organization exists is distributed across several modes rather than a single steering pattern, and, as Sandy's antecedent tracks show, alternate histories form a smooth continuum rather than discrete synoptic clusters. Because a continuous, weakly organized precursor space cannot be enumerated by a catalog of weather regimes, this motivates directly sampling the trajectory distribution---a capability that arbitrary conditioning unlocks but one that forces the question of whether every generated trajectory is physically admissible.
+
+Because generative emulators optimize pixel-level score matching rather than enforce dynamical conservation laws, the architecture will unconditionally output a sequence between any pair of atmospheric states, lacking an intrinsic filter to reject physically impossible boundary conditions. When forced with contrived or contradictory endpoints, the model reveals this absence of dynamical constraints by constructing a transition between them rather than failing to generate. We show this in a deliberate negative control (Figure~S12) by conditioning the 66-hour window on two tropical cyclones located on opposite sides of the equator and drawn from different years---Cyclone Agni at \ang{0.5}N in 2004 and Tropical Storm Abaimba at \ang{5.8}S in 2003. Rather than signaling that the pair is inadmissible, the model smoothly dissolves the Northern Hemisphere low over four frames, passes through an unorganized intermediate state, and nucleates a separate Southern Hemisphere cyclone to satisfy the terminal constraint. In our case studies, the model is never forced to bridge incompatible states; conditioning is applied to single realized endpoints (or temporally contiguous pairs from the same event). Yet because the emulator will interpolate across arbitrary state pairs without signaling unphysicality, dynamical plausibility cannot be taken for granted by construction. Instead, methods for explicit verification must be developed before this method is used. These efforts are ongoing.
+
+For end-conditioned ensembles, the realized past is already known, so verification metrics designed to reward alignment with a single historical trajectory are insufficient on their own for verifying physically plausible counterfactual diversity. However, physical balance checks and comparative ensemble statistics can expose unique failure modes and structural biases. To this end, we evaluate the 500~hPa midlatitude (\ang{30}-\ang{60} N and \ang{30}-\ang{60} S) ageostrophic fraction and the ratio of ensemble spread to ensemble-mean root-mean-square error (RMSE) across end-, start-, and both-end conditioned ensembles. Across all three cases, the magnitude of the 500 hPa midlatitude winds systematically weakens further away from the pinned end of the generated ensemble, as seen in the second row of Figures~S13--S15. While the magnitude of the implied geostrophic wind is largely consistent near the pinned frames, the ageostrophic fraction of the total wind rises in tandem, as seen in the top row of the same set of figures. In the case of Hurricane Sandy, this rise in the ageostrophic fraction is clearly attributable to an increase in the magnitude of the ageostrophic wind, as seen in the last row of Figure S14. But for Hurricane Ian and the 2021 Pacific Northwest heatwave, the magnitude of the geostrophic and ageostrophic wind stays relatively steady close to the pinned end while the weakening of the total wind is immediate, indicating that the weakening of the total wind reflects an ageostrophic component that opposes the geostrophic flow, leaving the wind more subgeostrophic than the height field implies. This surfaces a physical inconsistency between the 500 hPa geopotential and the actual winds at this pressure level. When it comes to the ratio between ensemble spread and ensemble-mean RMSE (i.e. spread-skill ratio) for 500 hPa geopotential height in the regional case-study domains used to calculate the leading $z_{500}$ modes, the value never exceeds 0.9 (and is generally much lower) across all conditioning modes, indicating structural underdispersion and ensemble-mean bias. While future iterations of video diffusion climate emulators like cBottle-video will likely mitigate the issues presented thus far, we believe that future work should make use of a more comprehensive suite of dynamical, spectral, and conservation metrics \cite{Hakim2024-dq, Kasteleyn2026-jf}. Ultimately, final validation prior to depending on this method will likely require verifying that forward integrations from the discovered initial conditions converge towards the observed end state in a physics-based model.
+
+Physical inconsistencies reflect the limitations of evaluating an off-the-shelf video diffusion checkpoint zero-shot, rather than an intrinsic failure of generative end-conditioning for this use case. Future iterations of these models that incorporate targeted interventions for the aforementioned deficiencies may already be possible given emerging research. For example, in \citeA{Baldan2025-de}, the authors integrate physical constraints into flow matching models (a close cousin of diffusion models) using a combination of techniques that result in distributional and physical accuracy. Although cBottle-video is a video diffusion model, flow matching models have already been extended to video generation with promising results \cite{Jin2024-wd}. Furthermore, generative models that are inherently bidirectional can enable unique opportunities for self-supervised error estimation, as demonstrated by \citeA{Scheinker2026-xr}. When employed during training, it is possible that this could be used to mitigate compounding degradation resulting from reproducing conditioned frames.
+
+\section{Conclusion}
+
+Preparing for high-impact climate extremes requires understanding their plausible precursor pathways, yet searching for rare events by forward-integrating physics-based ensembles scales prohibitively with lead time and rarity. Here, we address this bottleneck by casting extreme history generation as an end-conditioning problem in a video diffusion climate emulator, targeting realized disaster states directly. Across our historical hurricane and heatwave case studies, end-conditioned ensembles retain 84--89\% of the synoptic spread observed in forward forecasts, demonstrating that reverse-time sampling does not collapse diversity. The large-scale 500 hPa height field organizes only a fraction of this antecedent variance (5--44\%), with alternative histories forming a continuous synoptic spectrum rather than isolated clusters. This is likely due, in part, to the short 66-hour window necessitated by the cBottle-video design. Direct generative sampling using this method suggests that identical terminal extremes can emerge from structurally distinct physical evolutions.
+
+Such end-conditioned trajectories occupy a space unreachable via conventional forecasting frameworks. While novel techniques for identifying plausible stronger extremes---such as initial condition optimization, ensemble boosting, and rare event sampling---are also emerging at a steady pace, none sample the full distribution of plausible histories consistent with a single event \cite{Ragone2018-rj, Gessner2021-qy, Finkel2024-ln, Finkel2026-wn, Whittaker2026-fe, Hakim2026-oy, Lancelin2026-om}. Capturing this distribution is essential because different pathways to the same terminal disaster can produce markedly different local impacts beforehand, as illustrated by the divergent earlier landfalls across plausible trajectories for Hurricane Ian. In the future, this capability vastly expands the scope of ``event-based storylines'' needed to convey the escalating risks to lives and property from compound extremes in a warming climate \cite{Shepherd2018-zo, Baldwin2019-ec, Sillmann2021-jl, Keys2023-zx, Whittaker2026-fe}. By pairing arbitrary-boundary sampling with guided likelihood estimation \cite{Manshausen2026-nu}, generative emulators can attach calibrated probabilities to these diverse physical narratives, transforming extreme-event discovery into an actionable tool for climate risk assessment.
+
+\section*{Data and Code Availability}
+
+All code used in this study is archived on Zenodo \cite{lin_2026_22000716} and developed openly at \url{https://github.com/jerrylin96/rewinding-the-extremes}. ERA5 reanalysis data \cite{Hersbach2020-oh} used for conditioning and verification was downloaded through WeatherBench 2 \cite{rasp2023weatherbench} using the Earth2Studio software repository \cite{Earth2Studio_Contributors_NVIDIA_Earth2Studio_2024}. Earth2Studio was also used to load the cBottle-video checkpoint from \citeA{Brenowitz2025-mz} and run inference with it. The checkpoint is publicly available at \url{https://huggingface.co/nvidia/cbottle/blob/main/cBottle-video.zip}.
+
+\section*{Author Contributions}
+
+Jerry Lin: Software, Conceptualization, Writing -- original draft, Writing -- review \& editing.
+Elizabeth A. Barnes: Supervision, Funding acquisition, Conceptualization, Writing -- review \& editing.
+Mu-Ting Chien: Writing -- review \& editing.
+Mansi Sakarvadia: Writing -- review \& editing.
+
+\section*{Funding}
+
+J.L. was supported by the DOE Office of Science through the Program for Climate Model Diagnosis and Intercomparison (PCMDI). M.C. was supported by Heising-Simons Foundation grant \#2023-4720. M.S. was supported by the U.S. Department of Energy, Office of Science, Office of Advanced Scientific Computing Research, Department of Energy Computational Science
+Graduate Fellowship under Award Number DE-SC0023112.
+
+\section*{Use of Generative AI and AI-Assisted Technologies}
+
+Claude Fable 5 and Claude Opus 4.6 through 5 in Claude Code were used for editing code and text, assisting with literature searches, and drafting the first version of the Supporting Information. Gemini 3.7 Flash in Antigravity CLI was used to edit text for flow and clarity. Arena.ai was used to iterate on the wording of overly complex sentences. GPT 5.6 Sol in OpenAI Prism was used to fix and adjust LaTeX formatting prior to manuscript submission. The authors critically reviewed and verified all AI-assisted material, tested all AI-assisted code, independently verified all cited sources, and take full responsibility for the accuracy, integrity, and originality of the manuscript.
+
+\section*{Competing Interests}
+
+The authors declare no competing interests.
+
+
+\bibliography{references}
+
+\clearpage
+
+\input{si}
+
+\end{document}
+
