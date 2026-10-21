@@ -86,7 +86,9 @@ These misuses used to produce plausible output, and are now errors:
   no longer fall back to makani-only output when the overlay fails: the error is
   re-raised and nothing is written, because a makani-only `.npz`/figure written with
   exit 0 is byte-for-byte indistinguishable from an intentional run. `--no-cbottle`
-  remains the way to request a makani-only run.
+  remains the way to request a makani-only run. Likewise, `synoptic_pca_compare.py`
+  and `plot_tc_tracks_compare.py` fail on a `--cbottle-npz` / `--cbottle-parquet`
+  path that does not exist; omitting the flag is the way to run them makani-only.
 * **Storm of interest and population (Ian).** Every script that reads a tracks parquet
   goes through the paper's own track QC (`ensemble_analysis/track_qc.py`, via
   `case_track_qc.py`): a member's storm is the path within 500 km of ERA5 at the pinned

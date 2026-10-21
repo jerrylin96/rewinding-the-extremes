@@ -144,6 +144,14 @@ def _savez(path, keys, over):
     np.savez(path, **{k: v for k, v in keys.items() if v is not None})
 
 
+def test_figure_refuses_a_missing_cbottle_parquet(parquet, tmp_path):
+    with pytest.raises(FileNotFoundError):  # not a makani-only figure with exit 0
+        tp.main(["--case", "ian", "--makani-parquet", parquet, "--no-censor",
+                 "--cbottle-parquet", str(tmp_path / "typo.parquet"),
+                 "--out-dir", str(tmp_path / "out")])
+    assert not (tmp_path / "out").exists()
+
+
 def _cbottle_track_npz(path, n=6, **over):
     baked = np.zeros((n, 4))
     baked[1, :2] = WPAC

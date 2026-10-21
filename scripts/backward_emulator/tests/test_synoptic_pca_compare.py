@@ -75,6 +75,15 @@ def test_compare_without_case_refuses_npz_from_two_cases(tmp_path):
                   "--out-dir", str(tmp_path / "out")])
 
 
+def test_compare_refuses_a_missing_cbottle_npz(tmp_path):
+    mk = tmp_path / "mk.npz"
+    _makani_npz(mk)
+    with pytest.raises(FileNotFoundError):  # not a makani-only run with exit 0
+        spc.main(["--makani-npz", str(mk), "--cbottle-npz", str(tmp_path / "typo.npz"),
+                  "--out-dir", str(tmp_path / "out")])
+    assert not (tmp_path / "out").exists()
+
+
 def test_dispatch_pnw_scalar_with_land_mask(tmp_path):
     rec = dpca.dispatch("pnw_heatwave", out_root=str(tmp_path), dry_run=True)
     cmd = " ".join(rec["cmd"])

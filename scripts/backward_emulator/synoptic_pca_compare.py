@@ -12,7 +12,8 @@ both from each npz's stored PC scores + impact target -- is:
 
 Reads the makani npz (`synoptic_pca_makani.py`) and the cBottle npz (the paper's own
 `compute_synoptic_pca.py` output, `synoptic_pca_end.npz`), normalising both schemas
-into one shape.  Degrades to makani-only if the cBottle npz is absent.
+into one shape.  Without `--cbottle-npz` it runs makani-only; a cBottle path that
+is given but does not exist is an error, never a makani-only run.
 
 **Track targets (Ian) come from the paper's track QC only.**  For a track case
 (npz ``impact_kind == "track"``) each model's targets are resolved from its tracks
@@ -351,7 +352,8 @@ def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--makani-npz", required=True)
     p.add_argument("--cbottle-npz", default=None,
-                   help="Paper's synoptic_pca_end.npz for cBottle (optional).")
+                   help="Paper's synoptic_pca_end.npz for cBottle; omit for a "
+                   "makani-only run.")
     p.add_argument("--makani-parquet", default=None,
                    help="makani tracks parquet; required for a track case (Ian).")
     p.add_argument("--cbottle-parquet", default=None,
@@ -363,10 +365,10 @@ def main(argv=None) -> None:
     args = p.parse_args(argv)
 
     npzs = {"makani": args.makani_npz}
-    if args.cbottle_npz and Path(args.cbottle_npz).exists():
+    if args.cbottle_npz:  # a given path must load; only omitting it is makani-only
         npzs["cbottle"] = args.cbottle_npz
     else:
-        print("[pca-cmp] WARNING: no cBottle npz; makani-only.", file=sys.stderr)
+        print("[pca-cmp] WARNING: no --cbottle-npz; makani-only.", file=sys.stderr)
     case_cfg = dl.load_case(args.case) if args.case else None
     cq.check_pca_npzs(list(npzs.values()),
                       case_cfg["display_name"] if case_cfg else None)

@@ -812,7 +812,8 @@ def _plot(
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--makani-parquet", required=True)
-    p.add_argument("--cbottle-parquet", default=None)
+    p.add_argument("--cbottle-parquet", default=None,
+                   help="cBottle tracks parquet; omit for a makani-only figure.")
     p.add_argument("--case", default="ian")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--survival-npz", default=None,
@@ -868,7 +869,7 @@ def main(argv=None) -> None:
     print(f"[tc-plot] makani members plotted: {int(keep.sum())}")
 
     # cBottle: round-tripped ERA5 (dashed black baseline).
-    if args.cbottle_parquet and Path(args.cbottle_parquet).exists():
+    if args.cbottle_parquet:  # a given path must load; only omitting it is makani-only
         c_ens, c_era5, c_qc = _load(args.cbottle_parquet, case)
         c_keep = c_qc.analyzable.copy()
         print(f"[tc-plot] cBottle track QC: {c_qc.summary()}")
@@ -878,7 +879,7 @@ def main(argv=None) -> None:
             "keep": c_keep, "qc": c_qc}
         print(f"[tc-plot] cBottle members plotted: {int(c_keep.sum())}")
     else:
-        print("[tc-plot] WARNING: no cBottle parquet; makani-only.", file=sys.stderr)
+        print("[tc-plot] WARNING: no --cbottle-parquet; makani-only.", file=sys.stderr)
 
     T = m_ens.shape[2]
     lead_h = np.arange(T) * 6.0
