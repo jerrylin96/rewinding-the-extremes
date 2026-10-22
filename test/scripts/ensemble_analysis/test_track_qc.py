@@ -270,6 +270,60 @@ class TestStormOfInterestArray:
         in_dom = tracks_in_domain(soi, *TRACK_BOX)[:, 0]
         assert in_dom.tolist() == [True, True, False, False, False, False]
 
+    def test_single_member_figures_keep_a_storm_lacking_only_the_free_end_fix(self, qc):
+        ens = _ensemble()
+        soi = qc.storm_of_interest_array(ens, require_free_end_fix=False)
+        assert np.allclose(soi[[0, 1, 5], 0], ens[[0, 1, 5], [0, 1, 0]], equal_nan=True)
+        # Too few fixes, unanchored and no track stay excluded.
+        assert np.isnan(soi[[2, 3, 4]]).all()
+
+
+class TestSynopticPcaFigureTracks:
+    """Which storms ``aggregate_synoptic_pca`` hands its panels, and how it marks them."""
+
+    @pytest.fixture
+    def agg(self):
+        pytest.importorskip("matplotlib")
+        pytest.importorskip("cartopy")
+        import aggregate_synoptic_pca
+
+        return aggregate_synoptic_pca
+
+    def test_member_rows_keep_a_storm_lacking_only_the_free_end_fix(
+        self, agg, tmp_path
+    ):
+        pq = tmp_path / "tc_tracks" / "tempest" / "tc_tracks_end.parquet"
+        pq.parent.mkdir(parents=True)
+        save_tracks_parquet(str(pq), _ensemble(), era5_arr=_era5())
+        diag = {
+            "tc_domain": np.array(TRACK_BOX),
+            "pc_scores": np.zeros((6, 2)),
+            "free_end_frame": np.array(0),
+            "lead_hours": np.arange(T) * 6.0,
+        }
+        agg._attach_track_qc(diag, tmp_path / "synoptic_pca", "end")
+        population = diag["member_track_latlon"]
+        single = diag["single_member_track_latlon"]
+        assert np.isfinite(population[[0, 1], 0]).all()
+        assert np.isnan(population[[2, 3, 4, 5]]).all()
+        # m5's storm (no fix at the free end) is drawn in a single-member row.
+        assert np.allclose(single[5], _ensemble()[5, 0, :, :2], equal_nan=True)
+        assert np.isnan(single[[2, 3, 4]]).all()
+
+    def test_position_marker_needs_a_fix_at_that_frame(self, agg):
+        import matplotlib.pyplot as plt
+
+        track = np.full((T, 2), np.nan)
+        for t in range(10):  # the storm is last detected at frame 9
+            track[t] = _pos(t)
+        ax = plt.axes(projection=agg.ccrs.PlateCarree())
+        agg._draw_progressive_track(ax, track, 9, "k", "-")
+        assert len(ax.lines) == 2  # track + marker at frame 9
+        ax.cla()
+        agg._draw_progressive_track(ax, track, 11, "k", "-")
+        assert len(ax.lines) == 1  # track only: no fix at frame 11
+        plt.close("all")
+
 
 class TestRotatedTargets:
     def test_along_track_frame(self, qc):

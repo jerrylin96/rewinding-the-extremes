@@ -41,7 +41,9 @@ Every TC track analysis (``synoptic_pca_track_stats``, ``tc_landfall_split``,
 ``aggregate_synoptic_pca`` and the backward-emulator comparison) reads this
 table's ``analyzable`` mask and resolved path and reports its own ``n``; no
 other track filter exists in the analysis layer, and no track target or track
-is stored for later reuse.
+is stored for later reuse.  The one exception is a figure row that shows a
+single chosen member: it also draws a storm that lacks only the free-end fix
+(``storm_of_interest_array(..., require_free_end_fix=False)``).
 
 Kept dependency-light (NumPy + pandas + the parquet reader) so a stats-only
 login-node run does not pull cartopy / matplotlib.
@@ -177,18 +179,27 @@ class TrackQC:
         return self.table["resolved_path_id"].to_numpy(dtype=int)
 
     # -- drawing ------------------------------------------------------------
-    def storm_of_interest_array(self, ens_all_paths: np.ndarray) -> np.ndarray:
+    def storm_of_interest_array(
+        self, ens_all_paths: np.ndarray, require_free_end_fix: bool = True
+    ) -> np.ndarray:
         """Reduce a raw tracker array to the analyzable members' storms.
 
         Returns a ``[n_members, 1, n_steps, 4]`` copy of ``ens_all_paths`` whose
         single path is each analyzable member's storm of interest; every
         excluded member is all-NaN, so a figure draws exactly the population the
         statistics use.
+
+        ``require_free_end_fix=False`` also keeps the members excluded only for
+        having no fix at the free-end frame: their storm is matched and long
+        enough, and only its free-end target is undefined.  It is for figures
+        that show one chosen member, never for a population or a statistic.
         """
         n_members, _, n_steps, _ = ens_all_paths.shape
         out = np.full((n_members, 1, n_steps, 4), np.nan, dtype=ens_all_paths.dtype)
         resolved = self.resolved_path_id
         keep = self.analyzable
+        if not require_free_end_fix:
+            keep = keep | (self.table["exclusion"].to_numpy() == EXCL_NO_FREE_END)
         for m in range(min(n_members, resolved.shape[0])):
             if keep[m]:
                 out[m, 0] = ens_all_paths[m, resolved[m]]
