@@ -292,8 +292,10 @@ def _attach_track_qc(diag: dict, output_dir: Path, mode: str) -> None:
     Sets ``diag["track_qc"]`` (the regression's population and targets) and
     ``diag["member_track_latlon"]`` ``[N, n_leads, 2]`` / ``diag["era5_track_latlon"]``
     ``[n_leads, 2]`` (lat, lon): each analyzable member's storm of interest,
-    NaN for excluded members, and ERA5's path 0.  Tracks stored in the npz by
-    older runs are replaced, never read.
+    NaN for excluded members, and ERA5's path 0.  ``diag["single_member_track_latlon"]``
+    also keeps the storms that lack only a free-end fix, for the rows and videos
+    that show one chosen member.  Tracks stored in the npz by older runs are
+    replaced, never read.
     """
     tracker = str(_scalar(diag.get("tc_tracker", np.array("tempest"))))
     parquet = tc_tracks_parquet_path(str(output_dir.parent), mode, tracker)
@@ -318,14 +320,19 @@ def _attach_track_qc(diag: dict, output_dir: Path, mode: str) -> None:
             f"{qc.config['free_end_frame']}."
         )
     n_leads = int(np.asarray(diag["lead_hours"]).size)
-    soi = qc.storm_of_interest_array(ens)[:, 0, :n_leads, :2]  # [n_ens, T, 2]
-    member_track = np.full((n_members, n_leads, 2), np.nan, dtype=np.float32)
-    member_track[: soi.shape[0], : soi.shape[1]] = soi
+
+    def _member_tracks(require_free_end_fix: bool) -> np.ndarray:
+        soi = qc.storm_of_interest_array(ens, require_free_end_fix)[:, 0, :n_leads, :2]
+        tracks = np.full((n_members, n_leads, 2), np.nan, dtype=np.float32)
+        tracks[: soi.shape[0], : soi.shape[1]] = soi  # [n_ens, T, 2]
+        return tracks
+
     era5_track = np.full((n_leads, 2), np.nan, dtype=np.float32)
     era5_ll = era5[0, 0, :n_leads, :2]
     era5_track[: era5_ll.shape[0]] = era5_ll
     diag["track_qc"] = qc
-    diag["member_track_latlon"] = member_track
+    diag["member_track_latlon"] = _member_tracks(require_free_end_fix=True)
+    diag["single_member_track_latlon"] = _member_tracks(require_free_end_fix=False)
     diag["era5_track_latlon"] = era5_track
     print(f"[aggregate_synoptic_pca] {mode} track QC: {qc.summary()}")
 
@@ -514,8 +521,10 @@ def _draw_progressive_track(
 
     ``track`` is ``[n_leads, 2]`` (lat, lon), NaN-padded off the storm's
     lifetime.  Plots the valid fixes with index <= ``upto_frame`` and marks the
-    latest one, so each timestep column shows the path "so far" with the current
-    position highlighted.  A white halo keeps it legible over any field.
+    fix at ``upto_frame``, so each timestep column shows the path "so far" with
+    the current position highlighted.  A storm with no fix at ``upto_frame`` gets
+    no marker: its last fix is not its position at that time.  A white halo keeps
+    it legible over any field.
     """
     seg = np.asarray(track[: upto_frame + 1], dtype=np.float64)
     if seg.size == 0:
@@ -536,10 +545,11 @@ def _draw_progressive_track(
         zorder=6,
         path_effects=halo,
     )
-    last = int(np.flatnonzero(valid)[-1])
+    if not valid[-1]:
+        return
     ax.plot(
-        lon[last],
-        lat[last],
+        lon[-1],
+        lat[-1],
         marker="o",
         color=color,
         markersize=_TRACK_MARKER_SIZE,
@@ -924,8 +934,9 @@ def plot_combined(
     # Precursor-panel overlays (TC cases): the progressive storm track "so far"
     # and the raw-flow steering arrows that explain why each member's storm
     # is steered where it is.  Both degrade gracefully -- a scalar case or an npz
-    # written before these fields existed simply omits them.
-    member_track = np.asarray(diag.get("member_track_latlon", np.zeros(0)))
+    # written before these fields existed simply omits them.  Each row shows one
+    # chosen member, so a storm lacking only its free-end fix is still drawn.
+    member_track = np.asarray(diag.get("single_member_track_latlon", np.zeros(0)))
     era5_track = np.asarray(diag.get("era5_track_latlon", np.zeros(0)))
     tracks_available = bool(
         impact_kind == "track" and era5_track.size and member_track.size
@@ -1554,7 +1565,7 @@ def render_member_videos(
     cases or an npz written before the field existed).
     """
     video = np.asarray(diag.get("percentile_member_video_latlon", np.zeros(0)))
-    member_track = np.asarray(diag.get("member_track_latlon", np.zeros(0)))
+    member_track = np.asarray(diag.get("single_member_track_latlon", np.zeros(0)))
     if video.size == 0 or member_track.size == 0:
         return
     n_eof_show = int(_scalar(diag["n_eof_show"]))
@@ -1694,9 +1705,8 @@ def render_member_videos(
             la, lo = seg[:, 0], seg[:, 1]
             valid = np.isfinite(la) & np.isfinite(lo)
             track_lines[k].set_data(lo[valid], la[valid])
-            if valid.any():
-                last = int(np.flatnonzero(valid)[-1])
-                dots[k].set_data([lo[last]], [la[last]])
+            if valid[-1]:  # as _draw_progressive_track: a fix at this frame only
+                dots[k].set_data([lo[-1]], [la[-1]])
             else:
                 dots[k].set_data([], [])
         stamp = local_datetimes(start_time_iso, [lead_h[frame]], tz_name)[0].strftime(
