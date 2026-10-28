@@ -471,45 +471,6 @@
   language  = "en"
 }
 
-@ARTICLE{Zhang2026-lw,
-  title     = "Physics-based models outperform {AI} weather forecasts of
-               record-breaking extremes",
-  author    = "Zhang, Zhongwei and Fischer, Erich and Zscheischler, Jakob and
-               Engelke, Sebastian",
-  journal   = "Sci. Adv.",
-  publisher = "American Association for the Advancement of Science",
-  volume    =  12,
-  number    =  18,
-  pages     = "eaec1433",
-  abstract  = "Artificial intelligence (AI)-based models are revolutionizing
-               weather forecasting and have surpassed leading numerical weather
-               prediction systems on various benchmark tasks. However, their
-               ability to extrapolate and reliably forecast unprecedented
-               extreme events remains unclear. Here, we show that for
-               record-breaking weather extremes, the physics-based numerical
-               model High RESolution forecast (HRES) from the European Centre
-               for Medium-Range Weather Forecasts still consistently outperforms
-               state-of-the-art AI models GraphCast, GraphCast operational,
-               Pangu-Weather, Pangu-Weather operational, and Fuxi. We
-               demonstrate that forecast errors in AI models are consistently
-               larger for record-breaking heat, cold, and wind than in HRES
-               across nearly all lead times. We further find that the examined
-               AI models tend to underestimate both the frequency and intensity
-               of record-breaking events, and they underpredict hot records and
-               overestimate cold records with growing errors for larger record
-               exceedance. Our findings underscore the current limitations of AI
-               weather models in extrapolating beyond their training domain and
-               in forecasting the potentially most impactful record-breaking
-               weather events that are particularly frequent in a rapidly
-               warming climate. Further rigorous verification and model
-               development is needed before these models can be solely relied
-               upon for high-stakes applications such as early warning systems
-               and disaster management.",
-  month     =  may,
-  year      =  2026,
-  language  = "en"
-}
-
 @ARTICLE{Sun2025-mh,
   title     = "Can {AI} weather models predict out-of-distribution gray swan
                tropical cyclones?",
@@ -3058,3 +3019,70 @@ year = {2024}
   doi          = {10.5281/zenodo.22000716},
   url          = {https://doi.org/10.5281/zenodo.22000716},
 }
+
+@ARTICLE{Hover2026-wv,
+  title         = "Spatial generalization tests for machine learning-based
+                   weather models to assess physical consistency",
+  author        = "Höver, Maren and Klöwer, Milan and de Witt, Christian
+                   Schroeder and Christensen, Hannah M",
+  journal       = "arXiv [physics.ao-ph]",
+  abstract      = "Machine learning-based weather prediction is revolutionizing
+                   weather forecasting by learning from weather data in
+                   present-day climate. However, generalization to other
+                   climates remains a major challenge. With melting sea ice,
+                   land-use change, and increasing ocean temperatures, boundary
+                   conditions are changing. Therefore, generalization in time
+                   depends on generalization in space. Here, we present three
+                   test cases to evaluate whether machine learning-based weather
+                   and climate models generalize in space and apply them to
+                   GraphCast and NeuralGCM. We reverse or rotate the planet in
+                   longitude or latitude under the model's coordinate system and
+                   adapt all boundary conditions and forcings accordingly.
+                   Physics-based general circulation models simulate a
+                   rotated/reversed planet with only rounding errors, but
+                   GraphCast and NeuralGCM fail these tests. The analyses
+                   furthermore revealed unphysical variable mappings based on
+                   correlation rather than causation. We argue that machine
+                   learning-based climate models should be designed to pass
+                   generalization tests to prevent overfitting on present-day
+                   regional climate.",
+  month         =  jul,
+  year          =  2026,
+  archivePrefix = "arXiv",
+  primaryClass  = "physics.ao-ph"
+}
+
+@ARTICLE{Merchant2026-ex,
+  title         = "How do {AI} climate models respond to warming across climate
+                   zones?",
+  author        = "Merchant, Charlotte C and Klöwer, Milan and Stanley-Clamp,
+                   Bradley and Höver, Maren and Michel, Simon L L and Groot,
+                   Edward and Christensen, Hannah M",
+  journal       = "arXiv [physics.ao-ph]",
+  abstract      = "Regional climate zones are expected to shift under global
+                   warming. Whether AI climate models have learned to generalize
+                   climate-zone distributions under warming in a physically
+                   meaningful way affects their suitability for climate
+                   projection. We address this question by applying a
+                   Köppen-Geiger climate-zone decomposition to AIMIP Phase 1
+                   models under prescribed +4K SST forcing and comparing their
+                   responses to physics-based AMIP models. Using this
+                   diagnostic, we compare baseline classification skill,
+                   per-zone responses in temperature, precipitation, and
+                   near-surface specific humidity, and the spatial structure of
+                   departures from physics-based models. All AI models
+                   considered reproduce the 1979-2014 ERA5 climatology within
+                   the physics-based models' range, but only the hybrid
+                   physics-AI model NeuralGCM-HRD reorganizes zones in agreement
+                   with established thermodynamic and hydrological scaling
+                   relations. The remaining emulators have distinct failure
+                   modes traceable to their architectural treatment of land
+                   cells. A physically consistent climate-zone response is
+                   therefore necessary for AI models intended for climate
+                   projection.",
+  month         =  aug,
+  year          =  2026,
+  archivePrefix = "arXiv",
+  primaryClass  = "physics.ao-ph"
+}
+
