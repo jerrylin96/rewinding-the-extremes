@@ -81,7 +81,7 @@ import matplotlib.patheffects as pe  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib import animation  # noqa: E402
-from matplotlib.colors import ListedColormap  # noqa: E402
+from matplotlib.colors import LinearSegmentedColormap, to_rgb  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.ticker import MaxNLocator  # noqa: E402
 
@@ -2836,11 +2836,25 @@ _TRACK_REGRESSION_N_PC = 8
 # width, while continuous central pressure's grow with its area; on one shared
 # scale a finer grid leaves the pressure panel pale.
 _DENSITY_GRID_CELLS = 20
-# Purples, truncated so a one-member cell stays visible on white.  One hue
-# keeps clear of the paper's other meanings: black (ERA5, 1:1), gold (the
-# member closest to ERA5), red/blue (deciles, percentiles).
-_DENSITY_CMAP = ListedColormap(plt.get_cmap("Purples")(np.linspace(0.35, 1.0, 256)))
 _DENSITY_GRID_COLOR = "0.85"
+
+# The conditioning mode, shown two ways so it survives grayscale printing and
+# color-vision deficiency: an Okabe-Ito color, and a triangle pointing from the
+# pinned frame toward the free end in time (end-conditioned looks back to its
+# precursor, start-conditioned forward to its outcome).  Figures shown side by
+# side then read end vs start at a glance; the key names the case.
+_MODE_COLORS = {"end": "#D55E00", "start": "#0072B2"}  # vermilion, blue
+_MODE_MARKERS = {"end": "<", "start": ">"}
+
+
+def _density_cmap(color: str) -> LinearSegmentedColormap:
+    """Members-per-cell ramp in one hue: a light tint of ``color`` (so a
+    one-member cell stays visible on white), ``color``, a darker shade."""
+    rgb = np.asarray(to_rgb(color))
+    return LinearSegmentedColormap.from_list(
+        "members_per_cell", [0.25 * rgb + 0.75, rgb, 0.6 * rgb]
+    )
+
 
 # Where a track-regression panel's N / R^2 box sits (axes fraction): its
 # usual bottom-right corner, measured off the rendered figures with a star's
@@ -2943,7 +2957,9 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     leading-PC OLS prediction against the member value over the *analyzable*
     members (``diag["track_qc"]``, the definition ``synoptic_pca_track_stats``
     and the paper use), with in-sample + 10-fold CV R^2; the fourth slot is the
-    key.  Each dot is colored by how many members share its cell of a
+    key: the case and mode (in place of a title), the legend and the colorbar.
+    Each member is a triangle in its mode's color and shape (``_MODE_COLORS``,
+    ``_MODE_MARKERS``), shaded by how many members share its cell of a
     ``_DENSITY_GRID_CELLS``-square grid over its panel (grid drawn), on one
     count scale for the figure.  ERA5's star is filled when its PC state is
     within all members' range (``pca_stats.ellipsoid_test``), hollow when its
@@ -2964,6 +2980,8 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     era5_range = _era5_range(diag, n_pc)
     n_dropped = int(diag["track_qc"].counts()["excluded"])
     case_name = str(_scalar(diag["case_name"]))
+    mode_color, mode_marker = _MODE_COLORS[mode], _MODE_MARKERS[mode]
+    cmap = _density_cmap(mode_color)
 
     # Each panel's square span (members plus a drawn star) and the member count
     # in each dot's cell; the counts share one color scale across panels.
@@ -3020,8 +3038,9 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
             panel.yhat[order],
             panel.y[order],
             c=counts[order],
-            cmap=_DENSITY_CMAP,
+            cmap=cmap,
             norm=norm,
+            marker=mode_marker,
             s=10,
             edgecolors="none",
             zorder=2,
@@ -3069,17 +3088,50 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
             zorder=6,
         )
 
-    # The key: legend above the shared members-per-cell colorbar.
+    # The key: the case and mode (this figure's title), then the legend, then
+    # the shared members-per-cell colorbar.
     key = flat_axes[3]
     key.axis("off")
+    key.text(
+        0.5,
+        0.97,
+        case_name,
+        transform=key.transAxes,
+        ha="center",
+        va="top",
+        fontsize=SUPTITLE_SIZE_DENSE,
+        fontweight="bold",
+    )
+    key.text(
+        0.5,
+        0.86,
+        _mode_label(mode).capitalize(),
+        transform=key.transAxes,
+        ha="center",
+        va="top",
+        fontsize=TITLE_SIZE_DENSE,
+        fontweight="bold",
+        color=mode_color,
+    )
+    key.text(
+        0.5,
+        0.78,
+        f"{_free_end_role(mode).capitalize()} free-end track vs "
+        f"{n_pc}-PC regression\n(analyzable members; {n_dropped} excluded)",
+        transform=key.transAxes,
+        ha="center",
+        va="top",
+        fontsize=AXIS_LABEL_SIZE_DENSE,
+        linespacing=1.4,
+    )
     handles = [
         Line2D(
             [],
             [],
             linestyle="none",
-            marker="o",
-            markersize=5,
-            markerfacecolor=_DENSITY_CMAP(0.6),
+            marker=mode_marker,
+            markersize=7,
+            markerfacecolor=mode_color,
             markeredgecolor="none",
             label="analyzable members",
         ),
@@ -3090,13 +3142,13 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     key.legend(
         handles=handles,
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.85),
+        bbox_to_anchor=(0.5, 0.6),
         frameon=False,
         fontsize=LEGEND_SIZE_DENSE,
     )
-    cax = key.inset_axes([0.1, 0.35, 0.8, 0.06])
+    cax = key.inset_axes([0.1, 0.2, 0.8, 0.06])
     cbar = fig.colorbar(
-        plt.cm.ScalarMappable(norm=norm, cmap=_DENSITY_CMAP),
+        plt.cm.ScalarMappable(norm=norm, cmap=cmap),
         cax=cax,
         orientation="horizontal",
     )
@@ -3110,13 +3162,6 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
 
     add_subplot_labels(
         flat_axes[:3], placement="inside", fontsize=SUBPLOT_LABEL_SIZE_DENSE
-    )
-    fig.suptitle(
-        f"{case_name}\n"
-        f"{_mode_label(mode).capitalize()} · {_free_end_role(mode)} free-end "
-        f"track vs {n_pc}-PC regression (analyzable; {n_dropped} excluded)",
-        fontsize=SUPTITLE_SIZE_DENSE,
-        color="black",
     )
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
