@@ -990,12 +990,12 @@ def main() -> None:
     for v in range(len(variables)):
         era_fe_domain[v] = (era_fe_domain[v] - per_var_mean[v]) / per_var_std[v]
     era_fe_centered = era_fe_domain.reshape(-1) - feature_mean  # [n_features]
-    era5_pc_score = (era_fe_centered @ components[:n_eof_show].T).astype(np.float32)
-    era5_pc_percentile = np.empty(n_eof_show, dtype=np.float32)
-    for j in range(n_eof_show):
-        era5_pc_percentile[j] = float(
-            100.0 * (scores[:, j] <= era5_pc_score[j]).sum() / n_members
-        )
+    # All max_d PCs, not just the n_eof_show displayed: the multi-PC
+    # regressions and the ellipsoid test read past n_eof_show (Ian: 6 < 8).
+    era5_pc_score = (era_fe_centered @ components.T).astype(np.float32)
+    era5_pc_percentile = (
+        100.0 * (scores <= era5_pc_score).sum(axis=0) / n_members
+    ).astype(np.float32)
     print(
         f"[syn-pca] ERA5 PC pcts : "
         f"{[f'PC{j + 1}={era5_pc_percentile[j]:.0f}' for j in range(n_eof_show)]}"
@@ -1269,8 +1269,8 @@ def main() -> None:
             np.int32
         ),  # [n_eof_show, n_pct]
         percentile_values=np.asarray(PERCENTILE_VALUES, dtype=np.int32),  # [n_pct]
-        era5_pc_score=era5_pc_score,  # [n_eof_show]
-        era5_pc_percentile=era5_pc_percentile,  # [n_eof_show] in 0..100
+        era5_pc_score=era5_pc_score,  # [max_d]
+        era5_pc_percentile=era5_pc_percentile,  # [max_d] in 0..100
         # Reference fields (raw) on the shared (domain_lat, domain_lon) grid.
         era5_trajectory_latlon=era_traj_latlon,  # [n_leads, n_vars, nlat, nlon]
         ensemble_mean_trajectory_latlon=ensemble_mean_latlon,  # [n_leads, n_vars, nlat, nlon]
