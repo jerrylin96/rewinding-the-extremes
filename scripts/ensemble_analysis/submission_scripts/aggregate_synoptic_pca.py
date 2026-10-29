@@ -2856,13 +2856,8 @@ def _density_cmap(color: str) -> LinearSegmentedColormap:
     )
 
 
-# Where a track-regression panel's N / R^2 box sits (axes fraction): its
-# usual bottom-right corner, measured off the rendered figures with a star's
-# radius of margin.  A star inside it moves the box to the top-left corner,
-# below the panel label: with the cloud along the 1:1 line, the off-diagonal
-# corners are the empty ones, and ERA5's extremes (e.g. a central pressure
-# deeper than every member's) sit low in the panel.
-_STATS_BOX_FOOTPRINT = (0.5, 0.22)  # x above, y below
+# ERA5's star size (points^2) on the track-regression panels.
+_TRACK_STAR_SIZE = 220
 
 
 class _TrackPanel(NamedTuple):
@@ -2941,12 +2936,18 @@ def _cell_counts(x: np.ndarray, y: np.ndarray, edges: np.ndarray) -> np.ndarray:
     return grid[ix, iy]
 
 
-def _star_under_stats_box(star: Tuple[float, float], span: Tuple[float, float]) -> bool:
-    """Would the star at ``star`` (data units, square ``span``) sit under the
-    stats box in its usual bottom-right corner?"""
-    fx, fy = (np.asarray(star) - span[0]) / (span[1] - span[0])
-    box_x, box_y = _STATS_BOX_FOOTPRINT
-    return bool(fx > box_x and fy < box_y)
+def _box_covers_star(ax, box, star: Tuple[float, float], star_size: float) -> bool:
+    """Does the text ``box``'s drawn frame overlap the star at ``star`` (data
+    units; ``star_size`` in points^2)?  Measured on the laid-out figure, since
+    the frame's size depends on the font: call after
+    ``fig.draw_without_rendering()``."""
+    frame = box.get_bbox_patch().get_window_extent()
+    x, y = ax.transData.transform(star)
+    radius = np.sqrt(star_size) / 2 * ax.figure.dpi / 72
+    return bool(
+        frame.x0 - radius < x < frame.x1 + radius
+        and frame.y0 - radius < y < frame.y1 + radius
+    )
 
 
 def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
@@ -3008,6 +3009,7 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(10, 10))
     flat_axes = list(axes.ravel())
     summary: List[str] = []
+    stats_boxes = []  # (ax, box, star) for the panels that draw a star
     for ax, panel, layout in zip(flat_axes, panels, layouts):
         u = f" ({panel.unit})" if panel.unit else ""
         if layout is None:
@@ -3052,7 +3054,7 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
                 panel.era5_pred,
                 panel.era5_obs,
                 era5_range,
-                s=220,
+                s=_TRACK_STAR_SIZE,
                 label=_era5_star_label(era5_range),
             )
         ax.set_xlim(*span)
@@ -3071,22 +3073,32 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
             p_txt = "p < 0.001"
         else:
             p_txt = f"p = {panel.p_value:.3f}"
-        top_left = star and _star_under_stats_box(
-            (panel.era5_pred, panel.era5_obs), span
-        )
-        ax.text(
-            0.03 if top_left else 0.97,
-            0.88 if top_left else 0.03,
+        box = ax.text(
+            0.97,
+            0.03,
             f"N = {panel.n}\n$R^2$ in = {r2_in_txt} ({p_txt})\n$R^2$ CV = {r2_cv_txt}",
             transform=ax.transAxes,
-            va="top" if top_left else "bottom",
-            ha="left" if top_left else "right",
+            va="bottom",
+            ha="right",
             fontsize=TICK_LABEL_SIZE_DENSE,
             bbox=dict(
                 facecolor="white", alpha=0.85, edgecolor="0.7", boxstyle="round,pad=0.3"
             ),
             zorder=6,
         )
+        if star:
+            stats_boxes.append((ax, box, (panel.era5_pred, panel.era5_obs)))
+
+    # A stats box that covers ERA5's star moves from the bottom-right corner to
+    # the top-left, below the panel label: with the cloud along the 1:1 line the
+    # off-diagonal corners are the empty ones, and ERA5's extremes (e.g. a
+    # central pressure deeper than every member's) sit low in the panel.
+    fig.draw_without_rendering()
+    for ax, box, star_xy in stats_boxes:
+        if _box_covers_star(ax, box, star_xy, _TRACK_STAR_SIZE):
+            box.set_position((0.03, 0.88))
+            box.set_horizontalalignment("left")
+            box.set_verticalalignment("top")
 
     # The key: the case and mode (this figure's title), then the legend, then
     # the shared members-per-cell colorbar.

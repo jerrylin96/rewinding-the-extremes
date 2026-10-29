@@ -41,11 +41,12 @@ SCRIPT_DIR = os.path.abspath(
 )
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "ensemble_analysis", "submission_scripts"))
 
+import matplotlib.pyplot as plt  # noqa: E402
 from aggregate_synoptic_pca import (  # noqa: E402
+    _box_covers_star,
     _cell_counts,
     _era5_range,
     _era5_star_style,
-    _star_under_stats_box,
     _track_regression_panels,
     plot_track_regression,
 )
@@ -128,8 +129,47 @@ def test_figure_renders(
     assert f"ERA5 {state} (" in capsys.readouterr().out
 
 
-def test_stats_box_moves_only_for_a_star_under_it() -> None:
-    span = (950.0, 1000.0)
-    assert _star_under_stats_box((990.0, 951.0), span)  # bottom-right
-    assert not _star_under_stats_box((960.0, 951.0), span)  # bottom-left
-    assert not _star_under_stats_box((990.0, 990.0), span)  # top-right
+def test_box_covers_star_measured_on_the_drawn_frame() -> None:
+    """The frame's size depends on the font, so it is measured, not assumed:
+    a star just inside its left edge at the bottom (Sandy start, panel c, on
+    the SCC's font) counts as covered."""
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    box = ax.text(
+        0.97,
+        0.03,
+        "N = 984\n$R^2$ in = 0.20 (p < 0.001)\n$R^2$ CV = 0.19",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        bbox=dict(boxstyle="round,pad=0.3"),
+    )
+    fig.draw_without_rendering()
+    frame = (
+        box.get_bbox_patch().get_window_extent().transformed(ax.transData.inverted())
+    )
+    assert _box_covers_star(ax, box, (frame.x0 + 0.01, 0.04), 220)
+    assert not _box_covers_star(ax, box, (frame.x0 - 0.1, 0.04), 220)  # left of it
+    assert not _box_covers_star(ax, box, (0.9, 0.6), 220)  # above it
+    plt.close(fig)
+
+
+def test_no_stats_box_covers_its_star(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ERA5's pressure far below every member puts its star at the bottom of
+    panel (c), under the box's usual corner; the figure moves that box."""
+    diag = _diag(np.zeros(MAX_D))
+    diag["track_qc"].era5_free_end["msl_hpa"] = 950.0
+    figures = []
+    monkeypatch.setattr(plt, "close", figures.append)  # keep the figure
+    plot_track_regression(diag, "end", Path(os.devnull))
+    (fig,) = figures
+    fig.draw_without_rendering()
+    panels = _track_regression_panels(diag, n_pc=8)
+    moved = []
+    for ax, panel in zip(fig.axes[:3], panels):
+        (box,) = [t for t in ax.texts if t.get_text().startswith("N = ")]
+        star = (panel.era5_pred, panel.era5_obs)
+        assert not _box_covers_star(ax, box, star, 220)
+        moved.append(box.get_horizontalalignment() == "left")
+    assert moved[2]  # the pressure panel's box moved to the top-left
