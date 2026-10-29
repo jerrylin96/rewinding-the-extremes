@@ -70,7 +70,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Sequence, Tuple
 
 import matplotlib
 
@@ -81,6 +81,9 @@ import matplotlib.patheffects as pe  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib import animation  # noqa: E402
+from matplotlib.colors import ListedColormap  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
+from matplotlib.ticker import MaxNLocator  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SHARED_DIR = SCRIPT_DIR.parent.parent / "_shared"
@@ -95,11 +98,13 @@ from _dispatch_lib import (  # noqa: E402
 from track_qc import compute_track_qc  # noqa: E402
 from local_time_axis import format_local_time_axis, local_datetimes  # noqa: E402
 from pca_stats import (  # noqa: E402
+    EllipsoidTest,
     _kfold_r2,
     _ols_fit,
     _r2_score,
     _regression_f_pvalue,
     _spearman,
+    ellipsoid_test,
 )
 from plot_style import (  # noqa: E402
     AXIS_LABEL_SIZE_DENSE,
@@ -1987,6 +1992,70 @@ def plot_pc_scatter(diag: dict, mode: str, out_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _era5_range(diag: dict, n_pc: int) -> EllipsoidTest | None:
+    """ERA5's free-end PC state against all members' in the leading ``n_pc`` PCs
+    (``pca_stats.ellipsoid_test``, as in ``synoptic_pca_era5_range.py``); None
+    when the npz lacks ERA5 scores for them."""
+    scores = np.asarray(diag["pc_scores"], dtype=np.float64)
+    era5_pc = np.asarray(diag.get("era5_pc_score", np.zeros(0)), dtype=np.float64)
+    if era5_pc.size < n_pc or scores.shape[1] < n_pc:
+        print(
+            f"[aggregate_synoptic_pca] WARNING: the npz has ERA5 scores for "
+            f"{era5_pc.size} PCs, not {n_pc}; no ERA5 star. Rerun "
+            f"compute_synoptic_pca.py (it now saves all --max-d PCs)."
+        )
+        return None
+    return ellipsoid_test(scores[:, :n_pc], era5_pc[:n_pc])
+
+
+def _era5_state(era5_range: EllipsoidTest) -> str:
+    return "inside" if era5_range.inside else "outside"
+
+
+def _era5_range_text(era5_range: EllipsoidTest | None) -> str:
+    """Log text, e.g. ``ERA5 outside (0/1000)``."""
+    if era5_range is None:
+        return "ERA5 n/a"
+    return f"ERA5 {_era5_state(era5_range)} ({era5_range.m}/{era5_range.n})"
+
+
+def _era5_star_style(era5_range: EllipsoidTest) -> Dict[str, object]:
+    """Filled (white edge) when ERA5's PC state is within the members' range,
+    hollow when its prediction is an extrapolation."""
+    if era5_range.inside:
+        return {"facecolor": "black", "edgecolor": "white", "linewidth": 0.8}
+    return {"facecolor": "none", "edgecolor": "black", "linewidth": 1.2}
+
+
+def _era5_star_label(era5_range: EllipsoidTest) -> str:
+    return f"ERA5 ({_era5_state(era5_range)} members' range)"
+
+
+def _draw_era5_star(
+    ax, x: float, y: float, era5_range: EllipsoidTest, s: float, label: str
+) -> None:
+    """ERA5's predicted (x) vs observed (y) value, marked by its range state."""
+    ax.scatter(
+        x, y, marker="*", s=s, zorder=5, label=label, **_era5_star_style(era5_range)
+    )
+
+
+def _era5_star_handle(era5_range: EllipsoidTest) -> Line2D:
+    """Legend proxy for :func:`_draw_era5_star`."""
+    style = _era5_star_style(era5_range)
+    return Line2D(
+        [],
+        [],
+        linestyle="none",
+        marker="*",
+        markersize=14,
+        markerfacecolor=style["facecolor"],
+        markeredgecolor=style["edgecolor"],
+        markeredgewidth=style["linewidth"],
+        label=_era5_star_label(era5_range),
+    )
+
+
 def plot_precursor_impact(
     diag: dict,
     var_idx: int,
@@ -2753,14 +2822,14 @@ def plot_diversity_metrics(per_mode: Dict[str, dict], out_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-# Free-end track/intensity targets, in the column order track_qc's
-# free_end_targets provides them (lat, lon, distance, MSL), with display
-# labels + units for the regression figure.
+# Free-end targets of the track regression: the ``free_end_targets`` key, the
+# matching ``qc.era5_free_end`` key, the axis label and unit.  ERA5's observed
+# value is looked up by name, never by position.  Distance from the ERA5 fix is
+# not regressed (``synoptic_pca_track_stats.DESCRIPTIVE_ONLY_TARGETS``).
 _TRACK_TARGETS = (
-    ("latitude", 0, "free-end latitude", "°N"),
-    ("longitude", 1, "free-end longitude", "°E"),
-    ("distance", 2, "free-end distance from ERA5", "km"),
-    ("MSL", 3, "free-end central MSL", "hPa"),
+    ("fe_lat_deg", "lat", "free-end latitude", "°N"),
+    ("fe_lon_deg", "lon", "free-end longitude", "°E"),
+    ("fe_msl_hpa", "msl_hpa", "free-end central MSL", "hPa"),
 )
 
 # Leading PCs the track regression uses.  Fixed at 8 to match the track-stats
@@ -2768,18 +2837,126 @@ _TRACK_TARGETS = (
 # case's n_eof_show (sandy 10 / ian 6): pc_scores always carries max_d columns.
 _TRACK_REGRESSION_N_PC = 8
 
+# Cells per side of the grid whose member counts color the track-regression
+# dots.  20, not 40: latitude and longitude sit on rows (storm positions are
+# resolved on the ~100 km native grid), so their counts grow with a cell's
+# width, while continuous central pressure's grow with its area; on one shared
+# scale a finer grid leaves the pressure panel pale.
+_DENSITY_GRID_CELLS = 20
+# Purples, truncated so a one-member cell stays visible on white.  One hue
+# keeps clear of the paper's other meanings: black (ERA5, 1:1), gold (the
+# member closest to ERA5), red/blue (deciles, percentiles).
+_DENSITY_CMAP = ListedColormap(plt.get_cmap("Purples")(np.linspace(0.35, 1.0, 256)))
+_DENSITY_GRID_COLOR = "0.85"
+
+# Where a track-regression panel's N / R^2 box sits (axes fraction): its
+# usual bottom-right corner, measured off the rendered figures with a star's
+# radius of margin.  A star inside it moves the box to the top-left corner,
+# below the panel label: with the cloud along the 1:1 line, the off-diagonal
+# corners are the empty ones, and ERA5's extremes (e.g. a central pressure
+# deeper than every member's) sit low in the panel.
+_STATS_BOX_FOOTPRINT = (0.5, 0.22)  # x above, y below
+
+
+class _TrackPanel(NamedTuple):
+    """One target's OLS fit over the analyzable members, and ERA5 on it.
+
+    ``yhat`` / ``y`` are empty and the statistics NaN when too few members
+    remain to fit.  ``era5_pred`` is NaN when the npz lacks ERA5 scores for
+    the leading PCs.
+    """
+
+    ylabel: str
+    unit: str
+    n: int
+    yhat: np.ndarray
+    y: np.ndarray
+    r2_in: float
+    r2_cv: float
+    p_value: float
+    era5_pred: float
+    era5_obs: float
+
+
+def _track_regression_panels(diag: dict, n_pc: int) -> List[_TrackPanel]:
+    """The track regression's panels, one per ``_TRACK_TARGETS`` entry."""
+    pcs = np.asarray(diag["pc_scores"], dtype=np.float64)[:, :n_pc]
+    era5_pc = np.asarray(diag.get("era5_pc_score", np.zeros(0)), dtype=np.float64)
+    qc = diag["track_qc"]
+    # free_end_targets NaNs the non-analyzable members, so each fit runs over
+    # exactly the analyzable population the track-stats report quotes.
+    targets = qc.free_end_targets()
+    panels: List[_TrackPanel] = []
+    for key, era5_key, ylabel, unit in _TRACK_TARGETS:
+        y = np.asarray(targets[key], dtype=np.float64)
+        ok = np.isfinite(y) & np.isfinite(pcs).all(axis=1)
+        n = int(ok.sum())
+        era5_obs = float(qc.era5_free_end[era5_key])
+        if n <= n_pc + 1:
+            empty = np.zeros(0)
+            nan = float("nan")
+            panels.append(
+                _TrackPanel(ylabel, unit, n, empty, empty, nan, nan, nan, nan, era5_obs)
+            )
+            continue
+        xx, yy = pcs[ok], y[ok]
+        beta, intercept = _ols_fit(xx, yy)
+        yhat = intercept + xx @ beta
+        r2_in = _r2_score(yy, yhat)
+        panels.append(
+            _TrackPanel(
+                ylabel=ylabel,
+                unit=unit,
+                n=n,
+                yhat=yhat,
+                y=yy,
+                r2_in=r2_in,
+                r2_cv=_kfold_r2(xx, yy, n_folds=10),
+                p_value=_regression_f_pvalue(r2_in, n, n_pc),
+                era5_pred=(
+                    intercept + float(era5_pc[:n_pc] @ beta)
+                    if era5_pc.size >= n_pc
+                    else float("nan")
+                ),
+                era5_obs=era5_obs,
+            )
+        )
+    return panels
+
+
+def _cell_counts(x: np.ndarray, y: np.ndarray, edges: np.ndarray) -> np.ndarray:
+    """For each point, how many points share its cell of the ``edges`` x ``edges`` grid."""
+    k = edges.size - 1
+    ix = np.clip(np.searchsorted(edges, x, side="right") - 1, 0, k - 1)
+    iy = np.clip(np.searchsorted(edges, y, side="right") - 1, 0, k - 1)
+    grid = np.zeros((k, k), dtype=np.int64)
+    np.add.at(grid, (ix, iy), 1)
+    return grid[ix, iy]
+
+
+def _star_under_stats_box(star: Tuple[float, float], span: Tuple[float, float]) -> bool:
+    """Would the star at ``star`` (data units, square ``span``) sit under the
+    stats box in its usual bottom-right corner?"""
+    fx, fy = (np.asarray(star) - span[0]) / (span[1] - span[0])
+    box_x, box_y = _STATS_BOX_FOOTPRINT
+    return bool(fx > box_x and fy < box_y)
+
 
 def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     """Predicted-vs-ensemble-member free-end track/intensity regression (TC cases).
 
-    The TC twin of :func:`plot_precursor_impact`'s predicted-vs-ensemble-member panel.
-    Uses the mode's ``track_qc`` result (``diag["track_qc"]``, resolved from the
-    raw all-paths tc_tracks parquet -- the definition ``synoptic_pca_track_stats``
-    and the paper use).  For each free-end
-    target (latitude, longitude, great-circle distance from the ERA5 fix,
-    central MSL) the leading-PC OLS prediction is scattered against the ensemble-member
-    value over the *analyzable* members, with in-sample + 10-fold CV R^2 and an
-    ERA5 marker.  Returns early for non-TC cases.
+    The TC twin of :func:`plot_precursor_impact`'s predicted-vs-ensemble-member
+    panel, 2 x 2: (a) latitude, (b) longitude, (c) central MSL, each the
+    leading-PC OLS prediction against the member value over the *analyzable*
+    members (``diag["track_qc"]``, the definition ``synoptic_pca_track_stats``
+    and the paper use), with in-sample + 10-fold CV R^2; the fourth slot is the
+    key.  Each dot is colored by how many members share its cell of a
+    ``_DENSITY_GRID_CELLS``-square grid over its panel (grid drawn), on one
+    count scale for the figure.  ERA5's star is filled when its PC state is
+    within all members' range (``pca_stats.ellipsoid_test``), hollow when its
+    prediction extrapolates; the state is one per figure, since no target
+    enters the test.  The star sets the axis limits along with the members.
+    Returns early for non-TC cases.
     """
     impact_kind = str(_scalar(diag.get("impact_kind", np.array("none"))))
     if impact_kind != "track":
@@ -2790,47 +2967,43 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     n_pc = int(min(_TRACK_REGRESSION_N_PC, scores.shape[1]))
     if n_pc < 1:
         return
-    pcs = scores[:, :n_pc]
-
-    # The one track QC, resolved once per mode by _attach_track_qc:
-    # free_end_targets NaNs the non-analyzable members, so the regression runs
-    # over exactly the analyzable population the report quotes.
-    qc = diag["track_qc"]
-    targets = qc.free_end_targets()  # analyzable-only (excluded members NaN)
-    fe_anch = np.column_stack(
-        [
-            targets["fe_lat_deg"],
-            targets["fe_lon_deg"],
-            targets["fe_dist_era5_km"],
-            targets["fe_msl_hpa"],
-        ]
-    ).astype(np.float64)
-    era5_fe = np.array(
-        [qc.era5_free_end["lat"], qc.era5_free_end["lon"], qc.era5_free_end["msl_hpa"]],
-        dtype=np.float64,
-    )
-    era5_pc = np.asarray(diag.get("era5_pc_score", np.zeros(0)), dtype=np.float64)
-    n_dropped = int(qc.counts()["excluded"])
+    panels = _track_regression_panels(diag, n_pc)
+    era5_range = _era5_range(diag, n_pc)
+    n_dropped = int(diag["track_qc"].counts()["excluded"])
     case_name = str(_scalar(diag["case_name"]))
+
+    # Each panel's square span (members plus a drawn star) and the member count
+    # in each dot's cell; the counts share one color scale across panels.
+    layouts = []
+    for panel in panels:
+        if panel.yhat.size == 0:
+            layouts.append(None)
+            continue
+        star = (
+            era5_range is not None
+            and np.isfinite([panel.era5_pred, panel.era5_obs]).all()
+        )
+        pts = [panel.yhat, panel.y]
+        if star:
+            pts.append(np.array([panel.era5_pred, panel.era5_obs]))
+        allv = np.concatenate(pts)
+        lo, hi = float(allv.min()), float(allv.max())
+        pad = 0.04 * (hi - lo if hi > lo else 1.0)
+        edges = np.linspace(lo - pad, hi + pad, _DENSITY_GRID_CELLS + 1)
+        layouts.append((edges, _cell_counts(panel.yhat, panel.y, edges), star))
+    max_count = max([int(lay[1].max()) for lay in layouts if lay is not None] + [1])
+    norm = plt.Normalize(vmin=1, vmax=max(max_count, 2))
 
     fig, axes = plt.subplots(2, 2, figsize=(10, 10))
     flat_axes = list(axes.ravel())
     summary: List[str] = []
-    for ax, (short, col, ylabel, unit) in zip(flat_axes, _TRACK_TARGETS):
-        y = fe_anch[:, col]
-        ok = np.isfinite(y) & np.isfinite(pcs).all(axis=1)
-        n = int(ok.sum())
-        # ERA5 observed: its own free-end fix (0 km for the distance target).
-        era5_obs = (
-            0.0
-            if short == "distance"
-            else (float(era5_fe[col]) if col < era5_fe.size else float("nan"))
-        )
-        if n <= n_pc + 1:
+    for ax, panel, layout in zip(flat_axes, panels, layouts):
+        u = f" ({panel.unit})" if panel.unit else ""
+        if layout is None:
             ax.text(
                 0.5,
                 0.5,
-                f"{ylabel}\n(insufficient analyzable members)",
+                f"{panel.ylabel}\n(insufficient analyzable members)",
                 transform=ax.transAxes,
                 ha="center",
                 va="center",
@@ -2839,97 +3012,112 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
             ax.set_xticks([])
             ax.set_yticks([])
             continue
-        xx, yy = pcs[ok], y[ok]
-        beta, intercept = _ols_fit(xx, yy)
-        yhat = intercept + xx @ beta
-        r2_in = _r2_score(yy, yhat)
-        r2_cv = _kfold_r2(xx, yy, n_folds=10)
-        p_value = _regression_f_pvalue(r2_in, n, n_pc)
-        era5_yhat = (
-            intercept + float(era5_pc[:n_pc] @ beta)
-            if era5_pc.size >= n_pc
-            else float("nan")
-        )
+        edges, counts, star = layout
+        span = (float(edges[0]), float(edges[-1]))
         summary.append(
-            f"{short} CV={r2_cv:.2f}" if np.isfinite(r2_cv) else f"{short} CV=n/a"
+            f"{panel.ylabel} CV={panel.r2_cv:.2f}"
+            if np.isfinite(panel.r2_cv)
+            else f"{panel.ylabel} CV=n/a"
         )
-
+        # The cell grid that sets each dot's shade, behind the dots and 1:1.
+        ax.vlines(edges, *span, colors=_DENSITY_GRID_COLOR, linewidths=0.4, zorder=0)
+        ax.hlines(edges, *span, colors=_DENSITY_GRID_COLOR, linewidths=0.4, zorder=0)
+        order = np.argsort(counts, kind="stable")  # dense cores drawn last
         ax.scatter(
-            yhat,
-            yy,
+            panel.yhat[order],
+            panel.y[order],
+            c=counts[order],
+            cmap=_DENSITY_CMAP,
+            norm=norm,
             s=10,
-            color=_SPAGHETTI_COLOR,
-            alpha=0.35,
             edgecolors="none",
-            zorder=1,
-            label="analyzable members",
+            zorder=2,
         )
-        pts = [yhat, yy]
-        if np.isfinite(era5_yhat):
-            pts.append(np.array([era5_yhat]))
-        if np.isfinite(era5_obs):
-            pts.append(np.array([era5_obs]))
-        allv = np.concatenate([np.asarray(p, dtype=np.float64).ravel() for p in pts])
-        lo, hi = float(allv.min()), float(allv.max())
-        pad = 0.04 * (hi - lo if hi > lo else 1.0)
-        span = np.array([lo - pad, hi + pad])
-        ax.plot(
-            span, span, color="black", linewidth=1.1, alpha=0.8, zorder=3, label="1:1"
-        )
-        if np.isfinite(era5_yhat) and np.isfinite(era5_obs):
-            ax.scatter(
-                era5_yhat,
-                era5_obs,
-                marker="*",
+        ax.plot(span, span, color="black", linewidth=1.1, alpha=0.8, zorder=3)
+        if star:
+            _draw_era5_star(
+                ax,
+                panel.era5_pred,
+                panel.era5_obs,
+                era5_range,
                 s=220,
-                color="black",
-                edgecolor="white",
-                linewidth=0.8,
-                zorder=5,
-                label="ERA5",
+                label=_era5_star_label(era5_range),
             )
-        ax.set_xlim(float(span[0]), float(span[1]))
-        ax.set_ylim(float(span[0]), float(span[1]))
+        ax.set_xlim(*span)
+        ax.set_ylim(*span)
         ax.set_aspect("equal", adjustable="box")
-        u = f" ({unit})" if unit else ""
         ax.set_xlabel(f"{n_pc}-PC prediction{u}", fontsize=AXIS_LABEL_SIZE_DENSE)
-        ax.set_ylabel(f"Ensemble-member {ylabel}{u}", fontsize=AXIS_LABEL_SIZE_DENSE)
+        ax.set_ylabel(
+            f"Ensemble-member {panel.ylabel}{u}", fontsize=AXIS_LABEL_SIZE_DENSE
+        )
         ax.tick_params(axis="both", labelsize=TICK_LABEL_SIZE_DENSE)
-        ax.grid(True, alpha=0.25)
-        r2_in_txt = f"{r2_in:.2f}" if np.isfinite(r2_in) else "n/a"
-        r2_cv_txt = f"{r2_cv:.2f}" if np.isfinite(r2_cv) else "n/a"
-        if not np.isfinite(p_value):
+        r2_in_txt = f"{panel.r2_in:.2f}" if np.isfinite(panel.r2_in) else "n/a"
+        r2_cv_txt = f"{panel.r2_cv:.2f}" if np.isfinite(panel.r2_cv) else "n/a"
+        if not np.isfinite(panel.p_value):
             p_txt = "p = n/a"
-        elif p_value < 1e-3:
+        elif panel.p_value < 1e-3:
             p_txt = "p < 0.001"
         else:
-            p_txt = f"p = {p_value:.3f}"
+            p_txt = f"p = {panel.p_value:.3f}"
+        top_left = star and _star_under_stats_box(
+            (panel.era5_pred, panel.era5_obs), span
+        )
         ax.text(
-            0.97,
-            0.03,
-            f"N = {n}\n$R^2$ in = {r2_in_txt} ({p_txt})\n$R^2$ CV = {r2_cv_txt}",
+            0.03 if top_left else 0.97,
+            0.88 if top_left else 0.03,
+            f"N = {panel.n}\n$R^2$ in = {r2_in_txt} ({p_txt})\n$R^2$ CV = {r2_cv_txt}",
             transform=ax.transAxes,
-            va="bottom",
-            ha="right",
+            va="top" if top_left else "bottom",
+            ha="left" if top_left else "right",
             fontsize=TICK_LABEL_SIZE_DENSE,
             bbox=dict(
                 facecolor="white", alpha=0.85, edgecolor="0.7", boxstyle="round,pad=0.3"
             ),
             zorder=6,
         )
-    # ``add_subplot_labels(placement="inside")`` pins each label to its axes'
-    # top-left corner, which is where a plain ``loc="upper left"`` legend also
-    # lands -- so panel (a), the only panel carrying a legend, printed "a.)"
-    # underneath the legend frame and lost it.  Nudge just this legend down by
-    # one label's height; the corner stays empty of data in every case and
-    # mode, so no scatter is covered.
-    flat_axes[0].legend(
+
+    # The key: legend above the shared members-per-cell colorbar.
+    key = flat_axes[3]
+    key.axis("off")
+    handles = [
+        Line2D(
+            [],
+            [],
+            linestyle="none",
+            marker="o",
+            markersize=5,
+            markerfacecolor=_DENSITY_CMAP(0.6),
+            markeredgecolor="none",
+            label="analyzable members",
+        ),
+        Line2D([], [], color="black", linewidth=1.1, alpha=0.8, label="1:1"),
+    ]
+    if any(lay is not None and lay[2] for lay in layouts):
+        handles.append(_era5_star_handle(era5_range))
+    key.legend(
+        handles=handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.85),
+        frameon=False,
         fontsize=LEGEND_SIZE_DENSE,
-        loc="upper left",
-        bbox_to_anchor=(0.0, 0.93),
-        framealpha=0.9,
     )
-    add_subplot_labels(flat_axes, placement="inside", fontsize=SUBPLOT_LABEL_SIZE_DENSE)
+    cax = key.inset_axes([0.1, 0.35, 0.8, 0.06])
+    cbar = fig.colorbar(
+        plt.cm.ScalarMappable(norm=norm, cmap=_DENSITY_CMAP),
+        cax=cax,
+        orientation="horizontal",
+    )
+    cbar.locator = MaxNLocator(integer=True)
+    cbar.update_ticks()
+    cbar.set_label(
+        f"members per cell ({_DENSITY_GRID_CELLS} × {_DENSITY_GRID_CELLS} grid)",
+        fontsize=COLORBAR_LABEL_SIZE_DENSE,
+    )
+    cbar.ax.tick_params(labelsize=COLORBAR_TICK_SIZE_DENSE)
+
+    add_subplot_labels(
+        flat_axes[:3], placement="inside", fontsize=SUBPLOT_LABEL_SIZE_DENSE
+    )
     fig.suptitle(
         f"{case_name}\n"
         f"{_mode_label(mode).capitalize()} · {_free_end_role(mode)} free-end "
@@ -2941,7 +3129,7 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     plt.close(fig)
     print(
         f"[aggregate_synoptic_pca] wrote {out_path}  "
-        f"({n_pc} PCs; {', '.join(summary)})"
+        f"({n_pc} PCs; {', '.join(summary)}; {_era5_range_text(era5_range)})"
     )
 
 
