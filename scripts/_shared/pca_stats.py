@@ -10,7 +10,7 @@ to import.
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import NamedTuple, Tuple
 
 import numpy as np
 
@@ -102,3 +102,68 @@ def _regression_f_pvalue(r2: float, n: int, k: int) -> float:
     df_resid = n - k - 1
     f_stat = (r2 / k) / ((1.0 - r2) / df_resid)
     return float(stats.f.sf(f_stat, k, df_resid))
+
+
+class EllipsoidTest(NamedTuple):
+    """Where a point sits relative to the members' ellipsoid (``ellipsoid_test``).
+
+    ``n`` members; ``d2_point`` / ``d2_max`` are the point's and the farthest
+    member's squared Mahalanobis distances from the members' mean; ``m`` is the
+    number of members at least as far as the point.
+    """
+
+    n: int
+    d2_point: float
+    d2_max: float
+    m: int
+
+    @property
+    def inside(self) -> bool:
+        """At least one member is at least as far from the center."""
+        return self.m >= 1
+
+    @property
+    def p_value(self) -> float:
+        """``(m+1)/(n+1)``: if the point were one more draw like the members, the
+        chance it would rank at least this far out among all ``n+1``."""
+        return (self.m + 1) / (self.n + 1)
+
+
+def ellipsoid_test(scores: np.ndarray, point: np.ndarray) -> EllipsoidTest:
+    """Is ``point`` within the members' range, measured by Mahalanobis distance?
+
+    ``scores`` is ``[N, K]`` (one row per member, e.g. 8 PC scores); ``point``
+    is ``[K]`` (e.g. ERA5's scores).  Each row's squared distance is
+    ``d^2 = (x - xbar)^T S^-1 (x - xbar)`` with the rows' mean and sample
+    covariance (full, not just the variances: PCs are uncorrelated over the
+    population they were fit on, only approximately over a subset of it).
+    The point is inside iff some member is at least as far out.
+
+    This is the regression extrapolation check: with an intercept, OLS
+    leverage is ``h = 1/N + d^2/(N-1)``, so inside means the point's leverage
+    is at most the largest member's.  The convex hull is not used: in 8-D
+    many ordinary members fall outside the hull of the rest.
+
+    The caller chooses the rows; non-finite input raises rather than being
+    dropped, so ``N`` is always the population the caller meant.
+    """
+    x = np.asarray(scores, dtype=np.float64)
+    p = np.asarray(point, dtype=np.float64)
+    if x.ndim != 2 or p.shape != (x.shape[1],):
+        raise ValueError(f"scores {x.shape} and point {p.shape} do not match")
+    if not (np.all(np.isfinite(x)) and np.all(np.isfinite(p))):
+        raise ValueError("scores and point must be finite")
+    n, k = x.shape
+    if n <= k:
+        raise ValueError(f"need more members than dimensions, got {n} <= {k}")
+    mean = x.mean(axis=0)
+    cov = np.cov(x, rowvar=False).reshape(k, k)
+    centered = np.vstack([x, p]) - mean
+    d2 = np.einsum("ij,ji->i", centered, np.linalg.solve(cov, centered.T))
+    d2_members, d2_point = d2[:-1], float(d2[-1])
+    return EllipsoidTest(
+        n=n,
+        d2_point=d2_point,
+        d2_max=float(d2_members.max()),
+        m=int((d2_members >= d2_point).sum()),
+    )
