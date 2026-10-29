@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import os
 import sys
+import types
+from pathlib import Path
 
 import pytest
 
@@ -44,7 +46,10 @@ sys.path.insert(0, os.path.join(SCRIPT_DIR, "_shared"))
 from synoptic_pca_track_stats import (  # noqa: E402
     SUMMARY_PCTS,
     era5_relative_fractions,
+    per_pc_table,
+    regression_block,
     target_summary,
+    write_report,
 )
 
 
@@ -115,3 +120,96 @@ class TestEra5RelativeFractions:
             "fe_lon_deg": np.array([np.nan]),
         }
         assert era5_relative_fractions(all_nan, self.ERA5) == {}
+
+
+class TestRegressionBlock:
+    """Distance from the ERA5 fix is summarized but not regressed; ERA5's range
+    check runs over the analyzable members."""
+
+    N, N_PC = 120, 8
+
+    def _inputs(self) -> tuple:
+        rng = np.random.default_rng(0)
+        pcs = rng.standard_normal((self.N, 10))
+        analyzable = np.arange(self.N) % 4 != 0  # 90 analyzable
+        targets = {
+            name: np.where(analyzable, rng.standard_normal(self.N), np.nan)
+            for name in ("fe_lat_deg", "fe_lon_deg", "fe_dist_era5_km", "fe_msl_hpa")
+        }
+        return pcs, targets, analyzable
+
+    def test_distance_summarized_not_regressed(self) -> None:
+        pcs, targets, analyzable = self._inputs()
+        regressions, _ = regression_block(pcs, targets, np.zeros(10), analyzable, 8)
+        assert regressions["target"].tolist() == [
+            "fe_lat_deg",
+            "fe_lon_deg",
+            "fe_msl_hpa",
+        ]
+        assert "fe_dist_era5_km" in target_summary(targets)["target"].tolist()
+
+    def test_range_check_over_analyzable_members(self) -> None:
+        pcs, targets, analyzable = self._inputs()
+        _, era5_range = regression_block(pcs, targets, np.zeros(10), analyzable, 8)
+        assert era5_range is not None
+        assert era5_range.n == int(analyzable.sum())
+        assert era5_range.inside  # the members' center
+
+    def test_no_range_check_without_era5_scores_for_every_pc(self) -> None:
+        pcs, targets, analyzable = self._inputs()
+        _, era5_range = regression_block(pcs, targets, np.zeros(6), analyzable, 8)
+        assert era5_range is None
+
+    def test_report_text(self, tmp_path: Path) -> None:
+        """Acceptance 4: distance stays in the target distribution and leaves
+        the regression block, which ends with ERA5's range check."""
+        pcs, targets, analyzable = self._inputs()
+        regressions, era5_range = regression_block(
+            pcs, targets, np.full(10, 9.0), analyzable, 8
+        )
+        n = int(analyzable.sum())
+        qc = types.SimpleNamespace(  # the parts of TrackQC write_report reads
+            counts=lambda: dict.fromkeys(
+                (
+                    "analyzable",
+                    "excluded",
+                    "no_track",
+                    "unanchored",
+                    "insufficient_fixes",
+                    "no_free_end_fix",
+                ),
+                0,
+            ),
+            era5_free_end_msl_pct=lambda: (5.0, n),
+            era5_anchor={"lat": 30.0, "lon": -80.0},
+            config={"anchor_frame": 0, "anchor_radius_km": 300.0},
+        )
+        path = tmp_path / "report.txt"
+        write_report(
+            path,
+            "end",
+            "storm",
+            self.N,
+            11,
+            {"lat": 39.5, "lon": -74.5, "msl_hpa": 950.7},
+            qc,
+            target_summary(targets),
+            per_pc_table(pcs[:, :2], np.ones(10), np.zeros(10), {}, "end"),
+            regressions,
+            None,
+            None,
+            None,
+            era5_range=era5_range,
+        )
+        text = path.read_text()
+        distribution = text[
+            text.index("Target distribution") : text.index("Multi-PC OLS")
+        ]
+        regression = text[text.index("Multi-PC OLS") :]
+        assert "fe_dist_era5_km" in distribution
+        assert "fe_dist_era5_km" not in regression
+        assert (
+            f"ERA5 PC state vs analyzable members (8 PCs, Mahalanobis): 0/{n} "
+            "members at least as far"
+        ) in regression
+        assert regression.rstrip().endswith("-> outside")

@@ -44,10 +44,13 @@ population.  Writes a single self-contained report per mode:
     the fix projected onto the member fix cloud's own principal axes
     (``fe_cloud_major_km`` / ``fe_cloud_minor_km``).
 
-4.  **Multi-PC regression** -- each target regressed on the leading
-    ``--n-pc`` PC scores: in-sample R^2, deterministic 10-fold
-    cross-validated R^2, and the F-test p-value.  Directly comparable
-    with the scalar-impact regression the heatwave figure reports.
+4.  **Multi-PC regression** -- each target except distance from the ERA5
+    fix regressed on the leading ``--n-pc`` PC scores: in-sample R^2,
+    deterministic 10-fold cross-validated R^2, and the F-test p-value.
+    Directly comparable with the scalar-impact regression the heatwave
+    figure reports.  Then a check that ERA5's PC state is within the
+    analyzable members' range (``pca_stats.ellipsoid_test``), next to
+    ``synoptic_pca_era5_range.py``'s all-member row for the same mode.
 
 5.  **ERA5 free-end MSL percentile** -- fraction of analyzable members
     whose central MSL is at or below ERA5's,
@@ -111,11 +114,13 @@ from _dispatch_lib import (  # noqa: E402
     tc_tracks_parquet_path,
 )
 from pca_stats import (  # noqa: E402
+    EllipsoidTest,
     _kfold_r2,
     _ols_fit,
     _r2_score,
     _regression_f_pvalue,
     _spearman,
+    ellipsoid_test,
 )
 from tc_track_targets import (  # noqa: E402
     EARTH_RADIUS_M,
@@ -140,6 +145,10 @@ DEFAULT_BOX_SWEEP: Tuple[float, ...] = (2.0, 2.5, 3.5, 5.0)
 
 # Half-width (deg) of the storm-centred window for the loading scale check.
 LOADING_BOX_HALF_DEG = 5.0
+
+# Summarized but not regressed: distance from the ERA5 fix is a function of
+# latitude and longitude, and a straight-line fit of it can go negative.
+DESCRIPTIVE_ONLY_TARGETS: Tuple[str, ...] = ("fe_dist_era5_km",)
 
 # Percentiles for the target distribution summary.
 SUMMARY_PCTS: Tuple[float, ...] = (5.0, 25.0, 50.0, 75.0, 95.0)
@@ -285,6 +294,31 @@ def multi_pc_regressions(
             }
         )
     return pd.DataFrame(rows)
+
+
+def regression_block(
+    pc_scores: np.ndarray,
+    targets: Dict[str, np.ndarray],
+    era5_pc_score: np.ndarray,
+    analyzable: np.ndarray,
+    n_pc: int,
+) -> Tuple[pd.DataFrame, EllipsoidTest | None]:
+    """The multi-PC regressions, and ERA5's range check over the analyzable
+    members in the same leading PCs.
+
+    Leaves out ``DESCRIPTIVE_ONLY_TARGETS``.  The check is None when the npz
+    lacks ERA5 scores for the leading PCs (written before they were saved for
+    every PC).
+    """
+    regressions = multi_pc_regressions(
+        pc_scores,
+        {k: v for k, v in targets.items() if k not in DESCRIPTIVE_ONLY_TARGETS},
+        n_pc,
+    )
+    k = min(n_pc, pc_scores.shape[1])
+    if era5_pc_score.size < k:
+        return regressions, None
+    return regressions, ellipsoid_test(pc_scores[analyzable, :k], era5_pc_score[:k])
 
 
 # ---------------------------------------------------------------------------
@@ -437,10 +471,12 @@ def write_report(
     storm_pos: Tuple[float, float] | None,
     rotated_info: Dict[str, float] | None = None,
     era5_rel: Dict[str, int] | None = None,
+    era5_range: EllipsoidTest | None = None,
 ) -> None:
     """Write the human-readable per-mode report (analyzable population)."""
     counts = qc.counts()
     msl_pct, msl_n = qc.era5_free_end_msl_pct()
+    n_pc = int(regressions["n_pc"].iloc[0])
     lines = [
         f"Synoptic-PCA track/intensity sorting report -- {case_name}",
         f"mode={mode} (free end = frame {free_end_frame}), n_members={n_members}",
@@ -526,10 +562,23 @@ def write_report(
         "Per-PC sorting table (Spearman rho; top-minus-bottom decile gap):",
         _fmt_df(table.drop(columns=["mode"])),
         "",
-        f"Multi-PC OLS (leading {int(regressions['n_pc'].iloc[0])} PCs; "
+        f"Multi-PC OLS (leading {n_pc} PCs; "
         f"r2_cv10 = deterministic 10-fold out-of-sample R^2):",
         _fmt_df(regressions),
+        "",
     ]
+    if era5_range is None:
+        lines.append(
+            f"ERA5 PC state vs analyzable members: n/a (the npz lacks ERA5 "
+            f"scores for {n_pc} PCs; rerun compute_synoptic_pca.py)"
+        )
+    else:
+        lines.append(
+            f"ERA5 PC state vs analyzable members ({n_pc} PCs, Mahalanobis): "
+            f"{era5_range.m}/{era5_range.n} members at least as far "
+            f"(d2_era5={era5_range.d2_point:.1f}, d2_max={era5_range.d2_max:.1f})"
+            f" -> {'inside' if era5_range.inside else 'outside'}"
+        )
     if storm_pos is not None and steering is not None:
         lines += [
             "",
@@ -640,7 +689,13 @@ def run_mode(
     table.to_csv(csv_path, index=False)
     print(f"[track-stats] wrote {csv_path}")
 
-    regressions = multi_pc_regressions(pc_scores, targets, n_pc)
+    regressions, era5_range = regression_block(
+        pc_scores,
+        targets,
+        np.asarray(diag["era5_pc_score"], dtype=np.float64),
+        qc.analyzable,
+        n_pc,
+    )
     storm_pos = _mean_storm_position(targets)
     steering = None
     loading_scale = None
@@ -666,6 +721,7 @@ def run_mode(
         storm_pos,
         rotated_info,
         era5_rel,
+        era5_range,
     )
 
 
