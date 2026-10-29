@@ -2073,7 +2073,8 @@ def plot_precursor_impact(
             model-free (no assumed precursor -> impact form)
       (1,1) predicted-vs-ensemble-member land-mean impact: the leading-PC regression's
             skill (in-sample + 10-fold CV R^2, F-test p), with the 1:1 line and
-            ERA5 marked (its precursor projected through the same fit).
+            ERA5 marked (its precursor projected through the same fit; filled if
+            its PC state is within the members' range, hollow if not).
 
     The three z500 panels share one colorbar; the warm-cool difference is ~2x
     each decile's deviation (the deciles are near mirror images), so on a single
@@ -2375,18 +2376,9 @@ def plot_precursor_impact(
     ax_sc.plot(
         span, span, color="black", linewidth=1.2, alpha=0.8, zorder=3, label="1:1"
     )
-    if np.isfinite(era5_yhat) and np.isfinite(era5_y):
-        ax_sc.scatter(
-            era5_yhat,
-            era5_y,
-            marker="*",
-            s=260,
-            color="black",
-            edgecolor="white",
-            linewidth=0.8,
-            zorder=5,
-            label="ERA5",
-        )
+    era5_range = _era5_range(diag, n_pc)
+    if era5_range is not None and np.isfinite(era5_yhat) and np.isfinite(era5_y):
+        _draw_era5_star(ax_sc, era5_yhat, era5_y, era5_range, s=260, label="ERA5")
     ax_sc.set_xlim(float(span[0]), float(span[1]))
     ax_sc.set_ylim(float(span[0]), float(span[1]))
     ax_sc.set_aspect("equal", adjustable="box")
@@ -2445,7 +2437,8 @@ def plot_precursor_impact(
     plt.close(fig)
     print(
         f"[aggregate_synoptic_pca] wrote {out_path}  "
-        f"(R2 in={r2_in_txt} {p_txt}, CV={r2_cv_txt}, {n_pc} PCs)"
+        f"(R2 in={r2_in_txt} {p_txt}, CV={r2_cv_txt}, {n_pc} PCs; "
+        f"{_era5_range_text(era5_range)})"
     )
 
 
