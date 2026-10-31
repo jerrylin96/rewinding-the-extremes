@@ -86,6 +86,8 @@ p_{n} = \frac{100}{N} \, \# \left\{ \, i : \mathrm{PC}_{n}(i) \le \mathrm{PC}_{n
 \end{equation}
 evaluated over all $N = 1000$ members without tracking-based exclusions.
 
+\noindent\textit{The members' range.} ERA5's $z_{500}$ state lies within the members' range if at least one of the $N = 1000$ members is at least as far from the ensemble mean, measured by the squared Mahalanobis distance $d^{2} = (\mathbf{p} - \overline{\mathbf{p}})^{\top} \mathbf{C}^{-1} (\mathbf{p} - \overline{\mathbf{p}})$ over the leading eight PC scores $\mathbf{p}$, with $\overline{\mathbf{p}}$ and $\mathbf{C}$ defined as the members' mean and sample covariance, respectively.
+
 \noindent\textit{Regression.} Two complementary regressions are evaluated from the leading eight modes. The spatial regression maps the height anomaly per unit change in the target quantity; truncated to the leading eight modes, its slope field is
 \begin{equation}
 R(\mathbf{x}) = \sum_{n=1}^{8} \frac{\mathrm{cov}\left( \mathrm{PC}_{n}, \, T'_{\mathrm{2m}} \right)}{\mathrm{var}\left( T'_{\mathrm{2m}} \right)} \, \mathrm{EOF}_{n}(\mathbf{x}) ,
@@ -166,28 +168,28 @@ Three reference curves are shown in each panel. Because model fields are generat
 \begin{figure}
 \centering
 \includegraphics[width=0.82\textwidth]{sandy_track_regression_end.png}
-\caption{Predicted versus ensemble-member free-end storm properties for the end-conditioned Superstorm Sandy ensemble ($N=788$ analyzable members; 212 excluded) at the precursor boundary (October 27, 2012, 06:00 UTC): (a) latitude, (b) longitude, (c) great-circle distance from the ERA5 fix, and (d) central MSLP. Predictions are from ordinary least-squares regressions on the leading eight principal components of the free-end $z_{500}$ field ($100^{\circ}$--$30^{\circ}$~W, $25^{\circ}$--$75^{\circ}$~N); insets report in-sample and 10-fold cross-validated $R^2$. The star marks ERA5 evaluated at its observed $z_{500}$ state. Panel (a) is the source of the 48\% variance explained quoted in Section~3.2.}
+\caption{Predicted versus ensemble-member free-end storm properties for the end-conditioned Superstorm Sandy ensemble ($N=788$ analyzable members; 212 excluded) at the precursor boundary (October 27, 2012, 06:00 UTC): (a) latitude, (b) longitude, and (c) central MSLP. Predictions are from ordinary least-squares regressions on the leading eight principal components of the free-end $z_{500}$ field ($100^{\circ}$--$30^{\circ}$~W, $25^{\circ}$--$75^{\circ}$~N); insets report in-sample and 10-fold cross-validated $R^2$. The star marks ERA5 evaluated at its observed $z_{500}$ state. This star is filled if that state lies within the members' range and hollow otherwise (Text~S2). Members are vermilion left-pointing triangles (end-conditioned) or blue right-pointing triangles (start-conditioned) and are shaded by the number of members in each cell of the faint $20 \times 20$ grid. The rows in (a) and (b) reflect the ${\sim}100$~km native grid on which storm positions are resolved (Figure~S1).}
 \label{fig:sandy_track_regression_end}
 \end{figure}
 
 \begin{figure}
 \centering
 \includegraphics[width=0.82\textwidth]{sandy_track_regression_start.png}
-\caption{Predicted versus ensemble-member free-end storm properties for the start-conditioned Superstorm Sandy ensemble ($N=984$ analyzable members; 16 excluded) at the outcome boundary (October 30, 2012, 00:00 UTC), as in Figure~S2: (a) latitude, (b) longitude, (c) great-circle distance from the ERA5 fix, and (d) central MSLP. Predictions use ordinary least-squares regressions on the leading eight principal components of the free-end $z_{500}$ field ($100^{\circ}$--$30^{\circ}$~W, $25^{\circ}$--$75^{\circ}$~N); insets report in-sample and 10-fold cross-validated $R^2$. The star marks ERA5 evaluated at its observed $z_{500}$ state. Panel (a) is the source of the 79\% variance explained quoted in Section~3.2.}
+\caption{Predicted versus ensemble-member free-end storm properties for the start-conditioned Superstorm Sandy ensemble ($N=984$ analyzable members; 16 excluded) at the outcome boundary (October 30, 2012, 00:00 UTC), analogous to Figure~S2. Predictions are from ordinary least-squares regressions on the leading eight principal components of the free-end $z_{500}$ field ($100^{\circ}$--$30^{\circ}$~W, $25^{\circ}$--$75^{\circ}$~N).}
 \label{fig:sandy_track_regression_start}
 \end{figure}
 
 \begin{figure}
 \centering
 \includegraphics[width=0.82\textwidth]{ian_track_regression_end.png}
-\caption{Predicted versus ensemble-member free-end storm properties for the end-conditioned Hurricane Ian ensemble ($N=947$ analyzable members; 53 excluded) at the precursor boundary (September 28, 2022, 00:00 UTC): (a) latitude, (b) longitude, (c) great-circle distance from the ERA5 fix, and (d) central MSLP. Predictions are from ordinary least-squares regressions on the leading eight principal components of the free-end $z_{500}$ field ($110^{\circ}$--$50^{\circ}$~W, $15^{\circ}$--$50^{\circ}$~N); insets report in-sample and 10-fold cross-validated $R^2$. Panel (a) is the source of the $\sim$7\% variance explained quoted in Section~3.3.}
+\caption{Predicted versus ensemble-member free-end storm properties for the end-conditioned Hurricane Ian ensemble ($N=947$ analyzable members; 53 excluded) at the precursor boundary (September 28, 2022, 00:00 UTC), analogous to Figure~S2. Predictions are from ordinary least-squares regressions on the leading eight principal components of the free-end $z_{500}$ field ($110^{\circ}$--$50^{\circ}$~W, $15^{\circ}$--$50^{\circ}$~N).}
 \label{fig:ian_track_regression_end}
 \end{figure}
 
 \begin{figure}
 \centering
 \includegraphics[width=0.82\textwidth]{ian_track_regression_start.png}
-\caption{As in Figure~S4, but for the start-conditioned Hurricane Ian ensemble ($N=757$ analyzable members; 243 excluded) at the outcome boundary (September 30, 2022, 18:00 UTC). Panels (b), (a), and (c) are the sources of the 52\%, 40\%, and 20\% variance explained quoted in Section~3.3. Read against Figure~S4 (same case, domain, and regressions under reversed conditioning), this pair illustrates the start-versus-end asymmetry described in Section~3.3.}
+\caption{Predicted versus ensemble-member free-end storm properties for the start-conditioned Hurricane Ian ensemble ($N=757$ analyzable members; 243 excluded) at the outcome boundary (September 30, 2022, 18:00 UTC), analogous to Figure~S2. Predictions are from ordinary least-squares regressions on the leading eight principal components of the free-end $z_{500}$ field ($110^{\circ}$--$50^{\circ}$~W, $15^{\circ}$--$50^{\circ}$~N).}
 \label{fig:ian_track_regression_start}
 \end{figure}
 
