@@ -2020,7 +2020,7 @@ def _era5_range_text(era5_range: EllipsoidTest | None) -> str:
 
 
 def _era5_star_style(era5_range: EllipsoidTest) -> Dict[str, object]:
-    """Filled (white edge) when ERA5's PC state is within the members' range,
+    """Filled (white edge) when ERA5's PC state is within the members' ellipsoid,
     hollow when its prediction is an extrapolation."""
     if era5_range.inside:
         return {"facecolor": "black", "edgecolor": "white", "linewidth": 0.8}
@@ -2028,7 +2028,7 @@ def _era5_star_style(era5_range: EllipsoidTest) -> Dict[str, object]:
 
 
 def _era5_star_label(era5_range: EllipsoidTest) -> str:
-    return f"ERA5 ({_era5_state(era5_range)} members' range)"
+    return f"ERA5 ({_era5_state(era5_range)} members' ellipsoid)"
 
 
 def _draw_era5_star(
@@ -2074,7 +2074,7 @@ def plot_precursor_impact(
       (1,1) predicted-vs-ensemble-member land-mean impact: the leading-PC regression's
             skill (in-sample + 10-fold CV R^2, F-test p), with the 1:1 line and
             ERA5 marked (its precursor projected through the same fit; filled if
-            its PC state is within the members' range, hollow if not).
+            its PC state is within the members' ellipsoid, hollow if not).
 
     The three z500 panels share one colorbar; the warm-cool difference is ~2x
     each decile's deviation (the deciles are near mirror images), so on a single
@@ -2963,7 +2963,7 @@ def plot_track_regression(diag: dict, mode: str, out_path: Path) -> None:
     ``_MODE_MARKERS``), shaded by how many members share its cell of a
     ``_DENSITY_GRID_CELLS``-square grid over its panel (grid drawn), on one
     count scale for the figure.  ERA5's star is filled when its PC state is
-    within all members' range (``pca_stats.ellipsoid_test``), hollow when its
+    within all members' ellipsoid (``pca_stats.ellipsoid_test``), hollow when its
     prediction extrapolates; the state is one per figure, since no target
     enters the test.  The star sets the axis limits along with the members.
     Returns early for non-TC cases.
