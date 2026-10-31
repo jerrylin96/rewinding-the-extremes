@@ -86,7 +86,7 @@ p_{n} = \frac{100}{N} \, \# \left\{ \, i : \mathrm{PC}_{n}(i) \le \mathrm{PC}_{n
 \end{equation}
 evaluated over all $N = 1000$ members without tracking-based exclusions.
 
-\noindent\textit{The members' range.} ERA5's $z_{500}$ state lies within the members' range if at least one of the $N = 1000$ members is at least as far from the ensemble mean, measured by the squared Mahalanobis distance $d^{2} = (\mathbf{p} - \overline{\mathbf{p}})^{\top} \mathbf{C}^{-1} (\mathbf{p} - \overline{\mathbf{p}})$ over the leading eight PC scores $\mathbf{p}$, with $\overline{\mathbf{p}}$ and $\mathbf{C}$ defined as the members' mean and sample covariance, respectively.
+\noindent\textit{The members' ellipsoid.} Let $\mathbf{s}$ denote a state's leading eight PC scores, and $\overline{\mathbf{s}}$ and $\mathbf{C}$ the mean and sample covariance of the $N = 1000$ members' scores. The members' ellipsoid is the set of states whose squared Mahalanobis distance from the ensemble mean, $d^{2} = (\mathbf{s} - \overline{\mathbf{s}})^{\top} \mathbf{C}^{-1} (\mathbf{s} - \overline{\mathbf{s}})$, is no larger than the farthest member's. ERA5's $z_{500}$ state therefore lies within it if at least one member is at least as far from the ensemble mean.
 
 \noindent\textit{Regression.} Two complementary regressions are evaluated from the leading eight modes. The spatial regression maps the height anomaly per unit change in the target quantity; truncated to the leading eight modes, its slope field is
 \begin{equation}
