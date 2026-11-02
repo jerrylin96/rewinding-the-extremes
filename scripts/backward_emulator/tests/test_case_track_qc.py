@@ -85,9 +85,20 @@ def test_alt_path_member_resolves_to_ian_and_excluded_members_are_nan(case, parq
     assert qc.analyzable.tolist() == [True, True, False, True, True, False]
     assert qc.resolved_path_id[1] == 1  # Ian, not path 0
     assert qc.table["exclusion"].tolist()[5] == "no_free_end_fix"
-    tgt = ctq.free_end_target_matrix(qc)
-    np.testing.assert_allclose(tgt[1, :2], IAN_FE, atol=1e-3)  # not the WPac fix
-    assert np.isnan(tgt[[2, 5]]).all()  # no frame-1 fix stands in for member 5
+    tgt = ctq.free_end_regression_targets(qc)
+    np.testing.assert_allclose([tgt["tc_lat"][1], tgt["tc_lon"][1]], IAN_FE, atol=1e-3)  # not the WPac fix
+    for y in tgt.values():
+        assert np.isnan(y[[2, 5]]).all()  # no frame-1 fix stands in for member 5
+
+
+def test_regression_targets_match_the_paper():
+    """The comparison regresses what the paper does: every track_qc target except
+    the descriptive-only distance from ERA5."""
+    from synoptic_pca_track_stats import DESCRIPTIVE_ONLY_TARGETS
+    from track_qc import TARGET_COLUMNS
+
+    regressed = [col for _key, col in ctq.REGRESSION_TARGETS]
+    assert regressed == [c for c in TARGET_COLUMNS if c not in DESCRIPTIVE_ONLY_TARGETS]
 
 
 def test_figure_draws_only_analyzable_storms(case, parquet):
@@ -172,10 +183,7 @@ def _makani_track_npz(path, **over):
                       impact_kind="track",
                       pc_scores=np.random.default_rng(1).standard_normal((5, 10)),
                       explained_variance_ratio=np.linspace(0.4, 0.0, 10),
-                      analyzable=np.array([True, True, False, True, True, True]),
-                      target_track_fe=np.zeros((5, 4)),
-                      target_names=np.array(["tc_lat", "tc_lon", "tc_dist_km",
-                                             "tc_msl_hpa"])), over)
+                      analyzable=np.array([True, True, False, True, True, True])), over)
 
 
 def test_pca_pairing_accepts_one_comparison(tmp_path):

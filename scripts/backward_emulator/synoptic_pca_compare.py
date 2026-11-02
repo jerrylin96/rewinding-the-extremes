@@ -67,12 +67,9 @@ _TARGET_LABELS = {
     "tc_lat": ("free-end latitude", "°N"),
     "tc_lon": ("free-end longitude", "°E"),
     # Newline keeps the widest column title inside its panel.
-    "tc_dist_km": ("free-end distance\nfrom ERA5", "km"),
     "tc_msl_hpa": ("free-end\ncentral MSL", "hPa"),
     "t2m": ("land-mean t2m", "K"),
 }
-# Track target names, in `case_track_qc.TARGET_COLUMNS` order.
-_TRACK_NAMES = ("tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa")
 
 
 def _model_label(mkey: str, m: Dict) -> str:
@@ -155,13 +152,14 @@ def _track_targets(m: Dict, parquet: str, case: Dict, name: str) -> None:
     rows = m["analyzable"]
     _ens, _era5, qc = cq.load_track_qc(
         parquet, case, n_members=rows.size if rows is not None else n_rows)
-    tgt = cq.free_end_target_matrix(qc)
+    tgt = cq.free_end_regression_targets(qc)
     if rows is not None:
-        tgt = tgt[rows]
-    if tgt.shape[0] != n_rows:
-        raise SystemExit(f"[pca-cmp] {name}: {tgt.shape[0]} track rows != "
+        tgt = {nm: y[rows] for nm, y in tgt.items()}
+    n_track = next(iter(tgt.values())).shape[0]
+    if n_track != n_rows:
+        raise SystemExit(f"[pca-cmp] {name}: {n_track} track rows != "
                          f"{n_rows} PC-score rows")
-    m["targets"] = {nm: tgt[:, j] for j, nm in enumerate(_TRACK_NAMES)}
+    m["targets"] = tgt
     print(f"[pca-cmp] {name} track QC from {parquet}: {qc.summary()}")
 
 
