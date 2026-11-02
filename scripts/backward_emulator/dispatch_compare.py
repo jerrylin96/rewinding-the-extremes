@@ -26,7 +26,7 @@ up front so a missing mask fails in a second at the login node, not hours into a
 queue slot.  Only ``end`` conditioning is dispatched (makani is backward-from-present).
 
 Usage (from this directory):
-    python dispatch_compare.py --dry-run                 # both cases, preview
+    python dispatch_compare.py --dry-run                 # all cases, preview
     python dispatch_compare.py --case ian
     python dispatch_compare.py --case pnw_heatwave --variables z500,t2m
     python dispatch_compare.py --no-cbottle              # makani-only (not gated on cBottle)
@@ -62,7 +62,7 @@ SURV_H_RT = "03:00:00"
 # makani data lives under <data-root>/<subdir>; the case YAML name and the
 # transfer subdir differ only for PNW (the dir carries the year prefix).
 CASE_DATA_SUBDIR = {"pnw_heatwave": "2021_pnw_heatwave", "ian": "ian"}
-DEFAULT_CASES = ["pnw_heatwave", "ian"]
+DEFAULT_CASES = ["pnw_heatwave", "ian", "sandy"]
 DEFAULT_DATA_ROOT = "/projectnb/eb-general/jlin404/scratch/backward_emulator_data"
 DEFAULT_MAKANI_ANALYSIS = (
     "/projectnb/eb-general/jlin404/weather_interpolation/makani-aicr/analysis"
@@ -214,7 +214,7 @@ def dispatch(
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--case", action="append", default=None,
-                   help="Case name (repeatable). Default: pnw_heatwave and ian.")
+                   help="Case name (repeatable). Default: pnw_heatwave, ian and sandy.")
     p.add_argument("--data-root", default=DEFAULT_DATA_ROOT,
                    help="Root of the makani transfer dirs (<root>/<case-subdir>).")
     p.add_argument("--out-root", default="./out")

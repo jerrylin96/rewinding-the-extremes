@@ -48,7 +48,7 @@ LOG_DIR = str(BW_DIR / "compare_logs")
 SURV_H_RT = "03:00:00"
 
 CASE_DATA_SUBDIR = {"pnw_heatwave": "2021_pnw_heatwave", "ian": "ian"}
-DEFAULT_CASES = ["pnw_heatwave", "ian"]
+DEFAULT_CASES = ["pnw_heatwave", "ian", "sandy"]
 DEFAULT_DATA_ROOT = "/projectnb/eb-general/jlin404/scratch/backward_emulator_data"
 DEFAULT_MAKANI_ANALYSIS = (
     "/projectnb/eb-general/jlin404/weather_interpolation/makani-aicr/analysis"
@@ -111,7 +111,7 @@ def run(
 
         tc_jid: Optional[str] = None
         tc = None
-        if case.get("tc_tracks"):  # Ian: tracks first, PCA holds on it
+        if case.get("tc_tracks"):  # Ian, Sandy: tracks first, PCA holds on it
             tc = d_tc.dispatch(case_name, data_root=data_root, out_root=out_root,
                                dry_run=dry_run)
             tc_jid = tc["jid"] or f"<TC_{case_name}>"
@@ -127,7 +127,7 @@ def run(
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--case", action="append", default=None,
-                   help="Case name (repeatable). Default: pnw_heatwave and ian.")
+                   help="Case name (repeatable). Default: pnw_heatwave, ian and sandy.")
     p.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
     p.add_argument("--out-root", default="./out")
     p.add_argument("--makani-analysis-dir", default=DEFAULT_MAKANI_ANALYSIS)

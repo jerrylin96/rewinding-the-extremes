@@ -33,6 +33,8 @@ point at the `analysis/` directory of a `run-it-back` checkout (named
 the two index the same 12 valid times in opposite directions.
 PNW: cBottle 2021-06-25 18Z + 66 h = **2021-06-28 12Z** = makani anchor.
 Ian: 2022-09-28 00Z + 66 h = **2022-09-30 18Z** = makani anchor.
+Sandy: 2012-10-27 06Z + 66 h = **2012-10-30 00Z** = makani anchor. Sandy (2012) is
+inside both models' training years (makani 2009–2018, cBottle 1980–2017).
 Frames are joined on **valid timestamp**, and makani's rollout (which runs
 further back, −180 h) is truncated to the first 12 frames (66 h) because the
 emulator destabilizes beyond that.
@@ -157,8 +159,9 @@ The union the six diagnostics consume — 8 channels, each present in cBottle's
 
 - PNW: `/projectnb/eb-general/jlin404/scratch/backward_emulator_data/2021_pnw_heatwave`
 - Ian: `/projectnb/eb-general/jlin404/scratch/backward_emulator_data/ian`
+- Sandy: `/projectnb/eb-general/jlin404/scratch/backward_emulator_data/sandy`
 
-(cBottle bases are the sibling `.../scratch/{2021_pnw_heatwave,ian}`.)
+(cBottle bases are the sibling `.../scratch/{2021_pnw_heatwave,ian,sandy}`.)
 
 ## Components
 
@@ -179,8 +182,8 @@ The union the six diagnostics consume — 8 channels, each present in cBottle's
 | `dispatch_compare.py` | Reads each case's `spread_rmse_crps.domains`; submits a survivor root + per-variable compare jobs (`-hold_jid` chained, cached mask). `--dry-run` previews. | ✅ + tested |
 | `ageostrophic_compare.py` + `submit_ageostrophic_compare.sh` + `dispatch_ageostrophic.py` + `smoke_ageostrophic.py` | Ageostrophic imbalance (S13–S15): `\|V_a\|/\|V\|` over the 30–60° \|lat\| band, makani native vs cBottle regridded, each vs its resolution-matched ERA5, makani survivor-censored. Reuses `compute_ageostrophic`'s core verbatim. | ✅ + tested |
 | `case_track_qc.py` | The paper's track QC (`track_qc.py`) for an end-conditioned case (track box, anchor at the pinned last frame, free end at frame 0): one storm-of-interest and population rule for every tracks-parquet consumer below. | ✅ + tested |
-| `tc_tracks_compare.py` + `submit_tc_tracks_compare.sh` + `dispatch_tc_tracks_compare.py` + `smoke_tc_tracks.py` | TC tracks (Ian, Text S3): re-tracks makani natively through the paper's TempestExtremes runner (`track_member_with_tempest`, Z&U-2017 warm-core + WB2 orography), ERA5 ref = makani truth; writes the paper's parquet schema → feeds Ian's synoptic-PCA impact target. | ✅ + tested |
-| `synoptic_pca_makani.py` + `synoptic_pca_compare.py` + `submit_synoptic_pca_makani.sh` + `dispatch_synoptic_pca_makani.py` | Per-ensemble EOF/PC regression (Text S2): makani on native lat/lon (√cos φ weighting), leading-8-PC → impact R² (in-sample + 10-fold CV), free-end-divergence censored. Compare vs the paper's cBottle `synoptic_pca_end.npz`. Ian consumes the TC parquet. | ✅ + tested |
+| `tc_tracks_compare.py` + `submit_tc_tracks_compare.sh` + `dispatch_tc_tracks_compare.py` + `smoke_tc_tracks.py` | TC tracks (Ian and Sandy, Text S3): re-tracks makani natively through the paper's TempestExtremes runner (`track_member_with_tempest`, Z&U-2017 warm-core + WB2 orography), ERA5 ref = makani truth; writes the paper's parquet schema → feeds the storm cases' synoptic-PCA impact target. | ✅ + tested |
+| `synoptic_pca_makani.py` + `synoptic_pca_compare.py` + `submit_synoptic_pca_makani.sh` + `dispatch_synoptic_pca_makani.py` | Per-ensemble EOF/PC regression (Text S2): makani on native lat/lon (√cos φ weighting), leading-8-PC → impact R² (in-sample + 10-fold CV), free-end-divergence censored. Compare vs the paper's cBottle `synoptic_pca_end.npz`. Ian and Sandy consume the TC parquet. | ✅ + tested |
 | power spectra | Deferred (lowest priority; resolution asymmetry makes a raw overlay tautological). | ⏳ |
 
 **Note on trimming:** now that the files transfer untrimmed, trimming buys ~no
