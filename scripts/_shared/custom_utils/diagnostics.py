@@ -214,10 +214,11 @@ def hpx_land_mask_from_sst_hpx(sst_hpx: torch.Tensor) -> np.ndarray:
     complement just trims that same strip).
 
     Takes the regridded tensor rather than a store path so a caller that
-    already built the lat/lon -> HPX regridder can reuse it, and so
-    ``compute_free_end_states.py`` can round-trip the same tensor back to
-    lat/lon for its hatched-region overlay without building the regridder
-    a second time.  Accepts ``[n_pix]``, ``[n_leads, n_pix]``, or the
+    already regridded ERA5 SST to HPX can reuse it.  To draw this mask on a
+    lat/lon grid, regrid the boolean result as a 0/1 field and threshold at
+    0.5 -- do not regrid the SST tensor back and take ``isnan``: the same
+    NaN propagation would grow land a second time, past the mask the metric
+    used.  Accepts ``[n_pix]``, ``[n_leads, n_pix]``, or the
     ``[1, 1, 1, n_pix]`` shape the regridder returns for a single frame.
     """
     frame = sst_hpx if sst_hpx.ndim == 1 else sst_hpx[0]
