@@ -65,9 +65,10 @@ Outputs (in ``--output-dir``)::
                                                               same view-box lat/lon grid as the member
                                                               fields, so the aggregator hatches only
                                                               the box's excluded pixels, not the whole
-                                                              synoptic view.  Round-tripped from the
-                                                              same ERA5 SST field that defines the HPX
-                                                              metric mask.
+                                                              synoptic view.  Regridded from the HPX
+                                                              metric mask itself (0/1 indicator,
+                                                              thresholded at 0.5), so it marks the
+                                                              pixels the metric actually drops.
         member_scalar         : (N, n_leads)     float32    — per-member bbox domain-mean at every lead
         era5_scalar           : (n_leads,)       float32    — ERA5 bbox domain-mean at every lead
         ensemble_mean_scalar  : (n_leads,)       float32    — mean over members at every lead
@@ -561,12 +562,10 @@ def main() -> None:
     print("[free_end_states] building HPX bbox mask ...", flush=True)
     pix_lat, pix_lon = _hpx_pixel_centers(hpx_level)
     mask = _hpx_bbox_mask(pix_lat, pix_lon, args.bbox)
-    # Hold onto the SST HPX tensor when masking is active so we can
-    # round-trip a single frame back to lat/lon alongside the member
-    # fields below (giving the aggregator a bbox-clipped lat/lon
-    # excluded-region mask consistent with the HPX metric mask, with
-    # no second regridder build).
-    sst_hpx_full: torch.Tensor | None = None
+    # Hold onto the HPX pixels the land/sea mask drops (ocean for
+    # mask=land, land for mask=sea) so the lat/lon regrid below can turn
+    # exactly that set into the aggregator's hatched overlay.
+    excluded_hpx: np.ndarray | None = None
     if args.mask != "none":
         print(
             f"[free_end_states] regridding ERA5 SST for {args.mask} mask "
@@ -577,7 +576,8 @@ def main() -> None:
             args.era5_zarr, "sst", hpx_level
         )
         land = _hpx_land_mask_from_sst(sst_hpx_full)
-        mask = mask & (land if args.mask == "land" else ~land)
+        excluded_hpx = ~land if args.mask == "land" else land
+        mask = mask & ~excluded_hpx
         if not mask.any():
             raise SystemExit(
                 f"ERROR: bbox {args.bbox} ∩ {args.mask}-mask matched zero "
@@ -636,18 +636,20 @@ def main() -> None:
     # Regrid the selected K low-tail / K high-tail member HPX fields and the
     # HPX ERA5 back to lat/lon for plotting, cropped to the (wider) view box.
     # Doing it after ranking keeps the regrid cost bounded by ~(2K + 1)
-    # fields rather than N.  When masking is active, we tack the SST frame
-    # onto the same batch so a single regridder build handles both the
-    # plotted fields and the lat/lon excluded-region mask the aggregator
-    # hatches.
+    # fields rather than N.  When masking is active, we tack the 0/1
+    # excluded-pixel indicator onto the same batch so a single regridder
+    # build handles both the plotted fields and the lat/lon excluded-region
+    # mask the aggregator hatches.
     print("[free_end_states] regridding selected HPX fields -> lat/lon ...", flush=True)
     selected_pieces = [
         members.index_select(dim=0, index=torch.from_numpy(low_idx).long()),
         members.index_select(dim=0, index=torch.from_numpy(high_idx).long()),
         era5_hpx.unsqueeze(0),
     ]
-    if sst_hpx_full is not None:
-        selected_pieces.append(sst_hpx_full[0:1])
+    if excluded_hpx is not None:
+        selected_pieces.append(
+            torch.from_numpy(excluded_hpx.astype(np.float32))[None, :]
+        )
     selected_hpx = torch.cat(selected_pieces, dim=0)  # [2K + 1 (+1), n_pix]
     selected_latlon, lat_box, lon_box = _hpx_fields_to_latlon_bbox(
         selected_hpx, hpx_level, view_bbox
@@ -656,16 +658,21 @@ def main() -> None:
     high_fields = selected_latlon[k : 2 * k]
     era5_field = selected_latlon[2 * k]
     excluded_mask_box: np.ndarray | None = None
-    if sst_hpx_full is not None:
-        sst_box = selected_latlon[2 * k + 1]
-        # SST is NaN over land in ERA5; the lat/lon → HPX → lat/lon
-        # round-trip propagates NaN at every step, so isnan(sst_box)
-        # gives a land mask on the *same* (view) grid the saved fields live
-        # on.  Excluded region = pixels NOT used in the metric:
-        #   mask=land → metric uses land    → excluded = ocean = ~is_land
-        #   mask=sea  → metric uses ocean   → excluded = land  =  is_land
-        is_land_box = np.isnan(sst_box)
-        excluded = ~is_land_box if args.mask == "land" else is_land_box
+    if excluded_hpx is not None:
+        # The regridded 0/1 indicator is the fraction of each lat/lon pixel's
+        # bilinear stencil that the metric excluded; > 0.5 puts the edge
+        # halfway between HPX pixel centres, so each lat/lon pixel takes the
+        # class of the HPX pixel it mostly falls in (the same approach as
+        # compute_synoptic_pca.py's impact_excluded_mask_box).
+        #
+        # Do NOT round-trip the SST frame and take isnan() instead: the
+        # bilinear HPX -> lat/lon regrid makes a pixel NaN if *any* of its
+        # four HPX neighbours is land, which grows land ~1 HPX pixel (~1 deg
+        # at level 6) past the metric's own land/sea edge.  For the 2021 PNW
+        # case that shrank the ocean strip inside the impact box to ~40% of
+        # what the metric actually excluded -- a sliver narrower than the
+        # hatch spacing, so the "hatched = excluded" overlay was invisible.
+        excluded = selected_latlon[2 * k + 1] > 0.5
         # The metric only spans the impact box, so confine the hatched
         # "excluded" overlay to it: outside the box every pixel is already
         # outside the metric (the dashed rectangle conveys that), and hatching
