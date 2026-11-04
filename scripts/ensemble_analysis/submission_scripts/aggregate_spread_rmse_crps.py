@@ -45,6 +45,7 @@ sys.path.insert(0, str(SHARED_DIR))
 from _dispatch_lib import (  # noqa: E402
     MODE_COLORS_TAB,
     MODE_FRAMES,
+    MODE_LABELS_NOUN,
     MODE_LABELS_SHORT,
 )
 from axis_limits import apply_limits as apply_axis_limits  # noqa: E402
@@ -133,7 +134,7 @@ def _plot_spread_rmse_crps_panels(
                 marker=marker,
                 markersize=3,
                 color=color,
-                label=f"{MODE_LABELS_SHORT.get(mode, mode)} conditioning",
+                label=MODE_LABELS_NOUN.get(mode, f"{mode}-conditioning"),
             )
             cond = MODE_FRAMES.get(mode, [])
             cond_valid = [f for f in cond if 0 <= f < len(hours)]
@@ -296,7 +297,7 @@ def _plot_mean_error_panel(
             markersize=3,
             color=color,
             linewidth=1.5,
-            label=f"{MODE_LABELS_SHORT.get(mode, mode)} conditioning",
+            label=MODE_LABELS_NOUN.get(mode, f"{mode}-conditioning"),
         )
         cond = MODE_FRAMES.get(mode, [])
         cond_valid = [f for f in cond if 0 <= f < len(hours)]

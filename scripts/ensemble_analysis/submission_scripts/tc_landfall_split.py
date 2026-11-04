@@ -83,7 +83,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parent))
 sys.path.insert(0, str(SCRIPT_DIR.parent.parent / "_shared"))
 
-from _dispatch_lib import wrap_lon_0_360  # noqa: E402
+from _dispatch_lib import MODE_LABELS_TITLE, wrap_lon_0_360  # noqa: E402
 from local_time_axis import format_local_time_axis  # noqa: E402
 from plot_style import (  # noqa: E402
     AXIS_LABEL_SIZE,
@@ -427,7 +427,7 @@ def _draw_group_trajectory(
     ax.set_xlim(float(lead_hours[0]), float(lead_hours[-1]))
     ax.grid(True, alpha=0.3)
     ax.set_title(
-        "Final Conditioning — Storm central MSLP trajectory",
+        f"{MODE_LABELS_TITLE['end']} — Storm central MSLP trajectory",
         fontsize=TITLE_SIZE,
         fontweight="bold",
     )

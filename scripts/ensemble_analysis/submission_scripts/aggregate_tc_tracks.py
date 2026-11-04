@@ -62,7 +62,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parent))
 sys.path.insert(0, str(SCRIPT_DIR.parent.parent / "_shared"))
 
-from _dispatch_lib import anchor_free_end_frames, wrap_lon_0_360  # noqa: E402
+from _dispatch_lib import (  # noqa: E402
+    MODE_LABELS_TITLE,
+    anchor_free_end_frames,
+    wrap_lon_0_360,
+)
 from local_time_axis import format_local_time_axis  # noqa: E402
 from plot_style import (  # noqa: E402
     AXIS_LABEL_SIZE,
@@ -79,11 +83,7 @@ from tc_tracks_io import (  # noqa: E402
 )
 from track_qc import ANCHOR_RADIUS_KM, compute_track_qc_arrays  # noqa: E402
 
-MODE_LABELS = {
-    "start": "Start Conditioning",
-    "end": "Final Conditioning",
-    "both": "Start-and-Final Conditioning",
-}
+MODE_LABELS = MODE_LABELS_TITLE  # column / panel titles, shared with combine_tc_tracks
 
 MEMBER_TRACK_CMAP = plt.cm.jet
 
