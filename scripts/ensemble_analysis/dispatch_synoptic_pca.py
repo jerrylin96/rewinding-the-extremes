@@ -444,6 +444,7 @@ def dispatch(
     video_variable: Optional[str] = None,
     h_rt: str = DEFAULT_H_RT,
     dry_run: bool = False,
+    aggregate_only: bool = False,
 ) -> Dict[str, Optional[str]]:
     """Submit synoptic-PCA jobs for a case."""
     case = load_case(case_name)
@@ -522,7 +523,8 @@ def dispatch(
     validate_zarrs_exist(case, modes_to_run, ensemble_size)
 
     results: Dict[str, Optional[str]] = {}
-    for mode in modes_to_run:
+    # --aggregate-only: skip the compute jobs, keep the figure job.
+    for mode in ([] if aggregate_only else modes_to_run):
         jid = submit_pca_for_mode(
             case,
             mode,
@@ -566,6 +568,12 @@ def main() -> None:
         "--list", action="store_true", help="List available cases and exit."
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--aggregate-only",
+        action="store_true",
+        help="Submit only the figure (aggregator) job, re-rendering from the "
+        "outputs already on disk; no compute jobs.",
+    )
     parser.add_argument(
         "--mode",
         action="append",
@@ -688,6 +696,7 @@ def main() -> None:
         video_variable=args.video_variable,
         h_rt=args.h_rt,
         dry_run=args.dry_run,
+        aggregate_only=args.aggregate_only,
     )
 
 

@@ -358,6 +358,7 @@ def dispatch(
     ensemble_size_override: Optional[int] = None,
     output_root_override: Optional[str] = None,
     dry_run: bool = False,
+    aggregate_only: bool = False,
 ) -> Dict[str, Optional[str]]:
     """Submit free-end-state jobs for a case.
 
@@ -407,7 +408,8 @@ def dispatch(
     validate_zarrs_exist(case, modes_to_run, ensemble_size)
 
     results: Dict[str, Optional[str]] = {}
-    for mode in modes_to_run:
+    # --aggregate-only: skip the compute jobs, keep the figure job.
+    for mode in ([] if aggregate_only else modes_to_run):
         for mask_kind, group_vars in mask_groups.items():
             jid = submit_for_mode(
                 case,
@@ -446,6 +448,12 @@ def main() -> None:
         "--list", action="store_true", help="List available cases and exit."
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--aggregate-only",
+        action="store_true",
+        help="Submit only the figure (aggregator) job, re-rendering from the "
+        "outputs already on disk; no compute jobs.",
+    )
     parser.add_argument(
         "--mode",
         action="append",
@@ -540,6 +548,7 @@ def main() -> None:
         ensemble_size_override=args.ensemble_size,
         output_root_override=args.output_root,
         dry_run=args.dry_run,
+        aggregate_only=args.aggregate_only,
     )
 
 
