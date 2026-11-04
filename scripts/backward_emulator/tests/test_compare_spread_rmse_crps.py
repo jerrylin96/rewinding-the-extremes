@@ -17,6 +17,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import compare_spread_rmse_crps as drv  # noqa: E402
+from model_labels import CBOTTLE_LABEL, MAKANI_LABEL  # noqa: E402
 
 _CH = ["t2m", "z500", "msl", "u500", "v500", "z300", "u10m", "v10m"]
 
@@ -85,7 +86,7 @@ def test_driver_writes_npz_and_figure(tmp_path: Path):
     assert npz.exists() and png.exists()
 
     d = np.load(npz, allow_pickle=True)
-    label = "Autoregressive (makani)"
+    label = MAKANI_LABEL
     for key in ("spread", "skill", "member_rmse", "crps", "ssr", "lead_hours"):
         assert f"{label}::{key}" in d, key
     spread = d[f"{label}::spread"]
@@ -144,11 +145,11 @@ def test_survivors_panel_draws_uncensored_flat_line(tmp_path: Path, monkeypatch)
         "crps": np.ones(12), "ssr": np.ones(12), "lead_hours": lead,
     }
     results = {
-        "Autoregressive (makani)": {
+        MAKANI_LABEL: {
             **common, "censored": True,
             "survival": np.linspace(0.8, 1.0, 12),
         },
-        "Video diffusion (cBottle)": {
+        CBOTTLE_LABEL: {
             **common, "censored": False, "survival": np.ones(12),
         },
     }
@@ -220,7 +221,7 @@ def test_land_mask_restricts_pixels_and_names_output(tmp_path: Path):
     drv.main(common + ["--out-dir", str(out / "full")])
     d_full = np.load(out / "full" / "spread_rmse_crps_t2m_synoptic.npz",
                      allow_pickle=True)
-    n_full = int(d_full["Autoregressive (makani)::n_pix"])
+    n_full = int(d_full[f"{MAKANI_LABEL}::n_pix"])
 
     # Land mask that keeps only the northern half of the grid.
     lat = np.linspace(90, -90, 19)
@@ -233,7 +234,7 @@ def test_land_mask_restricts_pixels_and_names_output(tmp_path: Path):
     npz = out / "land" / "spread_rmse_crps_t2m_synoptic_land.npz"
     assert npz.exists(), "masked run should tag the stem with _land"
     d_land = np.load(npz, allow_pickle=True)
-    n_land = int(d_land["Autoregressive (makani)::n_pix"])
+    n_land = int(d_land[f"{MAKANI_LABEL}::n_pix"])
     assert 0 < n_land < n_full
 
 
@@ -262,7 +263,7 @@ def test_global_region_uses_all_pixels(tmp_path: Path):
         "--no-cbottle",
     ])
     d = np.load(out / "spread_rmse_crps_msl_global.npz", allow_pickle=True)
-    assert int(d["Autoregressive (makani)::n_pix"]) == 10 * 12
+    assert int(d[f"{MAKANI_LABEL}::n_pix"]) == 10 * 12
 
 
 def test_shifted_dump_is_refused_before_anything_is_written(tmp_path: Path):

@@ -27,7 +27,7 @@ case (the `--case` YAML's display name, or makani's without `--case`), another
 conditioning mode (free end not at frame 0), or another impact kind.
 
 Figure conventions match the other compare figures: the models are displayed as
-"Autoregressive" and "Video diffusion (cBottle)" (npz-internal keys stay
+"Rewind-AR" and "cBottle-video" (model_labels.py; npz-internal keys stay
 makani/cbottle), targets get the paper's spelled-out names, and the scatter's
 vertical axis is labelled "ensemble member" -- each point is one member's own
 free-end value, not an observation (ERA5 is the observation and is not drawn).
@@ -54,12 +54,13 @@ for _p in (str(BW_DIR), str(SHARED)):
 
 import _dispatch_lib as dl  # noqa: E402
 import case_track_qc as cq  # noqa: E402
+from model_labels import MODEL_LABELS  # noqa: E402
 from synoptic_pca_makani import regression_summary  # noqa: E402
 
 # Display names, shared with the other compare figures (ageostrophic, TC tracks,
 # free-end states).  Keys are the internal model keys; npz-stored names / file
 # stems are only a fallback for unknown models.
-_MODEL_LABELS = {"makani": "Autoregressive", "cbottle": "Video diffusion (cBottle)"}
+_MODEL_LABELS = MODEL_LABELS
 
 # Spelled-out target names + units, matching the paper's track-regression figure
 # (aggregate_synoptic_pca._TRACK_TARGETS) and its scalar precursor->impact panel.

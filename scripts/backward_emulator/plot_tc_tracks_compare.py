@@ -66,6 +66,7 @@ if str(EA_DIR) not in sys.path:  # appended: never shadow our modules
 
 import _dispatch_lib as dl  # noqa: E402
 from case_track_qc import check_pca_npzs, load_track_qc  # noqa: E402
+from model_labels import CBOTTLE_LABEL, MAKANI_LABEL  # noqa: E402
 
 _R_EARTH_KM = 6371.0
 
@@ -865,7 +866,7 @@ def main(argv=None) -> None:
               f"{alive.size}")
         keep &= alive
     models: Dict[str, Dict] = {"makani": {
-        "label": "Autoregressive", "ens": m_ens[keep], "era5": m_era5,
+        "label": MAKANI_LABEL, "ens": m_ens[keep], "era5": m_era5,
         "era5_ls": "-", "era5_label": "ERA5 (native)", "keep": keep, "qc": m_qc}}
     print(f"[tc-plot] makani members plotted: {int(keep.sum())}")
 
@@ -875,7 +876,7 @@ def main(argv=None) -> None:
         c_keep = c_qc.analyzable.copy()
         print(f"[tc-plot] cBottle track QC: {c_qc.summary()}")
         models["cbottle"] = {
-            "label": "Video diffusion (cBottle)", "ens": c_ens[c_keep], "era5": c_era5,
+            "label": CBOTTLE_LABEL, "ens": c_ens[c_keep], "era5": c_era5,
             "era5_ls": "--", "era5_label": "ERA5 (round-trip)",
             "keep": c_keep, "qc": c_qc}
         print(f"[tc-plot] cBottle members plotted: {int(c_keep.sum())}")
