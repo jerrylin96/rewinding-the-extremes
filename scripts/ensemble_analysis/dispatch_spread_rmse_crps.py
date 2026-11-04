@@ -385,6 +385,9 @@ def dispatch(
 
     results: Dict[str, Optional[str]] = {}
     multi = len(domain_groups) > 1
+    if aggregate_only:
+        print(f"[{case['name']}] --aggregate-only: none of the jobs above; "
+              "submitting only the figure (aggregator) jobs")
     for domain, group_vars in domain_groups.items():
         label = _domain_label(domain)
         group_jids: List[str] = []

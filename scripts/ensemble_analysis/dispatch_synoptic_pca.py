@@ -524,6 +524,9 @@ def dispatch(
 
     results: Dict[str, Optional[str]] = {}
     # --aggregate-only: skip the compute jobs, keep the figure job.
+    if aggregate_only:
+        print(f"[{case['name']}] --aggregate-only: none of the jobs above; "
+              "submitting only the figure (aggregator) job")
     for mode in ([] if aggregate_only else modes_to_run):
         jid = submit_pca_for_mode(
             case,

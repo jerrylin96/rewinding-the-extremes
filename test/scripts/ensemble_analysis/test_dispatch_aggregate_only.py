@@ -61,10 +61,12 @@ def _submitted_scripts(monkeypatch, name, **kwargs):
 
 
 @pytest.mark.parametrize("name", DISPATCHERS)
-def test_aggregate_only_submits_only_the_figure_job(monkeypatch, name):
+def test_aggregate_only_submits_only_the_figure_job(monkeypatch, capsys, name):
     mod, scripts = _submitted_scripts(monkeypatch, name, aggregate_only=True)
     assert scripts, "no figure job submitted"
     assert set(scripts) == {mod.AGG_SCRIPT}
+    # The header line counts the compute jobs; the log must also say they are skipped.
+    assert capsys.readouterr().out.count("--aggregate-only:") == 1
 
 
 @pytest.mark.parametrize("name", DISPATCHERS)

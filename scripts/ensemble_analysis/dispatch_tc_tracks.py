@@ -254,6 +254,9 @@ def dispatch(
     results: Dict[Any, Optional[str]] = {}
     output_root = output_root_override or f"{case['base']}/diagnostics"
     # --aggregate-only: skip the compute jobs, keep the figure job.
+    if aggregate_only:
+        print(f"[{case['name']}] --aggregate-only: none of the jobs above; "
+              "submitting only the figure (aggregator) job")
     for mode in ([] if aggregate_only else modes_to_run):
         for tracker in trackers:
             jid = submit_tc_tracks_for_mode(
