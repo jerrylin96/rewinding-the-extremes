@@ -16,7 +16,7 @@ Layout (one PNG per variable, both modes present; the two spatial rows are
 the signed-bias tails -- coolest/warmest for temperature, lowest/highest
 otherwise)::
 
-      [ "End conditioning" header ]
+      [ "Final conditioning" header ]
       Row 1  END   coolest:   [ ERA5(t=0)  | (M1-ERA5) | (M2-ERA5) | (M3-ERA5) ]
       Row 2  END   warmest:   [ ERA5(t=0)  | (M1-ERA5) | (M2-ERA5) | (M3-ERA5) ]
       Row 3  END   time series:                [ <------ 4-col-span ----> ]
@@ -108,7 +108,7 @@ from var_metadata import long_name as var_long_name  # noqa: E402
 from var_metadata import units as var_units  # noqa: E402
 
 MODE_ORDER = ("end", "start")  # rendered top-to-bottom; "end" first per paper emphasis.
-MODE_LABEL = {"end": "End conditioning", "start": "Start conditioning"}
+MODE_LABEL = {"end": "Final conditioning", "start": "Start conditioning"}
 
 # Diverging colormap for the member-minus-ERA5 difference panels.  Symmetric
 # around zero so the reader can read sign and magnitude at a glance; RdBu_r

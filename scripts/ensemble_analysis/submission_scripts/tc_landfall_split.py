@@ -55,7 +55,7 @@ Usage:
         --fl-lon-min -83.5 --fl-lon-max -80.0 --fl-lat-min 24.5 --fl-lat-max 30.0 \\
         --sc-lon-min -81.5 --sc-lon-max -78.5 --sc-lat-min 32.0 --sc-lat-max 34.5 \\
         --fl-label Florida --sc-label "South Carolina" \\
-        --title "Hurricane Ian — End-Conditioned Landfall Split" \\
+        --title "Hurricane Ian — Final-Conditioned Landfall Split" \\
         --start-time 2022-09-28T00:00:00Z \\
         --timezone America/New_York
 """
@@ -427,7 +427,7 @@ def _draw_group_trajectory(
     ax.set_xlim(float(lead_hours[0]), float(lead_hours[-1]))
     ax.grid(True, alpha=0.3)
     ax.set_title(
-        "End Conditioning — Storm central MSLP trajectory",
+        "Final Conditioning — Storm central MSLP trajectory",
         fontsize=TITLE_SIZE,
         fontweight="bold",
     )
@@ -534,7 +534,7 @@ def make_figure(
     # Florida / not-Florida split over the analyzable population (fl + bypass +
     # excluded == total).
     print(
-        f"[landfall_split] of {total} end-conditioned members: "
+        f"[landfall_split] of {total} final-conditioned members: "
         f"{fl_label}={n_fl} ({_pct(n_fl):.1f}%), "
         f"bypass (not {fl_label})={n_bypass} ({_pct(n_bypass):.1f}%), "
         f"excluded={n_excl} ({_pct(n_excl):.1f}%)"
@@ -649,7 +649,7 @@ def main() -> None:
     parser.add_argument("--sc-lat-max", type=float, required=True)
     parser.add_argument("--fl-label", default=GROUP_LABELS_FALLBACK[0])
     parser.add_argument("--sc-label", default=GROUP_LABELS_FALLBACK[1])
-    parser.add_argument("--title", default="End-Conditioned Landfall Split")
+    parser.add_argument("--title", default="Final-Conditioned Landfall Split")
     parser.add_argument(
         "--start-time",
         type=str,

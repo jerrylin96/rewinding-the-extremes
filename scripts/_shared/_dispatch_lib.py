@@ -48,8 +48,17 @@ MODE_COLORS_TAB: Dict[str, str] = {
 # format on top of these.
 MODE_LABELS_SHORT: Dict[str, str] = {
     "start": "Start",
-    "end": "End",
+    "end": "Final",
     "both": "Both",
+}
+
+# Long-form labels for figure titles ("Final-conditioned · ...").  The display
+# names are start / final / start-and-final; the mode keys ("end", "both") are
+# internal names used in file paths and CLI flags and do not change.
+MODE_LABELS_LONG: Dict[str, str] = {
+    "start": "Start-conditioned",
+    "end": "Final-conditioned",
+    "both": "Start-and-final-conditioned",
 }
 
 

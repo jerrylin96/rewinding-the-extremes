@@ -253,7 +253,7 @@ def dispatch(
         "--sc-label",
         sc_label,
         "--title",
-        f"{case['display_name']} — End-Conditioned Landfall Split",
+        f"{case['display_name']} — Final-Conditioned Landfall Split",
         "--start-time",
         start_time_iso_from_case(case),
         "--timezone",
@@ -296,7 +296,7 @@ def dispatch(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Dispatch the end-conditioned landfall-split TC diagnostic.",
+        description="Dispatch the final-conditioned landfall-split TC diagnostic.",
     )
     parser.add_argument(
         "case",

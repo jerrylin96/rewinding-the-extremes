@@ -63,8 +63,8 @@ from track_qc import compute_track_qc  # noqa: E402
 MODE_ORDER: tuple[str, ...] = ("end", "start", "both")
 MODE_LABELS: dict[str, str] = {
     "start": "Start Conditioning",
-    "end": "End Conditioning",
-    "both": "Both-End Conditioning",
+    "end": "Final Conditioning",
+    "both": "Start-and-Final Conditioning",
 }
 
 MEMBER_TRACK_CMAP = plt.cm.jet

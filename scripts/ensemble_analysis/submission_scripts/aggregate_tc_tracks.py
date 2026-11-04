@@ -81,8 +81,8 @@ from track_qc import ANCHOR_RADIUS_KM, compute_track_qc_arrays  # noqa: E402
 
 MODE_LABELS = {
     "start": "Start Conditioning",
-    "end": "End Conditioning",
-    "both": "Both-End Conditioning",
+    "end": "Final Conditioning",
+    "both": "Start-and-Final Conditioning",
 }
 
 MEMBER_TRACK_CMAP = plt.cm.jet
