@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -192,3 +193,34 @@ def test_scatter_to_box_reshapes_rectangular_subgrid():
     np.testing.assert_allclose(lat1d, [20.0, 30.0])
     np.testing.assert_allclose(lon1d, [20.0, 30.0, 40.0])
     np.testing.assert_allclose(field, [[0, 1, 2], [3, 4, 5]])
+
+
+# --- the pattern panels show the EOF domain both models' PCA ran over -------
+IAN_EOF_BOX = (-110.0, -50.0, 15.0, 50.0)  # ian.yaml regions.synoptic
+
+
+def _pattern(lon, lat, ok=True):
+    return {"ok": ok, "lon": np.asarray(lon, float), "lat": np.asarray(lat, float)}
+
+
+def test_pattern_domain_accepts_both_grids_on_the_eof_box():
+    patterns = {
+        # makani: native 0.25-degree grid in 0..360 longitude
+        "makani": _pattern(np.arange(250.0, 310.01, 0.25), np.arange(15.0, 50.01, 0.25)),
+        # cBottle: a coarser grid in -180..180, centres inside the box
+        "cbottle": _pattern(np.arange(-109.5, -50.0, 1.0), np.arange(15.5, 50.0, 1.0)),
+    }
+    tp.check_pattern_domain(patterns, IAN_EOF_BOX)
+
+
+def test_pattern_domain_refuses_a_pattern_from_another_box():
+    patterns = {"makani": _pattern(np.arange(250.0, 310.01, 0.25),
+                                   np.arange(25.0, 50.01, 0.25))}  # south edge 25N, not 15N
+    with pytest.raises(SystemExit, match="EOF domain"):
+        tp.check_pattern_domain(patterns, IAN_EOF_BOX)
+
+
+def test_pattern_domain_skips_missing_patterns_and_needs_a_box():
+    tp.check_pattern_domain({"cbottle": _pattern([0.0], [0.0], ok=False)}, IAN_EOF_BOX)
+    with pytest.raises(SystemExit, match="regions.synoptic"):
+        tp.check_pattern_domain({}, None)

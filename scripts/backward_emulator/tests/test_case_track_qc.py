@@ -271,3 +271,38 @@ def test_compare_resolves_targets_from_parquet(case, parquet, tmp_path, capsys):
     assert mk["targets"]["tc_lat"][1] == pytest.approx(IAN_FE[0], abs=1e-3)  # member 1
     assert np.isfinite(mk["targets"]["tc_lat"][2])  # member 3, not the dropped 2
     assert np.isnan(mk["targets"]["tc_lat"][4])  # member 5: no free-end fix
+
+
+def _pattern_npzs(tmp_path):
+    """A makani and a cBottle PCA npz carrying z500 PC1 patterns on Ian's EOF box."""
+    lat = np.arange(15.0, 50.01, 0.5)
+    lon = np.arange(250.0, 310.01, 0.5)
+    eof = np.zeros((10, 1, lat.size * lon.size))
+    eof[0, 0] = np.linspace(-1.0, 1.0, eof.shape[-1])
+    _makani_track_npz(tmp_path / "mk.npz", eof_loadings_domain=eof,
+                      domain_flat=np.arange(eof.shape[-1]), domain_lat=lat,
+                      domain_lon=lon, variables=np.array(["z500"]))
+    clat, clon = np.arange(15.5, 50.0, 1.0), np.arange(-109.5, -50.0, 1.0)
+    comp = np.zeros((10, 1, clat.size, clon.size))
+    comp[0, 0] = 0.5
+    _cbottle_track_npz(tmp_path / "cb.npz", pc_components_latlon=comp, domain_lat=clat,
+                       domain_lon=clon, variables=np.array(["z500"]))
+    return str(tmp_path / "mk.npz"), str(tmp_path / "cb.npz")
+
+
+def test_pattern_panels_show_the_eof_domain_with_the_track_box(case, parquet, tmp_path,
+                                                               monkeypatch):
+    """The PC pattern panels draw regions.synoptic (the domain the PCA ran over),
+    not the track-map view, and outline regions.track on it."""
+    pytest.importorskip("matplotlib")
+    seen = []
+    monkeypatch.setattr(tp, "_draw_pattern",
+                        lambda ax, pat, **kw: seen.append((kw["extent"], kw["box"])))
+    mk, cb = _pattern_npzs(tmp_path)
+    tp.main(["--case", "ian", "--makani-parquet", parquet, "--cbottle-parquet", parquet,
+             "--pca-makani-npz", mk, "--pca-cbottle-npz", cb, "--no-censor",
+             "--color-pcs", "1", "--out-dir", str(tmp_path / "out")])
+    assert len(seen) == 2  # one pattern panel per model
+    for extent, box in seen:
+        assert tuple(extent) == dl.region_box(case, "synoptic")
+        assert tuple(box) == dl.region_box(case, "track")
