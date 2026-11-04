@@ -44,12 +44,12 @@ MODE_COLORS_TAB: Dict[str, str] = {
     "both": "tab:green",
 }
 
-# Short display labels.  Scripts that want e.g. "Start Conditioning" can
-# format on top of these.
+# Short display labels, standing alone (column titles, "Final (N=1000)" legend
+# entries).  Phrases use MODE_LABELS_NOUN / MODE_LABELS_TITLE below.
 MODE_LABELS_SHORT: Dict[str, str] = {
     "start": "Start",
     "end": "Final",
-    "both": "Both",
+    "both": "Start-and-final",
 }
 
 # Figure text for the three conditioning modes.  The display names are start /
