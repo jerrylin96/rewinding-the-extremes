@@ -3132,3 +3132,44 @@ year = {2024}
   month     =  apr,
   year      =  2022
 }
+
+@ARTICLE{Gentine2026-ml,
+  title         = "{legoESM}: a modular, differentiable, multiscale, {AI}-ready
+                   Earth system model built with {AI} agents",
+  author        = "Gentine, Pierre and Balwada, Dhruv and Paçal, Aytaç and
+                   Hawkins, Linnia and Adcroft, Alistair and Fan, Hang and Fang,
+                   Jianing and Lahlou, Aya and Lamb, Kara D and Lawrence, David
+                   M and Le Sommer, Julien and Mouallem, Joseph and Nathaniel,
+                   Juan and Watson-Parris, Duncan and Eyring, Veronika",
+  journal       = "arXiv [physics.ao-ph]",
+  abstract      = "Earth system models (ESMs) have grown tremendously in
+                   realism, yet key uncertainties persist in the climate
+                   response to greenhouse-gas forcing, particularly due to cloud
+                   radiative feedbacks. In addition, their software architecture
+                   was not designed for accelerator hardware or modern
+                   artificial intelligence (AI). Here we present legoESM, a
+                   composable, differentiable, multiscale ESM written in JAX. It
+                   builds on decades of community-developed parameterizations
+                   and numerical methods, recast in a unified framework by AI
+                   coding agents under a human-specified scientific contract and
+                   verified through benchmarking. Dynamical cores, physics
+                   schemes, grids, complexity levels and components are
+                   swappable like building blocks, and can use conventional
+                   physics or machine-learned emulators. A single code base
+                   spans metre-scale large-eddy simulation to global simulations
+                   and weather to climate. End-to-end differentiability enables
+                   gradient-based calibration, variational data assimilation and
+                   online training. legoESM modular architecture enables
+                   systematic evaluation of diverse model variants to explore
+                   structural uncertainty and test hypotheses. legoESM produces
+                   realistic simulations across scales, reduces land-surface
+                   temperature bias through gradient-based calibration, and
+                   scales efficiently on GPUs to kilometer-scale simulations. It
+                   offers an open, community infrastructure for hypothesis
+                   testing, research and teaching in Earth sciences and a
+                   template for multiscale physical systems.",
+  month         =  oct,
+  year          =  2026,
+  archivePrefix = "arXiv",
+  primaryClass  = "physics.ao-ph"
+}
