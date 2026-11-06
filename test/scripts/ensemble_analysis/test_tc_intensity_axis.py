@@ -158,3 +158,11 @@ def test_landfall_split_uses_the_pinned_axis(ax, pinned, capsys):
         "[tc_landfall_split] tc_tracks/tc_msl/trajectory: drawn y range 950 to 1005"
         in out
     )
+
+
+def test_the_yaml_pins_the_intensity_axis_around_the_observed_range(monkeypatch):
+    """A misspelt or deleted key would silently fall back to autoscale, and a
+    range narrower than the logged data would clip a paper figure."""
+    monkeypatch.setattr(axis_limits, "_CACHE", None)  # read the real file
+    lo, hi = axis_limits.get_limits(*axis_limits.TC_INTENSITY)["ylim"]
+    assert lo <= 934.781 and hi >= 1008.11  # observed Nov 6 (see the YAML comment)
