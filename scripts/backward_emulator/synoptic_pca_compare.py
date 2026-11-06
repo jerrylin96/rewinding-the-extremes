@@ -42,7 +42,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Tuple
 
 import numpy as np
 
@@ -191,13 +191,29 @@ def _pvalue_text(p: float) -> str:
     return " (p < 0.001)" if p < 1e-3 else f" (p = {p:.3f})"
 
 
-def _scatter_panel(ax, m: Dict, mkey: str, nm: str, r: Dict, *, n_pc: int,
-                   color: str, ps) -> None:
+def _shared_spans(fits: Dict) -> Dict[str, Tuple[float, float]]:
+    """Axis range per target, shared by every model's panel of that target.
+
+    ``fits`` maps ``(model, target)`` to ``(yobs, ypred)``.  A target is the
+    same quantity in each model's panel, so the panels share one range: the
+    reader compares the two models' clouds by eye, which a per-panel range
+    would distort (each cloud would fill its own panel whatever its spread).
+    """
+    spans: Dict[str, Tuple[float, float]] = {}
+    for (_mkey, nm), (yobs, ypred) in fits.items():
+        lo = float(min(yobs.min(), ypred.min()))
+        hi = float(max(yobs.max(), ypred.max()))
+        if nm in spans:
+            lo, hi = min(lo, spans[nm][0]), max(hi, spans[nm][1])
+        spans[nm] = (lo, hi)
+    return spans
+
+
+def _scatter_panel(ax, yobs: np.ndarray, ypred: np.ndarray, r: Dict, *,
+                   span: Tuple[float, float], color: str, ps) -> None:
     """One predicted-vs-ensemble-member panel (square, 1:1 line, stats box)."""
-    yobs, ypred = _fit_predict(m["pc_scores"], m["targets"][nm], n_pc)
     ax.scatter(ypred, yobs, s=8, alpha=0.35, color=color, edgecolors="none")
-    lo = float(min(yobs.min(), ypred.min()))
-    hi = float(max(yobs.max(), ypred.max()))
+    lo, hi = span
     pad = 0.04 * (hi - lo if hi > lo else 1.0)
     ax.plot([lo, hi], [lo, hi], "k-", lw=0.8, alpha=0.6)
     ax.set_xlim(lo - pad, hi + pad)
@@ -294,6 +310,12 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
     ax0.grid(True, alpha=0.25)
 
     # Scatter grid: predicted vs ensemble member, one panel per (model, target).
+    fits = {(mkey, nm): _fit_predict(m["pc_scores"], m["targets"][nm], n_pc)
+            for mkey, m in models.items() for nm in target_names
+            if nm in m["targets"]}
+    spans = _shared_spans(fits)
+    print("[pca-cmp] scatter range shared across models: " + ", ".join(
+        f"{nm} {lo:.4g} to {hi:.4g}" for nm, (lo, hi) in spans.items()))
     scatter_axes = []
     for ri in range(n_scatter_rows):
         for ci in range(ncol):
@@ -307,7 +329,7 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
                 ax.axis("off")
                 continue
             scatter_axes.append(ax)
-            _scatter_panel(ax, m, mkey, nm, tbl[(mkey, nm)], n_pc=n_pc,
+            _scatter_panel(ax, *fits[(mkey, nm)], tbl[(mkey, nm)], span=spans[nm],
                            color=colors.get(mkey, "#444"), ps=ps)
             mlabel = _model_label(mkey, m)
             if wide:
