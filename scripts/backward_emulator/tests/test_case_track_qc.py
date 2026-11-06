@@ -306,3 +306,24 @@ def test_pattern_panels_show_the_eof_domain_with_the_track_box(case, parquet, tm
     for extent, box in seen:
         assert tuple(extent) == dl.region_box(case, "synoptic")
         assert tuple(box) == dl.region_box(case, "track")
+
+
+def test_intensity_panel_uses_the_shared_pinned_axis(parquet, tmp_path, monkeypatch, capsys):
+    """The central-pressure panel reads the one storm-intensity key and label that
+    Extremes on Rewind's track figures use (axis_limits.TC_INTENSITY)."""
+    pytest.importorskip("matplotlib")
+    import axis_limits
+
+    analysis, variable, panel = axis_limits.TC_INTENSITY
+    monkeypatch.setattr(axis_limits, "_CACHE",
+                        {analysis: {variable: {panel: {"ylim": [930.0, 1020.0]}}}})
+    pinned = []
+    real = axis_limits.pin_y_to_drawn
+    monkeypatch.setattr(axis_limits, "pin_y_to_drawn",
+                        lambda ax, *a, **kw: (pinned.append(ax), real(ax, *a, **kw)))
+    tp.main(["--case", "ian", "--makani-parquet", parquet, "--cbottle-parquet", parquet,
+             "--no-censor", "--out-dir", str(tmp_path / "out")])
+    assert len(pinned) == 1
+    assert pinned[0].get_ylim() == (930.0, 1020.0)
+    assert pinned[0].get_ylabel() == axis_limits.TC_INTENSITY_LABEL
+    assert "tc_tracks/tc_msl/trajectory: drawn y range" in capsys.readouterr().out

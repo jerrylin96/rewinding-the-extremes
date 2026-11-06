@@ -602,6 +602,7 @@ def _plot(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import plot_style as ps
+    from axis_limits import TC_INTENSITY, TC_INTENSITY_LABEL, pin_y_to_drawn
     from local_time_axis import format_local_time_axis
     from matplotlib.cm import ScalarMappable
     from matplotlib.colors import Normalize
@@ -809,8 +810,11 @@ def _plot(
     # Item 3: local wall-clock x-axis.  lead 0 == window start; time runs
     # left->right to the pinned present (66 h).  Natural (non-inverted) MSLP
     # axis: a deepening storm dips toward the bottom (familiar best-track look).
+    # One pinned range (and one label) for every storm-intensity panel in both
+    # papers, so this panel reads against Extremes on Rewind's track figures.
+    pin_y_to_drawn(axc, *TC_INTENSITY, log_tag=f"plot_tc_tracks_compare {case_name}")
     format_local_time_axis(axc, lead_h, start_iso, tz_name)
-    axc.set_ylabel("min MSLP (hPa)")
+    axc.set_ylabel(TC_INTENSITY_LABEL)
     # Two columns so the up-to-four entries (per-model closest member + the two
     # ERA5 baselines) sit in tidy rows without overrunning the panel width.
     axc.legend(

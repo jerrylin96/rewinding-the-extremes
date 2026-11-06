@@ -67,6 +67,7 @@ from _dispatch_lib import (  # noqa: E402
     anchor_free_end_frames,
     wrap_lon_0_360,
 )
+from axis_limits import TC_INTENSITY, TC_INTENSITY_LABEL, pin_y_to_drawn  # noqa: E402
 from local_time_axis import format_local_time_axis  # noqa: E402
 from plot_style import (  # noqa: E402
     AXIS_LABEL_SIZE,
@@ -553,10 +554,13 @@ def _draw_tc_msl_trajectory(
                     "ERA5 missing at free end"
                 )
 
+    # One pinned range for every storm-intensity panel in both papers (all
+    # three rows here, the landfall split, Run it Back's track figure).
+    pin_y_to_drawn(ax, *TC_INTENSITY, log_tag=f"aggregate_tc_tracks {mode}")
     format_local_time_axis(ax, lead_hours, start_time_iso, timezone_name)
     ax.xaxis.label.set_fontsize(AXIS_LABEL_SIZE)
     ax.tick_params(axis="both", labelsize=TICK_LABEL_SIZE)
-    ax.set_ylabel("Storm central MSLP (hPa)", fontsize=AXIS_LABEL_SIZE)
+    ax.set_ylabel(TC_INTENSITY_LABEL, fontsize=AXIS_LABEL_SIZE)
     ax.set_xlim(float(lead_hours[0]), float(lead_hours[-1]))
     ax.grid(True, alpha=0.3)
     ax.set_title(

@@ -84,6 +84,7 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))
 sys.path.insert(0, str(SCRIPT_DIR.parent.parent / "_shared"))
 
 from _dispatch_lib import MODE_LABELS_TITLE, wrap_lon_0_360  # noqa: E402
+from axis_limits import TC_INTENSITY, TC_INTENSITY_LABEL, pin_y_to_drawn  # noqa: E402
 from local_time_axis import format_local_time_axis  # noqa: E402
 from plot_style import (  # noqa: E402
     AXIS_LABEL_SIZE,
@@ -420,10 +421,12 @@ def _draw_group_trajectory(
                 zorder=7,
             )
 
+    # Same pinned range as the track figures' intensity rows (axis_limits).
+    pin_y_to_drawn(ax, *TC_INTENSITY, log_tag="tc_landfall_split")
     format_local_time_axis(ax, lead_hours, start_time_iso, timezone_name)
     ax.xaxis.label.set_fontsize(AXIS_LABEL_SIZE)
     ax.tick_params(axis="both", labelsize=TICK_LABEL_SIZE)
-    ax.set_ylabel("Storm central MSLP (hPa)", fontsize=AXIS_LABEL_SIZE)
+    ax.set_ylabel(TC_INTENSITY_LABEL, fontsize=AXIS_LABEL_SIZE)
     ax.set_xlim(float(lead_hours[0]), float(lead_hours[-1]))
     ax.grid(True, alpha=0.3)
     ax.set_title(
