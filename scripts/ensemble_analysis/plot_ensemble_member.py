@@ -88,6 +88,7 @@ from plot_style import (  # noqa: E402
     nice_speed,
     quiver_step,
 )
+from var_metadata import var_label  # noqa: E402
 
 import torch  # noqa: E402
 
@@ -506,10 +507,17 @@ def load_field(root, var, member, n_frames, is_era5, hpx_level):
 
 
 def get_display_label(var):
-    """Return a human-readable label for a variable."""
+    """Return a human-readable label for a variable.
+
+    Derived variables carry their own label.  Everything else goes through the
+    shared ``var_label`` -- spelled-out name plus units, e.g. ``"Mean sea level
+    pressure (Pa)"`` -- so colorbars and titles never show a raw shorthand
+    like ``msl``.  ``var_label`` falls back to the shorthand for variables it
+    does not know, so this is safe for any stored variable.
+    """
     if var in DERIVED_VARIABLES:
         return DERIVED_VARIABLES[var]["label"]
-    return var
+    return var_label(var)
 
 
 def animate_member(ens_root, era5_root, var, member, args):
