@@ -341,6 +341,19 @@ def parse_args():
     return args
 
 
+def _utc_label(when):
+    """Format a timestamp as ``"2004-11-27 18:00 UTC"``.
+
+    The single timestamp format for every title this script draws -- free
+    panels, pinned panels and video frames alike -- so a figure never mixes
+    styles and matches the paper text's "HH:MM UTC" convention.  Accepts a
+    ``numpy.datetime64`` or an ISO string such as the ``"2004-11-27T12:00"``
+    stamps ``ensemble_interpolation.py`` writes into the store attrs.
+    """
+    text = np.datetime_as_string(np.datetime64(when), unit="m")
+    return f"{str(text).replace('T', ' ')} UTC"
+
+
 def get_valid_time_labels(root, n_frames, is_era5=False):
     """Return a list of human-readable valid-time strings for all frames."""
     times = np.array(root["time"][:])
@@ -351,7 +364,7 @@ def get_valid_time_labels(root, n_frames, is_era5=False):
             valid = times[f]
         else:
             valid = times[0] + lead_times[f]
-        labels.append(str(np.datetime_as_string(valid, unit="h")))
+        labels.append(_utc_label(valid))
     return labels
 
 
@@ -724,14 +737,6 @@ def _frame_provenance(ens_root, n_frames):
     start_date = ens_root.attrs.get("start_date")
     pinned = {int(f) for f in conditioning}
 
-    def _stamp(iso):
-        # "2013-09-12T18:00" -> "2013-09-12 18Z".  Slicing, not rstrip: the
-        # obvious rstrip(":00") also eats the hour of any frame pinned at 00Z,
-        # which is exactly frame 0 of the Atlantic teleport.
-        text = str(iso)
-        date, _, clock = text.partition("T")
-        return f"{date} {clock[:2]}Z" if clock else date
-
     labels = []
     for f in range(n_frames):
         if f not in pinned:
@@ -741,9 +746,9 @@ def _frame_provenance(ens_root, n_frames):
         # pinned frame is the run's own start_date.
         borrowed = custom.get(str(f), custom.get(f))
         if borrowed is not None:
-            labels.append((True, f"ERA5 {_stamp(borrowed)}"))
+            labels.append((True, f"ERA5 {_utc_label(borrowed)}"))
         elif f == 0 and start_date:
-            labels.append((True, f"ERA5 {_stamp(start_date)}"))
+            labels.append((True, f"ERA5 {_utc_label(start_date)}"))
         else:
             labels.append((True, "ERA5"))
     return labels
