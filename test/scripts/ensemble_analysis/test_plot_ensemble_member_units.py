@@ -146,3 +146,57 @@ def test_grid_colour_bar_in_metres_over_metre_values(pem, monkeypatch, tmp_path)
     assert (lo, hi) == pytest.approx(tuple(v / vm.DISPLAY_GRAVITY for v in Z500_RAW))
     labels = [ax.get_xlabel() for ax in fig.axes]
     assert vm.var_label("z500") in labels and vm.var_label("z500").endswith("(m)")
+
+
+def test_reversed_endpoint_grid_shows_source_and_slot_dates(pem, monkeypatch, tmp_path):
+    """A source date must not be mistaken for the generated sequence's clock."""
+    import matplotlib.figure
+    from _dispatch_lib import load_case, load_palettes
+
+    case = load_case("sandy_reversed")
+    specs = pem._expand_event_plots(
+        case,
+        load_palettes(),
+        only_variable="msl",
+        layout="grid",
+        wind_overlay="wind500",
+    )
+    args = pem._spec_to_namespace(specs[0])
+    args.output_dir = str(tmp_path)
+    # Exercise the real metadata/clock/title path; synthetic data avoids the
+    # global HEALPix regrid, model weights, and external ERA5 stores.
+    args.wind_overlay = "none"
+    raw, lat, lon = _raw_z500()
+    monkeypatch.setattr(pem, "load_field", lambda *a, **k: (raw, lat, lon))
+    monkeypatch.setattr(pem, "_hpx_level_from_root", lambda root: 6)
+    figs = []
+    monkeypatch.setattr(pem.plt, "close", lambda fig=None: figs.append(fig))
+    monkeypatch.setattr(matplotlib.figure.Figure, "savefig", lambda *a, **k: None)
+
+    class Root:
+        attrs = {
+            "conditioning_frames": [0, 11],
+            "start_date": "2012-10-30T00:00",
+            "custom_frames": {
+                "11": "2012-10-27T06:00",
+            },
+        }
+
+        def array_keys(self):
+            return ["hpx", "data", "time", "lead_time"]
+
+        def __getitem__(self, key):
+            if key == "time":
+                return np.array(["2012-10-30T00:00"], dtype="datetime64[m]")
+            if key == "lead_time":
+                return np.arange(0, 72, 6).astype("timedelta64[h]")
+            return SimpleNamespace(shape=(2, 1, 12, 1, 48))
+
+    pem.plot_member_grid(Root(), None, "msl", 0, args)
+    (fig,) = figs
+    axes = [ax for ax in fig.axes if hasattr(ax, "projection")]
+    assert "ERA5 2012-10-30 00:00 UTC" in axes[0].get_title()
+    assert "Slot:" not in axes[0].get_title()
+    assert "ERA5 2012-10-27 06:00 UTC" in axes[11].get_title()
+    assert "Slot: 2012-11-01 18:00 UTC" in axes[11].get_title()
+    assert axes[1].get_title() == "F1 — free\n2012-10-30 06:00 UTC"

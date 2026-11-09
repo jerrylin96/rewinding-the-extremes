@@ -1,0 +1,41 @@
+# Reversed-endpoint conditioning stress test using Sandy's existing 66h window.
+# This tests endpoint accommodation; offshore motion alone is not evidence of
+# physical impossibility. Inspect the generated intermediate evolution first.
+#
+# Start the forward model clock and AMIP SST schedule at the landfall state:
+#   slot F0:  2012-10-30 00Z -> source ERA5 2012-10-30 00Z (landfall)
+#   slot F11: 2012-11-01 18Z -> source ERA5 2012-10-27 06Z (offshore)
+# Swap all ERA5 conditioning channels, including winds without sign changes.
+# Non-ERA5 channels remain unconditioned, as in the ordinary Sandy experiment.
+#
+# F0 matches its slot. F11 has a 12h diurnal phase mismatch; calendar and SST
+# conditioning advance 66h from landfall, while the pinned source is 66h before
+# landfall (132h before its slot). This is not a time-reversed integration.
+# The output store records the borrowed source date independently of slot time.
+#
+# era5_reference.zarr contains the ORDINARY Oct 30 -> Nov 1 ERA5 trajectory.
+# It is context, not truth for this stress test. Do not run forecast-skill or
+# counterfactual-coverage diagnostics against it. As for the equatorial case,
+# omit analysis regions and tc_tracks; plots.view only defines a viewport.
+
+display_name: "Conditioning stress test: Sandy with reversed endpoints"
+year: 2012
+timezone: America/New_York
+base: /projectnb/eb-general/jlin404/scratch/sandy_reversed
+
+ensemble:
+  start_time: { year: 2012, month: 10, day: 30, hour: 0 }
+  size: 100
+  modes: [both]
+  batch_size: 1
+  random_seed: 0
+  custom_frames:
+    - { frame: 11, year: 2012, month: 10, day: 27, hour: 6 }
+
+plots:
+  members: [0, 1, 2, 3]
+  view: [-85, -60, 25, 45]
+  variables:
+    - { name: msl, vmin: 93000, vmax: 103000, cmap: cmr.sapphire, coastline_color: "0.25" }
+    - { name: wspd850, vmin: 0, vmax: 40 }
+    - { name: z500, extent: [-100, -30, 25, 75] }

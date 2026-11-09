@@ -49,15 +49,13 @@ sys.path.insert(0, SHARED_DIR)
 import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import cmasher  # noqa: F401, E402 — registers "cmr.*" colormap names with matplotlib
-from matplotlib.animation import FuncAnimation  # noqa: E402
-import numpy as np  # noqa: E402
-import zarr  # noqa: E402
-
 import cartopy.crs as ccrs  # noqa: E402
 import cartopy.feature as cfeature  # noqa: E402
-
+import cmasher  # noqa: F401, E402 — registers "cmr.*" colormap names with matplotlib
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+import zarr  # noqa: E402
 from _dispatch_lib import (  # noqa: E402
     ensemble_zarr_path,
     era5_zarr_path,
@@ -68,9 +66,8 @@ from _dispatch_lib import (  # noqa: E402
     parse_member_spec,
     resolve_view,
 )
-from custom_utils.ensemble_loading import variable_index  # noqa: E402
-from custom_utils.interpolation_utils import CBottleUtils  # noqa: E402
 from derived_fields import relative_vorticity  # noqa: E402
+from matplotlib.animation import FuncAnimation  # noqa: E402
 from plot_style import (  # noqa: E402
     COLORBAR_LABEL_SIZE,
     COLORBAR_LABEL_SIZE_DENSE,
@@ -90,7 +87,8 @@ from plot_style import (  # noqa: E402
 )
 from var_metadata import to_display_units, var_label  # noqa: E402
 
-import torch  # noqa: E402
+from custom_utils.ensemble_loading import variable_index  # noqa: E402
+from custom_utils.interpolation_utils import CBottleUtils  # noqa: E402
 
 # ── Derived variables ──────────────────────────────────────────────────────
 # Each entry maps a derived name to (list of source vars, combining function,
@@ -1024,17 +1022,20 @@ def plot_member_grid(ens_root, era5_root, var, member, args):
                 wind_key_done = True
 
         is_pinned, source = provenance[f]
-        # Panel titles carry the frame index and valid time; a pinned panel
-        # replaces its valid time with the stamp of the field it was pinned
-        # to, which is the only date visible in it.
+        # A borrowed field has two clocks: its ERA5 source date and its slot
+        # in the generated sequence. Show both when they differ, so reversed
+        # endpoint conditioning cannot look like a backwards model clock.
         #
         # y=1.0 is required, not cosmetic: see draw_graticule's caller
         # obligation — cartopy's Gridliner resolves an auto-placed title to
         # `inf` on a labelled axes, which drops the title and breaks the tight
         # bbox.  It reproduces the automatic placement when nothing sits above.
         if is_pinned:
+            title = f"F{f} — PINNED\n{source}"
+            if source != f"ERA5 {time_labels[f]}":
+                title += f"\nSlot: {time_labels[f]}"
             ax.set_title(
-                f"F{f} — PINNED\n{source}",
+                title,
                 fontsize=TITLE_SIZE_DENSE,
                 color=PINNED_EDGE_COLOR,
                 fontweight="bold",
