@@ -17,7 +17,7 @@ Defaults (overridable via CLI):
     members_per_job     -> 50                 (20 parallel chunk jobs)
     h_rt                -> 4:00:00
     quick ensemble_size -> 8
-    quick h_rt          -> 0:15:00
+    quick h_rt          -> 1:00:00
 
 Prints each submitted job's SGE job id to stdout on success.
 """
@@ -49,7 +49,9 @@ DEFAULT_BATCH_SIZE = 1
 DEFAULT_MEMBERS_PER_JOB = 50
 
 QUICK_ENSEMBLE_SIZE = 8
-QUICK_H_RT = "0:15:00"
+# 15 min was too short: job 8538275 (RTX A6000) spent ~3 min on setup and had
+# not finished 8 members when it was killed 12 min later.
+QUICK_H_RT = "1:00:00"
 
 
 def build_script_args(case: Dict[str, Any], mode: str, frames: List[int],
