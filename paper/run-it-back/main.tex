@@ -208,20 +208,20 @@ frame's valid time, and temporal self-attention layers across frames \citep{Ho20
 
 \paragraph{Masked video diffusion and score-based sampling.}
 Training employs a masked-conditional video diffusion (MCVD) framework \citep{voleti2022MCVD} over 66-hour sequences (12 frames at $\Delta t = 6\,\text{h}$). During training, stochastic masking patterns (random frame dropout, block-wise masking, endpoint interpolation, and unconditional masking) enable arbitrary temporal inpainting
-\citep{Brenowitz2025-mz}. The schematic denoising component of the training objective is:
+\citep{Brenowitz2025-mz}. The training objective is:
 \begin{equation}
 \label{eq:cbottle_training_objective}
 \begin{aligned}
 \min_{\theta}\; &\mathbb{E}_{\mathbf{x},m,\sigma,\epsilon}\left[\lambda(\sigma)
 \left\|\mathcal{D}_\theta(\mathbf{x} + \epsilon; \sigma, \mathbf{c}_m) - \mathbf{x}\right\|^2\right],\\
-&\lambda(\sigma) = \frac{\sigma^2 + \sigma_{\text{data}}^2}{(\sigma\sigma_{\text{data}})^2},
+&\lambda(\sigma) = \frac{\sigma^2 + \sigma_{\text{data}}^2}{\sigma^2\sigma_{\text{data}}^2},
 \qquad \epsilon \sim \mathcal{N}(0, \sigma^2 \mathbf{I}),
 \end{aligned}
 \end{equation}
-where $\mathbf{c}_m$ denotes the temporal-mask and auxiliary conditioning associated with mask $m$; the expression suppresses valid-channel masking and reductions. The referenced public training caller uses $\sigma_{\text{data}} = 1.0$, and its video recipe samples $\sigma$ log-uniformly over $[0.02, 1000]$. We evaluate a single public cBottle-video denoiser at all sampling noise levels; no noise-dependent expert switching is used. Samples are drawn across 18 discretization steps by integrating the reverse-time probability-flow ODE:
+where $\mathbf{c}_m$ denotes the temporal-mask and auxiliary conditioning associated with mask $m$, and $\sigma_{\text{data}} = 1$. The  training noise level $\sigma$ is sampled log-uniformly over $[0.02, 1000]$. We evaluate a single public cBottle-video denoiser at all sampling noise levels. Samples are drawn across 18 discretization steps by integrating the reverse-time probability-flow ODE:
 \begin{equation}
 \label{eq:cbottle_sampling_step}
-\frac{d\mathbf{x}}{d\sigma} = \frac{\mathbf{x} - \mathcal{D}_\theta(\mathbf{x}, \sigma)}{\sigma}
+\frac{d\mathbf{x}}{d\sigma} = \frac{\mathbf{x} - \mathcal{D}_\theta(\mathbf{x}; \sigma, \mathbf{c}_m)}{\sigma}
 \end{equation}
 using the deterministic second-order Heun sampler of \citet{Karras2022-xq} with $S_{\text{churn}} = 0$.
 
