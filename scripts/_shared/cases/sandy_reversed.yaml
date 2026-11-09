@@ -25,7 +25,7 @@ base: /projectnb/eb-general/jlin404/scratch/sandy_reversed
 
 ensemble:
   start_time: { year: 2012, month: 10, day: 30, hour: 0 }
-  size: 100
+  size: 8
   modes: [both]
   batch_size: 1
   random_seed: 0
