@@ -66,6 +66,7 @@ if str(EA_DIR) not in sys.path:  # appended: never shadow our modules
 
 import _dispatch_lib as dl  # noqa: E402
 from case_track_qc import check_pca_npzs, load_track_qc  # noqa: E402
+from model_labels import CBOTTLE_LABEL, MAKANI_LABEL  # noqa: E402
 
 _R_EARTH_KM = 6371.0
 
@@ -310,6 +311,35 @@ def load_pattern_map(npz_path: str, pc_idx: int, var_want: str = "z500"
     return None, None, None, False
 
 
+# A stored pattern's grid spans its domain to within about one grid spacing
+# (cBottle's HPX64 is ~1 degree, makani's native grid 0.25 degree).
+_DOMAIN_TOL_DEG = 1.5
+
+
+def check_pattern_domain(patterns: Dict[str, Dict], eof_box, tol: float = _DOMAIN_TOL_DEG) -> None:
+    """Refuse patterns that were not computed over the case's EOF domain.
+
+    Both models' PCA read ``regions.synoptic``; this checks the files actually
+    drawn, so a pattern from another domain (an old run, a different box) cannot
+    be shown as if the two models shared one.
+    """
+    if eof_box is None:
+        raise SystemExit("[tc-plot] the case has no regions.synoptic (EOF domain) box.")
+    want = [float(v) for v in eof_box]  # lon_min, lon_max, lat_min, lat_max
+    for mkey, pat in patterns.items():
+        if not pat.get("ok"):
+            continue
+        lon = _lon_to_180(np.asarray(pat["lon"], float))
+        lat = np.asarray(pat["lat"], float)
+        got = [float(lon.min()), float(lon.max()), float(lat.min()), float(lat.max())]
+        if max(abs(g - w) for g, w in zip(got, want)) > tol:
+            raise SystemExit(
+                f"[tc-plot] {mkey} pattern spans lon {got[0]:.1f}..{got[1]:.1f}, "
+                f"lat {got[2]:.1f}..{got[3]:.1f}, but the EOF domain (regions.synoptic) "
+                f"is lon {want[0]:.1f}..{want[1]:.1f}, lat {want[2]:.1f}..{want[3]:.1f}: "
+                "the two models' patterns would not share one domain.")
+
+
 def _lon_to_180(lon: np.ndarray) -> np.ndarray:
     """Map longitudes to [-180, 180] (monotone as long as the box doesn't wrap 180)."""
     lon = np.asarray(lon, float)
@@ -508,8 +538,15 @@ def _draw_map(
     ax.legend(fontsize=ps.LEGEND_SIZE, loc="upper left")
 
 
-def _draw_pattern(ax, pat, *, has_cartopy, proj, extent, cfeature, ps):
-    """Diverging z500 loading map, normalized to its own max-|amplitude| (-1..1)."""
+def _draw_pattern(ax, pat, *, has_cartopy, proj, extent, cfeature, ps,
+                  box=None, ci=0, ncol=1):
+    """Diverging z500 loading map, normalized to its own max-|amplitude| (-1..1).
+
+    ``extent`` is the EOF (synoptic) domain the PCA was computed over, so the
+    panel shows the whole pattern and nothing outside it; ``box`` (the track
+    box) is outlined dashed to show where the track maps above sit in it -- the
+    same cue the paper's own synoptic-PCA figures use (``draw_domain_box``).
+    """
     field = pat["field"]
     amax = np.nanmax(np.abs(field))
     norm_field = field / amax if amax > 0 else field
@@ -525,14 +562,20 @@ def _draw_pattern(ax, pat, *, has_cartopy, proj, extent, cfeature, ps):
         shading="auto",
         transform=proj if has_cartopy else None,
     )
+    # Lat labels on the outer edges as in the track row (the two rows no longer
+    # share an extent), lon labels on the bottom edge.
+    left, right = (True, False) if ncol == 1 else (ci == 0, ci == ncol - 1)
     if has_cartopy:
         ax.set_extent(extent, crs=proj)
         ax.add_feature(cfeature.COASTLINE, lw=0.4)
-        # Item 5: pattern maps carry lon labels on the BOTTOM edge only.
-        _panel_graticule(ax, ps, left=False, right=False, bottom=True, top=False)
+        _panel_graticule(ax, ps, left=left, right=right, bottom=True, top=False)
+        if box is not None:
+            ps.draw_domain_box(ax, box)
     else:
         ax.set_xlim(extent[0], extent[1])
         ax.set_ylim(extent[2], extent[3])
+        if box is not None:
+            ps.draw_domain_box(ax, box, transform=ax.transData)
         ax.set_xlabel("lon")
     # y=1.0: see the note in _draw_map (labelled cartopy axes + tight bbox).
     ax.set_title(pat["label"], fontsize=ps.AXIS_LABEL_SIZE, y=1.0)
@@ -550,6 +593,8 @@ def _plot(
     tz_name,
     pc_label: Optional[str] = None,
     patterns: Optional[Dict[str, Dict]] = None,
+    pattern_extent=None,
+    track_box=None,
     mark_closest: bool = True,
 ):
     import matplotlib
@@ -557,6 +602,7 @@ def _plot(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import plot_style as ps
+    from axis_limits import TC_INTENSITY, TC_INTENSITY_LABEL, pin_y_to_drawn
     from local_time_axis import format_local_time_axis
     from matplotlib.cm import ScalarMappable
     from matplotlib.colors import Normalize
@@ -599,8 +645,13 @@ def _plot(
     h_map = map_cell_w / map_aspect
     # A thin spacer row (h_gap) below the loading colorbar keeps its label off
     # the central-pressure panel underneath.
+    # The pattern row shows the EOF domain, so it gets that domain's own aspect.
+    pattern_extent = list(pattern_extent) if pattern_extent is not None else list(extent)
+    patt_aspect = (float(pattern_extent[1] - pattern_extent[0])
+                   / (float(pattern_extent[3] - pattern_extent[2]) or 1.0))
+    h_patt = map_cell_w / patt_aspect
     h_load, h_gap, h_trace = 0.16, 0.34, 3.2
-    heights = [h_map] + ([h_map, h_load, h_gap] if has_patterns else []) + [h_trace]
+    heights = [h_map] + ([h_patt, h_load, h_gap] if has_patterns else []) + [h_trace]
     nrow = len(heights)
     row_intensity = nrow - 1
     row_patt, row_loadcbar = 1, 2
@@ -682,9 +733,12 @@ def _plot(
                     pat,
                     has_cartopy=has_cartopy,
                     proj=proj,
-                    extent=extent,
+                    extent=pattern_extent,
                     cfeature=cfeature,
                     ps=ps,
+                    box=track_box,
+                    ci=ci,
+                    ncol=ncol,
                 )
             except Exception as exc:  # noqa: BLE001
                 print(
@@ -756,8 +810,11 @@ def _plot(
     # Item 3: local wall-clock x-axis.  lead 0 == window start; time runs
     # left->right to the pinned present (66 h).  Natural (non-inverted) MSLP
     # axis: a deepening storm dips toward the bottom (familiar best-track look).
+    # One pinned range (and one label) for every storm-intensity panel in both
+    # papers, so this panel reads against Extremes on Rewind's track figures.
+    pin_y_to_drawn(axc, *TC_INTENSITY, log_tag=f"plot_tc_tracks_compare {case_name}")
     format_local_time_axis(axc, lead_h, start_iso, tz_name)
-    axc.set_ylabel("min MSLP (hPa)")
+    axc.set_ylabel(TC_INTENSITY_LABEL)
     # Two columns so the up-to-four entries (per-model closest member + the two
     # ERA5 baselines) sit in tidy rows without overrunning the panel width.
     axc.legend(
@@ -850,6 +907,8 @@ def main(argv=None) -> None:
     lon_min, lon_max, lat_min, lat_max = box
     extent = [lon_min - args.margin, lon_max + args.margin,
               lat_min - args.margin, lat_max + args.margin]
+    # The pattern panels show the EOF domain both models' PCA ran over.
+    eof_box = dl.region_box(case, "synoptic")
 
     # makani: native ERA5 (solid black baseline).  Keep = analyzable under the
     # track QC AND alive at the free-end frame.
@@ -865,7 +924,7 @@ def main(argv=None) -> None:
               f"{alive.size}")
         keep &= alive
     models: Dict[str, Dict] = {"makani": {
-        "label": "Autoregressive", "ens": m_ens[keep], "era5": m_era5,
+        "label": MAKANI_LABEL, "ens": m_ens[keep], "era5": m_era5,
         "era5_ls": "-", "era5_label": "ERA5 (native)", "keep": keep, "qc": m_qc}}
     print(f"[tc-plot] makani members plotted: {int(keep.sum())}")
 
@@ -875,7 +934,7 @@ def main(argv=None) -> None:
         c_keep = c_qc.analyzable.copy()
         print(f"[tc-plot] cBottle track QC: {c_qc.summary()}")
         models["cbottle"] = {
-            "label": "Video diffusion (cBottle)", "ens": c_ens[c_keep], "era5": c_era5,
+            "label": CBOTTLE_LABEL, "ens": c_ens[c_keep], "era5": c_era5,
             "era5_ls": "--", "era5_label": "ERA5 (round-trip)",
             "keep": c_keep, "qc": c_qc}
         print(f"[tc-plot] cBottle members plotted: {int(c_keep.sum())}")
@@ -942,6 +1001,7 @@ def main(argv=None) -> None:
                         "ok": pok, "field": field, "lat": lat, "lon": lon,
                         "label": f"{models[mkey]['label']}: {args.pattern_variable} "
                                  f"PC{jstar[mkey] + 1} pattern"}
+            check_pattern_domain(patterns, eof_box)
             suffix = label.replace("(", "").replace(")", "")
             png = out / f"tc_tracks_compare_{args.case}_{suffix}.png"
             _plot(
@@ -954,6 +1014,8 @@ def main(argv=None) -> None:
                 tz_name=tz_name,
                 pc_label=(label if ok else None),
                 patterns=patterns,
+                pattern_extent=eof_box,
+                track_box=list(box),
                 mark_closest=not args.no_mark_closest,
             )
             figures.append(str(png))

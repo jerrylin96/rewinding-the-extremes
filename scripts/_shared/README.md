@@ -36,6 +36,7 @@ and `aggregate_free_end_states`.
 | ↳ crop first | | Both the stride and `ref` come from the grid you pass in, so clip `u`/`v` to the panel's view box **before** deriving either.  A global field yields ~22 arrows around the planet, scaled by a jet the panel never shows. |
 | `format_lon(x)`, `format_lat(x)`, `format_bbox(bbox)` | `plot_style.py` | Publication-ready coordinate strings — e.g. `"140°W"`, `"38°N"`, `"140°W–110°W, 38°N–55°N"`.  Cardinal-direction notation reads better in figures than negative numbers; integer-valued inputs format without a decimal. |
 | `get_limits(analysis, variable, panel)` / `apply_limits(ax, ...)` | `axis_limits.py` | Cross-case-comparable axis ranges read from `axis_limits.yaml`.  Use when an aggregator's output sits next to its counterpart from another case. |
+| `pin_y_to_drawn(ax, *key, log_tag=)`, `TC_INTENSITY`, `TC_INTENSITY_LABEL` | `axis_limits.py` | Applies the pinned y-limits to a finished panel and logs the y range it draws (from `ax.dataLim`, so it covers every data artist); that log line is how a pinned range is derived.  `TC_INTENSITY` / `TC_INTENSITY_LABEL` are the one key and label for every storm-intensity (central MSLP vs time) panel in both papers. |
 
 ## Dispatch-side helpers (no matplotlib)
 

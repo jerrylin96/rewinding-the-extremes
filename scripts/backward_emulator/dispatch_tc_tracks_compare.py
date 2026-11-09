@@ -31,7 +31,7 @@ LOG_DIR = str(BW_DIR / "compare_logs")
 H_RT = "12:00:00"
 
 CASE_DATA_SUBDIR = {"pnw_heatwave": "2021_pnw_heatwave", "ian": "ian"}
-DEFAULT_CASES = ["ian"]  # only Ian has a TC
+DEFAULT_CASES = ["ian", "sandy"]  # the cases with a TC (case YAML `tc_tracks`)
 DEFAULT_DATA_ROOT = "/projectnb/eb-general/jlin404/scratch/backward_emulator_data"
 
 

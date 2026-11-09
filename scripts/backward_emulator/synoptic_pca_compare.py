@@ -27,7 +27,7 @@ case (the `--case` YAML's display name, or makani's without `--case`), another
 conditioning mode (free end not at frame 0), or another impact kind.
 
 Figure conventions match the other compare figures: the models are displayed as
-"Autoregressive" and "Video diffusion (cBottle)" (npz-internal keys stay
+"Rewind-AR" and "cBottle-video" (model_labels.py; npz-internal keys stay
 makani/cbottle), targets get the paper's spelled-out names, and the scatter's
 vertical axis is labelled "ensemble member" -- each point is one member's own
 free-end value, not an observation (ERA5 is the observation and is not drawn).
@@ -42,7 +42,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Tuple
 
 import numpy as np
 
@@ -54,12 +54,13 @@ for _p in (str(BW_DIR), str(SHARED)):
 
 import _dispatch_lib as dl  # noqa: E402
 import case_track_qc as cq  # noqa: E402
+from model_labels import MODEL_LABELS  # noqa: E402
 from synoptic_pca_makani import regression_summary  # noqa: E402
 
 # Display names, shared with the other compare figures (ageostrophic, TC tracks,
 # free-end states).  Keys are the internal model keys; npz-stored names / file
 # stems are only a fallback for unknown models.
-_MODEL_LABELS = {"makani": "Autoregressive", "cbottle": "Video diffusion (cBottle)"}
+_MODEL_LABELS = MODEL_LABELS
 
 # Spelled-out target names + units, matching the paper's track-regression figure
 # (aggregate_synoptic_pca._TRACK_TARGETS) and its scalar precursor->impact panel.
@@ -67,12 +68,9 @@ _TARGET_LABELS = {
     "tc_lat": ("free-end latitude", "°N"),
     "tc_lon": ("free-end longitude", "°E"),
     # Newline keeps the widest column title inside its panel.
-    "tc_dist_km": ("free-end distance\nfrom ERA5", "km"),
     "tc_msl_hpa": ("free-end\ncentral MSL", "hPa"),
     "t2m": ("land-mean t2m", "K"),
 }
-# Track target names, in `case_track_qc.TARGET_COLUMNS` order.
-_TRACK_NAMES = ("tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa")
 
 
 def _model_label(mkey: str, m: Dict) -> str:
@@ -155,13 +153,14 @@ def _track_targets(m: Dict, parquet: str, case: Dict, name: str) -> None:
     rows = m["analyzable"]
     _ens, _era5, qc = cq.load_track_qc(
         parquet, case, n_members=rows.size if rows is not None else n_rows)
-    tgt = cq.free_end_target_matrix(qc)
+    tgt = cq.free_end_regression_targets(qc)
     if rows is not None:
-        tgt = tgt[rows]
-    if tgt.shape[0] != n_rows:
-        raise SystemExit(f"[pca-cmp] {name}: {tgt.shape[0]} track rows != "
+        tgt = {nm: y[rows] for nm, y in tgt.items()}
+    n_track = next(iter(tgt.values())).shape[0]
+    if n_track != n_rows:
+        raise SystemExit(f"[pca-cmp] {name}: {n_track} track rows != "
                          f"{n_rows} PC-score rows")
-    m["targets"] = {nm: tgt[:, j] for j, nm in enumerate(_TRACK_NAMES)}
+    m["targets"] = tgt
     print(f"[pca-cmp] {name} track QC from {parquet}: {qc.summary()}")
 
 
@@ -192,13 +191,29 @@ def _pvalue_text(p: float) -> str:
     return " (p < 0.001)" if p < 1e-3 else f" (p = {p:.3f})"
 
 
-def _scatter_panel(ax, m: Dict, mkey: str, nm: str, r: Dict, *, n_pc: int,
-                   color: str, ps) -> None:
+def _shared_spans(fits: Dict) -> Dict[str, Tuple[float, float]]:
+    """Axis range per target, shared by every model's panel of that target.
+
+    ``fits`` maps ``(model, target)`` to ``(yobs, ypred)``.  A target is the
+    same quantity in each model's panel, so the panels share one range: the
+    reader compares the two models' clouds by eye, which a per-panel range
+    would distort (each cloud would fill its own panel whatever its spread).
+    """
+    spans: Dict[str, Tuple[float, float]] = {}
+    for (_mkey, nm), (yobs, ypred) in fits.items():
+        lo = float(min(yobs.min(), ypred.min()))
+        hi = float(max(yobs.max(), ypred.max()))
+        if nm in spans:
+            lo, hi = min(lo, spans[nm][0]), max(hi, spans[nm][1])
+        spans[nm] = (lo, hi)
+    return spans
+
+
+def _scatter_panel(ax, yobs: np.ndarray, ypred: np.ndarray, r: Dict, *,
+                   span: Tuple[float, float], color: str, ps) -> None:
     """One predicted-vs-ensemble-member panel (square, 1:1 line, stats box)."""
-    yobs, ypred = _fit_predict(m["pc_scores"], m["targets"][nm], n_pc)
     ax.scatter(ypred, yobs, s=8, alpha=0.35, color=color, edgecolors="none")
-    lo = float(min(yobs.min(), ypred.min()))
-    hi = float(max(yobs.max(), ypred.max()))
+    lo, hi = span
     pad = 0.04 * (hi - lo if hi > lo else 1.0)
     ax.plot([lo, hi], [lo, hi], "k-", lw=0.8, alpha=0.6)
     ax.set_xlim(lo - pad, hi + pad)
@@ -295,6 +310,12 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
     ax0.grid(True, alpha=0.25)
 
     # Scatter grid: predicted vs ensemble member, one panel per (model, target).
+    fits = {(mkey, nm): _fit_predict(m["pc_scores"], m["targets"][nm], n_pc)
+            for mkey, m in models.items() for nm in target_names
+            if nm in m["targets"]}
+    spans = _shared_spans(fits)
+    print("[pca-cmp] scatter range shared across models: " + ", ".join(
+        f"{nm} {lo:.4g} to {hi:.4g}" for nm, (lo, hi) in spans.items()))
     scatter_axes = []
     for ri in range(n_scatter_rows):
         for ci in range(ncol):
@@ -308,7 +329,7 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
                 ax.axis("off")
                 continue
             scatter_axes.append(ax)
-            _scatter_panel(ax, m, mkey, nm, tbl[(mkey, nm)], n_pc=n_pc,
+            _scatter_panel(ax, *fits[(mkey, nm)], tbl[(mkey, nm)], span=spans[nm],
                            color=colors.get(mkey, "#444"), ps=ps)
             mlabel = _model_label(mkey, m)
             if wide:

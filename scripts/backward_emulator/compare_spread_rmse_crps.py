@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(SHARED))
 
 from latlon_metrics import Region, spread_rmse_crps_from_source  # noqa: E402
+from model_labels import CBOTTLE_LABEL, MAKANI_LABEL  # noqa: E402
 from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
 
 import _dispatch_lib as dl  # noqa: E402
@@ -331,7 +332,7 @@ def main(argv=None) -> None:
                    help="ISO-hour prefix the dumps' anchor valid-time must match "
                    "(default: the case's window end, start_time + 66 h; "
                    "'none' disables the check).")
-    p.add_argument("--makani-label", default="Autoregressive (makani)")
+    p.add_argument("--makani-label", default=MAKANI_LABEL)
     p.add_argument("--censor", dest="censor", action="store_true", default=True,
                    help="Apply makani survivor censoring (default on).")
     p.add_argument("--no-censor", dest="censor", action="store_false",
@@ -351,7 +352,7 @@ def main(argv=None) -> None:
                    help="Overlay the cBottle end-mode ensemble (default on).")
     p.add_argument("--no-cbottle", dest="cbottle", action="store_false",
                    help="makani-only; skip the cBottle overlay.")
-    p.add_argument("--cbottle-label", default="Video diffusion (cBottle)")
+    p.add_argument("--cbottle-label", default=CBOTTLE_LABEL)
     p.add_argument("--cbottle-size", type=int, default=None,
                    help="cBottle ensemble size for the zarr path (default: case size).")
     p.add_argument("--batch-size", type=int, default=32,

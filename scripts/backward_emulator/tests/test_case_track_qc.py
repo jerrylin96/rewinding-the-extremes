@@ -85,9 +85,20 @@ def test_alt_path_member_resolves_to_ian_and_excluded_members_are_nan(case, parq
     assert qc.analyzable.tolist() == [True, True, False, True, True, False]
     assert qc.resolved_path_id[1] == 1  # Ian, not path 0
     assert qc.table["exclusion"].tolist()[5] == "no_free_end_fix"
-    tgt = ctq.free_end_target_matrix(qc)
-    np.testing.assert_allclose(tgt[1, :2], IAN_FE, atol=1e-3)  # not the WPac fix
-    assert np.isnan(tgt[[2, 5]]).all()  # no frame-1 fix stands in for member 5
+    tgt = ctq.free_end_regression_targets(qc)
+    np.testing.assert_allclose([tgt["tc_lat"][1], tgt["tc_lon"][1]], IAN_FE, atol=1e-3)  # not the WPac fix
+    for y in tgt.values():
+        assert np.isnan(y[[2, 5]]).all()  # no frame-1 fix stands in for member 5
+
+
+def test_regression_targets_match_the_paper():
+    """The comparison regresses what the paper does: every track_qc target except
+    the descriptive-only distance from ERA5."""
+    from synoptic_pca_track_stats import DESCRIPTIVE_ONLY_TARGETS
+    from track_qc import TARGET_COLUMNS
+
+    regressed = [col for _key, col in ctq.REGRESSION_TARGETS]
+    assert regressed == [c for c in TARGET_COLUMNS if c not in DESCRIPTIVE_ONLY_TARGETS]
 
 
 def test_figure_draws_only_analyzable_storms(case, parquet):
@@ -172,10 +183,7 @@ def _makani_track_npz(path, **over):
                       impact_kind="track",
                       pc_scores=np.random.default_rng(1).standard_normal((5, 10)),
                       explained_variance_ratio=np.linspace(0.4, 0.0, 10),
-                      analyzable=np.array([True, True, False, True, True, True]),
-                      target_track_fe=np.zeros((5, 4)),
-                      target_names=np.array(["tc_lat", "tc_lon", "tc_dist_km",
-                                             "tc_msl_hpa"])), over)
+                      analyzable=np.array([True, True, False, True, True, True])), over)
 
 
 def test_pca_pairing_accepts_one_comparison(tmp_path):
@@ -263,3 +271,59 @@ def test_compare_resolves_targets_from_parquet(case, parquet, tmp_path, capsys):
     assert mk["targets"]["tc_lat"][1] == pytest.approx(IAN_FE[0], abs=1e-3)  # member 1
     assert np.isfinite(mk["targets"]["tc_lat"][2])  # member 3, not the dropped 2
     assert np.isnan(mk["targets"]["tc_lat"][4])  # member 5: no free-end fix
+
+
+def _pattern_npzs(tmp_path):
+    """A makani and a cBottle PCA npz carrying z500 PC1 patterns on Ian's EOF box."""
+    lat = np.arange(15.0, 50.01, 0.5)
+    lon = np.arange(250.0, 310.01, 0.5)
+    eof = np.zeros((10, 1, lat.size * lon.size))
+    eof[0, 0] = np.linspace(-1.0, 1.0, eof.shape[-1])
+    _makani_track_npz(tmp_path / "mk.npz", eof_loadings_domain=eof,
+                      domain_flat=np.arange(eof.shape[-1]), domain_lat=lat,
+                      domain_lon=lon, variables=np.array(["z500"]))
+    clat, clon = np.arange(15.5, 50.0, 1.0), np.arange(-109.5, -50.0, 1.0)
+    comp = np.zeros((10, 1, clat.size, clon.size))
+    comp[0, 0] = 0.5
+    _cbottle_track_npz(tmp_path / "cb.npz", pc_components_latlon=comp, domain_lat=clat,
+                       domain_lon=clon, variables=np.array(["z500"]))
+    return str(tmp_path / "mk.npz"), str(tmp_path / "cb.npz")
+
+
+def test_pattern_panels_show_the_eof_domain_with_the_track_box(case, parquet, tmp_path,
+                                                               monkeypatch):
+    """The PC pattern panels draw regions.synoptic (the domain the PCA ran over),
+    not the track-map view, and outline regions.track on it."""
+    pytest.importorskip("matplotlib")
+    seen = []
+    monkeypatch.setattr(tp, "_draw_pattern",
+                        lambda ax, pat, **kw: seen.append((kw["extent"], kw["box"])))
+    mk, cb = _pattern_npzs(tmp_path)
+    tp.main(["--case", "ian", "--makani-parquet", parquet, "--cbottle-parquet", parquet,
+             "--pca-makani-npz", mk, "--pca-cbottle-npz", cb, "--no-censor",
+             "--color-pcs", "1", "--out-dir", str(tmp_path / "out")])
+    assert len(seen) == 2  # one pattern panel per model
+    for extent, box in seen:
+        assert tuple(extent) == dl.region_box(case, "synoptic")
+        assert tuple(box) == dl.region_box(case, "track")
+
+
+def test_intensity_panel_uses_the_shared_pinned_axis(parquet, tmp_path, monkeypatch, capsys):
+    """The central-pressure panel reads the one storm-intensity key and label that
+    Extremes on Rewind's track figures use (axis_limits.TC_INTENSITY)."""
+    pytest.importorskip("matplotlib")
+    import axis_limits
+
+    analysis, variable, panel = axis_limits.TC_INTENSITY
+    monkeypatch.setattr(axis_limits, "_CACHE",
+                        {analysis: {variable: {panel: {"ylim": [930.0, 1020.0]}}}})
+    pinned = []
+    real = axis_limits.pin_y_to_drawn
+    monkeypatch.setattr(axis_limits, "pin_y_to_drawn",
+                        lambda ax, *a, **kw: (pinned.append(ax), real(ax, *a, **kw)))
+    tp.main(["--case", "ian", "--makani-parquet", parquet, "--cbottle-parquet", parquet,
+             "--no-censor", "--out-dir", str(tmp_path / "out")])
+    assert len(pinned) == 1
+    assert pinned[0].get_ylim() == (930.0, 1020.0)
+    assert pinned[0].get_ylabel() == axis_limits.TC_INTENSITY_LABEL
+    assert "tc_tracks/tc_msl/trajectory: drawn y range" in capsys.readouterr().out

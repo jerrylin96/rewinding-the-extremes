@@ -55,7 +55,7 @@ Usage:
         --fl-lon-min -83.5 --fl-lon-max -80.0 --fl-lat-min 24.5 --fl-lat-max 30.0 \\
         --sc-lon-min -81.5 --sc-lon-max -78.5 --sc-lat-min 32.0 --sc-lat-max 34.5 \\
         --fl-label Florida --sc-label "South Carolina" \\
-        --title "Hurricane Ian — End-Conditioned Landfall Split" \\
+        --title "Hurricane Ian — Final-Conditioned Landfall Split" \\
         --start-time 2022-09-28T00:00:00Z \\
         --timezone America/New_York
 """
@@ -83,7 +83,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parent))
 sys.path.insert(0, str(SCRIPT_DIR.parent.parent / "_shared"))
 
-from _dispatch_lib import wrap_lon_0_360  # noqa: E402
+from _dispatch_lib import MODE_LABELS_TITLE, wrap_lon_0_360  # noqa: E402
+from axis_limits import TC_INTENSITY, TC_INTENSITY_LABEL, pin_y_to_drawn  # noqa: E402
 from local_time_axis import format_local_time_axis  # noqa: E402
 from plot_style import (  # noqa: E402
     AXIS_LABEL_SIZE,
@@ -420,14 +421,16 @@ def _draw_group_trajectory(
                 zorder=7,
             )
 
+    # Same pinned range as the track figures' intensity rows (axis_limits).
+    pin_y_to_drawn(ax, *TC_INTENSITY, log_tag="tc_landfall_split")
     format_local_time_axis(ax, lead_hours, start_time_iso, timezone_name)
     ax.xaxis.label.set_fontsize(AXIS_LABEL_SIZE)
     ax.tick_params(axis="both", labelsize=TICK_LABEL_SIZE)
-    ax.set_ylabel("Storm central MSLP (hPa)", fontsize=AXIS_LABEL_SIZE)
+    ax.set_ylabel(TC_INTENSITY_LABEL, fontsize=AXIS_LABEL_SIZE)
     ax.set_xlim(float(lead_hours[0]), float(lead_hours[-1]))
     ax.grid(True, alpha=0.3)
     ax.set_title(
-        "End Conditioning — Storm central MSLP trajectory",
+        f"{MODE_LABELS_TITLE['end']} — Storm central MSLP trajectory",
         fontsize=TITLE_SIZE,
         fontweight="bold",
     )
@@ -534,7 +537,7 @@ def make_figure(
     # Florida / not-Florida split over the analyzable population (fl + bypass +
     # excluded == total).
     print(
-        f"[landfall_split] of {total} end-conditioned members: "
+        f"[landfall_split] of {total} final-conditioned members: "
         f"{fl_label}={n_fl} ({_pct(n_fl):.1f}%), "
         f"bypass (not {fl_label})={n_bypass} ({_pct(n_bypass):.1f}%), "
         f"excluded={n_excl} ({_pct(n_excl):.1f}%)"
@@ -649,7 +652,7 @@ def main() -> None:
     parser.add_argument("--sc-lat-max", type=float, required=True)
     parser.add_argument("--fl-label", default=GROUP_LABELS_FALLBACK[0])
     parser.add_argument("--sc-label", default=GROUP_LABELS_FALLBACK[1])
-    parser.add_argument("--title", default="End-Conditioned Landfall Split")
+    parser.add_argument("--title", default="Final-Conditioned Landfall Split")
     parser.add_argument(
         "--start-time",
         type=str,

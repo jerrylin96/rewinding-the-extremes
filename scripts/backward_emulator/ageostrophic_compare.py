@@ -59,6 +59,7 @@ import _dispatch_lib as dl  # noqa: E402
 import plot_style  # noqa: E402
 from local_time_axis import format_local_time_axis  # noqa: E402
 from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
+from model_labels import CBOTTLE_LABEL, MAKANI_LABEL  # noqa: E402
 
 _KEYS = ("ratio", "mean_v", "mean_vg", "mean_va")
 _ROW_LABEL = {
@@ -224,8 +225,8 @@ def main(argv=None) -> None:
     p.add_argument("--no-cbottle", dest="cbottle", action="store_false")
     p.add_argument("--cbottle-size", type=int, default=None)
     p.add_argument("--batch-size", type=int, default=16)
-    p.add_argument("--makani-label", default="Autoregressive")
-    p.add_argument("--cbottle-label", default="Video diffusion (cBottle)")
+    p.add_argument("--makani-label", default=MAKANI_LABEL)
+    p.add_argument("--cbottle-label", default=CBOTTLE_LABEL)
     args = p.parse_args(argv)
 
     case = dl.load_case(args.case)

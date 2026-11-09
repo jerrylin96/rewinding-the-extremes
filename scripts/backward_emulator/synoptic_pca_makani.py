@@ -281,12 +281,11 @@ def main(argv=None) -> None:
     else:
         if not args.tc_parquet:
             raise SystemExit("--impact-kind track needs --tc-parquet (the makani tracks).")
-        from case_track_qc import free_end_target_matrix, load_track_qc
+        from case_track_qc import free_end_regression_targets, load_track_qc
         _ens, _era5, qc = load_track_qc(args.tc_parquet, case, n_members=makani.n_members)
         print(f"[syn-pca-mk] track QC: {qc.summary()}")
-        tgt = free_end_target_matrix(qc)[analyzable]  # [Na,4]; track-excluded rows NaN
-        for j, nm in enumerate(("tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa")):
-            reg[nm] = regression_summary(scores, tgt[:, j], n_pc=args.n_pc)
+        for nm, y in free_end_regression_targets(qc).items():  # track-excluded rows NaN
+            reg[nm] = regression_summary(scores, y[analyzable], n_pc=args.n_pc)
 
     for nm, r in reg.items():
         print(f"[syn-pca-mk]   {nm}: R2_insample={r['r2_insample']:.3f} "

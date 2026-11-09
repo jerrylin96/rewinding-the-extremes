@@ -29,6 +29,14 @@ import yaml
 _YAML_PATH = Path(__file__).resolve().parent / "axis_limits.yaml"
 _CACHE: dict | None = None
 
+# The storm-intensity axis (central MSLP vs time) shared by both papers'
+# hurricane figures: aggregate_tc_tracks.py and tc_landfall_split.py
+# (Extremes on Rewind) and backward_emulator/plot_tc_tracks_compare.py
+# (Run it Back).  The limits key and the label are defined once here, so the
+# three scripts cannot pin different ranges or name the axis differently.
+TC_INTENSITY = ("tc_tracks", "tc_msl", "trajectory")
+TC_INTENSITY_LABEL = "Storm central MSLP (hPa)"
+
 
 def _load() -> dict:
     global _CACHE
@@ -105,6 +113,33 @@ def apply_limits(
             _warn_if_outside(
                 x_data, xlim, log_tag, f"{analysis}/{variable}/{panel}", axis="x"
             )
+
+
+def pin_y_to_drawn(
+    ax,
+    analysis: str,
+    variable: str,
+    panel: str,
+    *,
+    log_tag: str = "axis_limits",
+) -> None:
+    """Apply the configured y-limits to a finished panel and log its y range.
+
+    The range is matplotlib's own ``ax.dataLim``, the extent of every data
+    artist on the panel (lines, fills, line collections, scatters; never
+    text), so the clipping warning and the logged range cannot drift from
+    the drawing code.  Call it after the panel's last data artist.
+
+    The range is logged even when no limit is configured: that log line is
+    how the pinned limits in ``axis_limits.yaml`` are derived and re-derived.
+    """
+    lo, hi = (float(v) for v in ax.dataLim.intervaly)
+    key = f"{analysis}/{variable}/{panel}"
+    if np.isfinite(lo) and np.isfinite(hi):
+        print(f"[{log_tag}] {key}: drawn y range {lo:.6g} to {hi:.6g}")
+    else:
+        print(f"[{log_tag}] {key}: nothing drawn")
+    apply_limits(ax, analysis, variable, panel, y_data=(lo, hi), log_tag=log_tag)
 
 
 def _warn_if_outside(

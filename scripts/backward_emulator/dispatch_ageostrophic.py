@@ -32,7 +32,7 @@ LOG_DIR = str(BW_DIR / "compare_logs")
 H_RT = "08:00:00"
 
 CASE_DATA_SUBDIR = {"pnw_heatwave": "2021_pnw_heatwave", "ian": "ian"}
-DEFAULT_CASES = ["pnw_heatwave", "ian"]
+DEFAULT_CASES = ["pnw_heatwave", "ian", "sandy"]
 DEFAULT_DATA_ROOT = "/projectnb/eb-general/jlin404/scratch/backward_emulator_data"
 DEFAULT_MAKANI_ANALYSIS = (
     "/projectnb/eb-general/jlin404/weather_interpolation/makani-aicr/analysis"
@@ -79,7 +79,7 @@ def dispatch(
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--case", action="append", default=None,
-                   help="Case name (repeatable). Default: pnw_heatwave and ian.")
+                   help="Case name (repeatable). Default: pnw_heatwave, ian and sandy.")
     p.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
     p.add_argument("--out-root", default="./out")
     p.add_argument("--makani-analysis-dir", default=DEFAULT_MAKANI_ANALYSIS)

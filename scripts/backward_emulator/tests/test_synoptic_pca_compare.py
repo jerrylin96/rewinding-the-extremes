@@ -101,3 +101,31 @@ def test_dispatch_ian_track_holds_on_tc(tmp_path):
     assert "--impact-kind track" in cmd and "--tc-parquet" in cmd
     assert "tc_tracks_makani_ian_end.parquet" in cmd
     assert "-hold_jid" in rec["cmd"] and "12345" in cmd
+
+
+def test_shared_spans_take_the_union_per_target():
+    fits = {("makani", "t2m"): (np.array([1.0, 4.0]), np.array([2.0, 3.0])),
+            ("cbottle", "t2m"): (np.array([0.0, 2.0]), np.array([-1.0, 1.0])),
+            ("makani", "z"): (np.array([5.0, 6.0]), np.array([5.5, 5.5]))}
+    assert spc._shared_spans(fits) == {"t2m": (-1.0, 4.0), "z": (5.0, 6.0)}
+
+
+def test_both_models_panels_of_a_target_share_one_range(tmp_path, monkeypatch):
+    """The makani fixture's target spans ~3x the cBottle one; a per-panel range
+    would make the two clouds look the same size."""
+    pytest.importorskip("matplotlib")
+    mk = tmp_path / "mk.npz"; cb = tmp_path / "cb.npz"
+    _makani_npz(mk); _cbottle_npz(cb)
+    models = {"makani": spc._read_pca_npz(str(mk)),
+              "cbottle": spc._read_pca_npz(str(cb))}
+    drawn = []
+    real = spc._scatter_panel
+    monkeypatch.setattr(spc, "_scatter_panel",
+                        lambda ax, *a, **kw: (drawn.append(ax), real(ax, *a, **kw)))
+    spc._plot(tmp_path / "out.png", models, spc._r2_table(models, n_pc=8),
+              case="Test", n_pc=8)
+    assert len(drawn) == 2
+    assert drawn[0].get_xlim() == drawn[1].get_xlim() == drawn[0].get_ylim()
+    y_all = np.concatenate([m["targets"]["t2m"] for m in models.values()])
+    lo, hi = drawn[0].get_xlim()
+    assert lo < y_all.min() and hi > y_all.max()
