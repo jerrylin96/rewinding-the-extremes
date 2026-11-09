@@ -88,7 +88,7 @@ from plot_style import (  # noqa: E402
     nice_speed,
     quiver_step,
 )
-from var_metadata import var_label  # noqa: E402
+from var_metadata import to_display_units, var_label  # noqa: E402
 
 import torch  # noqa: E402
 
@@ -227,13 +227,17 @@ def parse_args():
         "--vmin",
         type=float,
         default=None,
-        help="Colorbar minimum (default: auto from data)",
+        help="Colorbar minimum in storage units, like cases/_palettes.yaml "
+        "(Pa for msl, m^2/s^2 for geopotential); converted with the field "
+        "(default: auto from data)",
     )
     parser.add_argument(
         "--vmax",
         type=float,
         default=None,
-        help="Colorbar maximum (default: auto from data)",
+        help="Colorbar maximum in storage units, like cases/_palettes.yaml "
+        "(Pa for msl, m^2/s^2 for geopotential); converted with the field "
+        "(default: auto from data)",
     )
     parser.add_argument(
         "--coastline-color",
@@ -506,6 +510,22 @@ def load_field(root, var, member, n_frames, is_era5, hpx_level):
     return _regrid_member_field(arr_hpx, root, hpx_level)
 
 
+def load_display_field(root, var, member, n_frames, is_era5, hpx_level):
+    """``load_field`` in the units ``get_display_label`` names.
+
+    Storage keeps geopotential in m^2/s^2, while ``var_label`` names it as
+    geopotential height in m, so the field is converted at plot time as every
+    other figure script does.  Other variables pass through unchanged.
+    """
+    arr, lat, lon = load_field(root, var, member, n_frames, is_era5, hpx_level)
+    return to_display_units(var, arr), lat, lon
+
+
+def display_limit(var, value):
+    """A --vmin/--vmax or palette limit (storage units) in display units."""
+    return None if value is None else float(to_display_units(var, float(value)))
+
+
 def get_display_label(var):
     """Return a human-readable label for a variable.
 
@@ -543,7 +563,7 @@ def animate_member(ens_root, era5_root, var, member, args):
 
     # Load all frames at once — both end up on the same lat/lon grid: ERA5
     # round-tripped through HPX, ensemble regridded HPX -> lat/lon.
-    ens_all, ens_lat, ens_lon = load_field(
+    ens_all, ens_lat, ens_lon = load_display_field(
         ens_root,
         var,
         member,
@@ -551,7 +571,7 @@ def animate_member(ens_root, era5_root, var, member, args):
         is_era5=False,
         hpx_level=hpx_level,
     )
-    era5_all, era5_lat, era5_lon = load_field(
+    era5_all, era5_lat, era5_lon = load_display_field(
         era5_root,
         var,
         member,
@@ -571,8 +591,8 @@ def animate_member(ens_root, era5_root, var, member, args):
     era5_all = era5_all[:, :, era5_sort]
 
     # Color range
-    vmin = args.vmin
-    vmax = args.vmax
+    vmin = display_limit(var, args.vmin)
+    vmax = display_limit(var, args.vmax)
     if vmin is None:
         vmin = min(float(np.nanmin(era5_all)), float(np.nanmin(ens_all)))
     if vmax is None:
@@ -904,14 +924,16 @@ def plot_member_grid(ens_root, era5_root, var, member, args):
     n_frames = ens_root["data"].shape[2]
 
     display_label = get_display_label(var)
-    ens_all, lat, lon = load_field(
+    ens_all, lat, lon = load_display_field(
         ens_root, var, member, n_frames, is_era5=False, hpx_level=hpx_level
     )
 
     (ens_all,), plot_lon = _sort_by_plot_lon([ens_all], lon)
 
-    vmin = args.vmin if args.vmin is not None else float(np.nanmin(ens_all))
-    vmax = args.vmax if args.vmax is not None else float(np.nanmax(ens_all))
+    vmin = display_limit(var, args.vmin)
+    vmax = display_limit(var, args.vmax)
+    vmin = vmin if vmin is not None else float(np.nanmin(ens_all))
+    vmax = vmax if vmax is not None else float(np.nanmax(ens_all))
 
     wind = _prepare_wind_overlay(
         ens_root,
