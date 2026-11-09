@@ -218,7 +218,7 @@ Training employs a masked-conditional video diffusion (MCVD) framework \citep{vo
 \qquad \epsilon \sim \mathcal{N}(0, \sigma^2 \mathbf{I}),
 \end{aligned}
 \end{equation}
-where $\mathbf{c}_m$ denotes the temporal-mask and auxiliary conditioning associated with mask $m$; the expression suppresses valid-channel masking and reductions. The referenced public training caller uses $\sigma_{\text{data}} = 1.0$, and its video recipe samples $\sigma$ log-uniformly over $[0.02, 1000]$. Samples are drawn across 18 discretization steps by integrating the reverse-time probability-flow ODE:
+where $\mathbf{c}_m$ denotes the temporal-mask and auxiliary conditioning associated with mask $m$; the expression suppresses valid-channel masking and reductions. The referenced public training caller uses $\sigma_{\text{data}} = 1.0$, and its video recipe samples $\sigma$ log-uniformly over $[0.02, 1000]$. We evaluate a single public cBottle-video denoiser at all sampling noise levels; no noise-dependent expert switching is used. Samples are drawn across 18 discretization steps by integrating the reverse-time probability-flow ODE:
 \begin{equation}
 \label{eq:cbottle_sampling_step}
 \frac{d\mathbf{x}}{d\sigma} = \frac{\mathbf{x} - \mathcal{D}_\theta(\mathbf{x}, \sigma)}{\sigma}
