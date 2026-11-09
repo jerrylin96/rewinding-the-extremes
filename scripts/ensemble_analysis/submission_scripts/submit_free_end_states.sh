@@ -37,6 +37,8 @@ exec > "${LOG_DIR}/job_${JOB_ID:-local-$$}.log" 2>&1
 # 1b. Environment setup
 # ---------------------------------------------------------------------
 
+# Unbuffered, so a job killed at its time or memory limit keeps its whole log.
+export PYTHONUNBUFFERED=1
 module load miniconda/25.3.1
 module load gcc/12.2.0
 conda activate e2s-custom

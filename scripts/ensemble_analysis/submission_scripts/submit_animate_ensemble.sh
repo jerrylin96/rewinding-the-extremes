@@ -20,6 +20,8 @@ LOG_DIR="${SCRIPT_DIR}/tc_tracks_logs"
 mkdir -p "$LOG_DIR"
 exec > "${LOG_DIR}/animate_${JOB_ID:-local-$$}.log" 2>&1
 
+# Unbuffered, so a job killed at its time or memory limit keeps its whole log.
+export PYTHONUNBUFFERED=1
 module load miniconda/25.3.1
 module load gcc/12.2.0
 # animate_latlon() saves via matplotlib's FFMpegWriter, which shells out to

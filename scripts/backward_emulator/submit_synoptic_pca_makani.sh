@@ -40,6 +40,8 @@ LOG_DIR="${SCRIPT_DIR}/compare_logs"
 mkdir -p "$LOG_DIR"
 exec > "${LOG_DIR}/synpca_${JOB_ID:-local-$$}.log" 2>&1
 
+# Unbuffered, so a job killed at its time or memory limit keeps its whole log.
+export PYTHONUNBUFFERED=1
 module load miniconda/25.3.1
 module load gcc/12.2.0
 conda activate e2s-custom || { echo "ERROR: cannot activate e2s-custom"; exit 1; }

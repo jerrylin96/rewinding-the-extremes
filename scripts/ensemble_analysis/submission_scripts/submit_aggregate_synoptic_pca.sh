@@ -18,6 +18,8 @@ LOG_DIR="${SCRIPT_DIR}/synoptic_pca_logs"
 mkdir -p "$LOG_DIR"
 exec > "${LOG_DIR}/aggregate_${JOB_ID:-local-$$}.log" 2>&1
 
+# Unbuffered, so a job killed at its time or memory limit keeps its whole log.
+export PYTHONUNBUFFERED=1
 module load miniconda/25.3.1
 module load gcc/12.2.0
 # ffmpeg provides the writer for the per-EOF MSL videos (render_member_videos).

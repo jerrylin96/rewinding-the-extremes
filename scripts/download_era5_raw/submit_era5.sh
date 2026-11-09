@@ -42,6 +42,8 @@ export MKL_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
 # 2. Environment Setup
+# Unbuffered, so a job killed at its time or memory limit keeps its whole log.
+export PYTHONUNBUFFERED=1
 module load miniconda/25.3.1
 module load gcc/12.2.0
 module load cuda/12.8
