@@ -200,3 +200,5 @@ def test_reversed_endpoint_grid_shows_source_and_slot_dates(pem, monkeypatch, tm
     assert "ERA5 2012-10-27 06:00 UTC" in axes[11].get_title()
     assert "Slot: 2012-11-01 18:00 UTC" in axes[11].get_title()
     assert axes[1].get_title() == "F1 — free\n2012-10-30 06:00 UTC"
+    # The suptitle names the case only; the member index is in the filename.
+    assert fig._suptitle.get_text() == case["display_name"]

@@ -1066,11 +1066,12 @@ def plot_member_grid(ens_root, era5_root, var, member, args):
     cbar.ax.xaxis.label.set_fontsize(COLORBAR_LABEL_SIZE_DENSE)
     cbar.ax.tick_params(labelsize=COLORBAR_TICK_SIZE_DENSE)
 
-    title = getattr(args, "grid_title", None) or display_label
+    # The member index stays in the filename only: the grid is a figure of
+    # one example, and the index carries no meaning for its reader.
+    suptitle = getattr(args, "grid_title", None) or display_label
     # Which wind the arrows are belongs in the figure, not only in the
     # filename: a reader looking at the panel alone must be able to say what
     # the arrows show, and a reviewer must be able to check it.
-    suptitle = f"{title}  —  member {member}"
     if wind is not None:
         suptitle += f"\narrows: {wind['label']}"
     fig.suptitle(suptitle, fontsize=SUPTITLE_SIZE_DENSE)
