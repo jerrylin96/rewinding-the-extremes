@@ -42,11 +42,11 @@
 \item Text S3
 \item Text S4
 \item Text S5
-\item Figures S1 to S15
+\item Figures S1 to S17
 \end{enumerate}
 
 \noindent\textbf{Introduction}
-This supporting information document provides supporting text (Texts S1 to S5) and auxiliary figures (Figures S1 to S15) accompanying the manuscript ``Extremes on Rewind: Generating 1,000-Member Ensembles Initialized at a Final Condition''. Text S1 details the diffusion sampler, sea surface temperature conditioning, and member seeding. Text S2 defines empirical orthogonal function (EOF) and principal component (PC) conventions, SVD formulation, regressions, and cross-validation. Text S3 documents TempestExtremes storm tracking, candidate filtering, and ensemble quality control. Text S4 defines free-end $z_{500}$ ensemble spread across conditioning modes. Text S5 defines the 500~hPa ageostrophic wind diagnostic and its regridding control. Figure S1 presents Hurricane Ian tracks and central-pressure trajectories across all three conditioning modes. Figures S2 to S5 show free-end track and intensity regressions on leading $z_{500}$ principal components for Superstorm Sandy (S2, S3) and Hurricane Ian (S4, S5). Figures S6 to S11 report lead-time verification metrics (spread, signed mean error, RMSE, CRPS) against ERA5 for $z_{500}$ and surface impact variables across all cases. Figure S12 presents the conditioning stress test across dynamically disconnected endpoints. Figures S13 to S15 report 500~hPa ageostrophic diagnostics for the 2021 Pacific Northwest heatwave (S13), Superstorm Sandy (S14), and Hurricane Ian (S15).
+This supporting information document provides supporting text (Texts S1 to S5) and auxiliary figures (Figures S1 to S17) accompanying the manuscript ``Extremes on Rewind: Generating 1,000-Member Ensembles Initialized at a Final Condition''. Text S1 details the diffusion sampler, sea surface temperature conditioning, and member seeding. Text S2 defines empirical orthogonal function (EOF) and principal component (PC) conventions, SVD formulation, regressions, and cross-validation. Text S3 documents TempestExtremes storm tracking, candidate filtering, and ensemble quality control. Text S4 defines free-end $z_{500}$ ensemble spread across conditioning modes. Text S5 defines the 500~hPa ageostrophic wind diagnostic and its regridding control. Figure S1 presents Hurricane Ian tracks and central-pressure trajectories across all three conditioning modes. Figures S2 to S5 show free-end track and intensity regressions on leading $z_{500}$ principal components for Superstorm Sandy (S2, S3) and Hurricane Ian (S4, S5). Figures S6 to S11 report lead-time verification metrics (spread, signed mean error, RMSE, CRPS) against ERA5 for $z_{500}$ and surface impact variables across all cases. Figures S12 to S14 present conditioning stress tests using endpoint states that do not form a chronological 66-hour sequence. Figures S15 to S17 report 500~hPa ageostrophic diagnostics for the 2021 Pacific Northwest heatwave (S15), Superstorm Sandy (S16), and Hurricane Ian (S17).
 
 \noindent\textbf{Text S1. Sampling configuration and member seeding}
 
@@ -124,7 +124,7 @@ The main text reports the free-end spread ratio between final- and start-conditi
 
 \noindent\textbf{Text S5. The 500~hPa ageostrophic fraction}
 
-Figures S13 to S15 evaluate how much of the generated 500~hPa flow deviates from geostrophic balance. This diagnostic is computed directly on the generated fields without requiring observed outcomes; ERA5 serves as an observational reference.
+Figures S15 to S17 evaluate how much of the generated 500~hPa flow deviates from geostrophic balance. This diagnostic is computed directly on the generated fields without requiring observed outcomes; ERA5 serves as an observational reference.
 
 Geostrophic wind components are computed from the 500~hPa geopotential $\Phi$ (in m$^{2}$~s$^{-2}$):
 \begin{equation}
@@ -251,12 +251,26 @@ Three reference curves are shown in each panel. Because model fields are generat
 % the panel headers make the year jump between F10 and F11 visible to any reader.
 \begin{figure}
 \centering
-\includegraphics[width=\textwidth]{conditioning_stress_test.png}
-\caption{Conditioning stress test: a both-end conditioned member generated from a pair of ERA5 analyses that no 66-hour trajectory connects. \textbf{All twelve panels are model output}; the red borders on F0 and F11 mark the two frames that were pinned and name the ERA5 state each was pinned to, rather than indicating panels taken from ERA5. Frame 0 is pinned to Cyclone Agni at 27 November 2004, 12:00 UTC ($0.5^{\circ}$~N, $70.5^{\circ}$~E), an equatorial tropical low, and frame 11 to Tropical Storm Abaimba at 2 October 2003, 12:00 UTC ($5.8^{\circ}$~S, $67.0^{\circ}$~E), located $\sim$790~km across the equator in the Southern Hemisphere. Shading shows MSLP on a common scale, arrows denote 500~hPa wind, and the regional domain is fixed at $58^{\circ}$--$78^{\circ}$~E, $10^{\circ}$~S--$5^{\circ}$~N. The model satisfies both terminal constraints: the Northern Hemisphere low decays over F1--F4, no organized vortex exists at F5--F6, and a Southern Hemisphere vortex emerges at F7 and intensifies into the terminal constraint. This experiment evaluates conditioning admissibility rather than forecast skill. Deliberate contrivances visible in panel headers include: endpoints drawn from different years, AMIP sea surface temperature clocked to the interval start time (supplying late-November-2004 SSTs to frame 11 rather than October-2003 values), and timestamps advancing 6-hourly from start time (frame 11 slot is 27 November 2004, 6:00 UTC while the pinned field is 2 October 2003, 12:00 UTC). Main-text Figure~3c presents the corresponding both-end result for dynamically adjacent endpoints.}
-\label{fig:conditioning_stress_test}
+\includegraphics[width=\textwidth]{conditioning_stress_test_equator.png}
+\caption{This figure demonstrates a start-and-final conditioning stress test in which the start and final conditioning frames (marked with red outlines) show tropical cyclones that are positioned on opposite sides of the equator. Since cBottle-video does not reproduce conditioned frames exactly, all 12 frames are generated output. Frame 0 shows Cyclone Agni (located on $0.5^{\circ}$~N, $70.5^{\circ}$~E) and is pinned to the state of the global atmosphere on 27 November 2004, 12:00 UTC. Frame 11 shows Tropical Storm Abaimba (located on $5.8^{\circ}$~S, $67.0^{\circ}$~E) and is pinned to the state of the global atmosphere on 2 October 2003, 12:00 UTC. The calendar embedding aligns with a 66-hour sequence beginning at the timestamp used for the first frame (i.e. 27 November 2004, 12:00 UTC). This experiment evaluates conditioning admissibility rather than forecast skill.}
+\label{fig:conditioning_stress_test_equator}
 \end{figure}
 
-% Figures S13-S15 are the ageostrophic-fraction diagnostic, one float per case,
+\begin{figure}
+\centering
+\includegraphics[width=\textwidth]{conditioning_stress_test_reverse_sandy.png}
+\caption{This figure demonstrates a start-and-final conditioning stress test in which the start and final conditioning frames (marked with red outlines) are the swapped endpoints used for start-and-final conditioning in Figure 3c. In other words, the 66-hour trajectory begins at Sandy's landfall (30 October 2012, 00:00 UTC) and ends in Sandy 66 hours prior to landfall (27 October 2012, 6:00 UTC). The calendar embedding aligns with a 66-hour sequence beginning at the timestamp used for the first frame (i.e. Sandy's landfall). Since cBottle-video does not reproduce conditioned frames exactly, all 12 frames are generated output. This experiment evaluates conditioning admissibility rather than forecast skill.}
+\label{fig:conditioning_stress_test_reverse_sandy}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=\textwidth]{conditioning_stress_test_texas.png}
+\caption{This figure demonstrates a start-and-final conditioning stress test in which the start and final conditioning frames (marked with red outlines) show the continental United States on 28 August 2011, 18:00 UTC and 15 February 2021, 12:00 UTC, respectively. This is intended to see if the model can interpolate between an extreme summer heatwave and an extreme winter storm in a 66-hour window. The calendar embedding aligns with a 66-hour sequence beginning at the timestep used for the first frame (i.e. 28 August 2011, 18:00 UTC). Since cBottle-video does not reproduce conditioned frames exactly, all 12 frames are generated output. This experiment evaluates conditioning admissibility rather than forecast skill.}
+\label{fig:conditioning_stress_test_texas}
+\end{figure}
+
+% Figures S15-S17 are the ageostrophic-fraction diagnostic, one float per case,
 % cited from D4. Each PNG is already a complete twelve-panel figure, so as with
 % S6-S11 they are not composed further: merging cases into one float would
 % duplicate the (a)-(l) panel letters. h/w = 0.78, matching ian_tc_tracks.png,
@@ -271,20 +285,20 @@ Three reference curves are shown in each panel. Because model fields are generat
 \begin{figure}
 \centering
 \includegraphics[width=0.82\textwidth]{ageostrophic_pnw_heatwave.png}
-\caption{Ageostrophic diagnostics at 500~hPa for the 2021 Pacific Northwest heatwave ensembles across all three conditioning modes ($N = 1000$ each), as defined in Text~S5. Rows display the ageostrophic fraction $\langle |\mathbf{V}_{a}| \rangle / \langle |\mathbf{V}| \rangle$ (a--c) and $\cos\phi$-weighted mean speeds $\langle |\mathbf{V}| \rangle$ (d--f), $\langle |\mathbf{V}_{g}| \rangle$ (g--i), and $\langle |\mathbf{V}_{a}| \rangle$ (j--l); columns show final-, start-, and start-and-final conditioning. Individual ensemble members are shown in thin blue, ensemble means in bold blue, ERA5 in dashed black, and ERA5 passed through the HEALPix round-trip interpolation in dotted green. The green line, not the black, is the reference matching the ensemble's interpolation history (Text~S5); it lies below the black line, so regridding reduces the ageostrophic fraction rather than raising it. Gray dashed vertical lines mark each mode's pinned frames. Common axis ranges allow direct visual comparison across Figures~S13--S15. Mean speeds represent averages of vector magnitudes and are not additive across rows. What is measured is the ageostrophic fraction at one level, over one band, against one balance relation; it is not a general statement about balance in the generated fields.}
+\caption{Ageostrophic diagnostics at 500~hPa for the 2021 Pacific Northwest heatwave ensembles across all three conditioning modes ($N = 1000$ each), as defined in Text~S5. Rows display the ageostrophic fraction $\langle |\mathbf{V}_{a}| \rangle / \langle |\mathbf{V}| \rangle$ (a--c) and $\cos\phi$-weighted mean speeds $\langle |\mathbf{V}| \rangle$ (d--f), $\langle |\mathbf{V}_{g}| \rangle$ (g--i), and $\langle |\mathbf{V}_{a}| \rangle$ (j--l); columns show final-, start-, and start-and-final conditioning. Individual ensemble members are shown in thin blue, ensemble means in bold blue, ERA5 in dashed black, and ERA5 passed through the HEALPix round-trip interpolation in dotted green. The green line, not the black, is the reference matching the ensemble's interpolation history (Text~S5); it lies below the black line, so regridding reduces the ageostrophic fraction rather than raising it. Gray dashed vertical lines mark each mode's pinned frames. Common axis ranges allow direct visual comparison across Figures~S15--S17. Mean speeds represent averages of vector magnitudes and are not additive across rows. What is measured is the ageostrophic fraction at one level, over one band, against one balance relation; it is not a general statement about balance in the generated fields.}
 \label{fig:ageostrophic_pnw_heatwave}
 \end{figure}
 
 \begin{figure}
 \centering
 \includegraphics[width=0.82\textwidth]{ageostrophic_sandy.png}
-\caption{As in Figure~S13, but for the Superstorm Sandy ensembles.}
+\caption{As in Figure~S15, but for the Superstorm Sandy ensembles.}
 \label{fig:ageostrophic_sandy}
 \end{figure}
 
 \begin{figure}
 \centering
 \includegraphics[width=0.82\textwidth]{ageostrophic_ian.png}
-\caption{As in Figure~S13, but for the Hurricane Ian ensembles. The $30^{\circ}$--$60^{\circ}$~$|\phi|$ band excludes Ian's Florida-landfall latitudes by construction to preserve consistent cross-member spatial sampling, as detailed in Text~S5.}
+\caption{As in Figure~S15, but for the Hurricane Ian ensembles. The $30^{\circ}$--$60^{\circ}$~$|\phi|$ band excludes Ian's Florida-landfall latitudes by construction to preserve consistent cross-member spatial sampling, as detailed in Text~S5.}
 \label{fig:ageostrophic_ian}
 \end{figure}
