@@ -305,7 +305,7 @@ Such final-conditioned trajectories occupy a space unreachable via conventional 
 
 \section*{Data and Code Availability}
 
-All code used in this study is archived on Zenodo \cite{lin_2026_22000716} and developed openly at \url{https://github.com/jerrylin96/rewinding-the-extremes}. ERA5 reanalysis data \cite{Hersbach2020-oh} used for conditioning and verification was downloaded through WeatherBench 2 \cite{rasp2023weatherbench} using the Earth2Studio software repository \cite{Earth2Studio_Contributors_NVIDIA_Earth2Studio_2024}. Earth2Studio was also used to load the cBottle-video checkpoint from \citeA{Brenowitz2025-mz} and run inference with it. The checkpoint is publicly available at \url{https://huggingface.co/nvidia/cbottle/blob/main/cBottle-video.zip}.
+All code used in this study is archived on Zenodo \cite{lin_2026_22000716} and developed openly at \url{https://github.com/jerrylin96/rewinding-the-extremes}. ERA5 reanalysis data \cite{Hersbach2020-oh} used for conditioning and verification was downloaded through WeatherBench 2 \cite{rasp2023weatherbench} using the Earth2Studio software repository \cite{Earth2Studio_Contributors_NVIDIA_Earth2Studio_2024}. Earth2Studio was also used to load the cBottle-video checkpoint from \citeA{Brenowitz2025-mz} and run inference with it. The checkpoint is publicly available at \url{https://huggingface.co/nvidia/cbottle/blob/main/cBottle-video.zip}. Earth2Studio's inference calls the sampler implemented in the cBottle package (\url{https://github.com/NVlabs/cBottle}). Regridding between the $0.25^{\circ}$ latitude--longitude grid and HPX64, in both directions, used earth2grid (\url{https://github.com/NVlabs/earth2grid}).
 
 \section*{Author Contributions}
 
