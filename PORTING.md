@@ -21,6 +21,7 @@ below. After any port, run the verification checklist in section 6.
 | `earth2studio/models/dx/tc_tracking.py` | main's file **plus** additive custom code: `TCTrackerMinMSL`, `VARIABLES_TEMPEST_*` constants, and underscore output names (`tc_lat/tc_lon/tc_msl/tc_w10m` vs main's `tclat/tclon/tcmsl/tcw10m`) |
 | `earth2studio/models/px/cbottle_interpolate.py` | Custom module, does not exist on main |
 | `earth2studio/models/dx/cbottle_infill.py` | main's file **plus** additive `lat_lon_out` flag (default `True` preserves upstream behavior; candidate to upstream) |
+| `earth2studio/models/px/cbottle_video.py` | main's file **plus** a docstring-only fix: `load_model`'s `sigma_max` is documented as "by default 1000" to match its signature (main says 200, the single-frame cBottle value; candidate to upstream) |
 | `earth2studio/models/dx/__init__.py`, `earth2studio/models/px/__init__.py` | main's file **plus** exports for the custom models above |
 | `earth2studio/lexicon/base.py` | main's file **plus** four additive `E2STUDIO_VOCAB` entries describing the `tc_lat/...` tracker outputs |
 

@@ -71,7 +71,7 @@ class CBottleInterpolate(CBottleVideo):
     sampler_steps : int, optional
         Number of diffusion steps, by default 18
     sigma_max : float, optional
-        Noise amplitude for latent variables, by default 200
+        Noise amplitude for latent variables, by default 1000
     seed : int, optional
         Random seed for latent variables, by default None
     conditioning_frames : list[int] | None, optional
@@ -395,7 +395,7 @@ class CBottleInterpolate(CBottleVideo):
         sampler_steps : int, optional
             Number of diffusion steps, by default 18
         sigma_max : float, optional
-            Noise amplitude used to generate latent variables, by default 200
+            Noise amplitude used to generate latent variables, by default 1000
         seed : int, optional
             Random generator seed for latent variables. If None, no seed will be used,
             by default None
