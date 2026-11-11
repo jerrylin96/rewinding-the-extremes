@@ -50,11 +50,11 @@ This supporting information document provides supporting text (Texts S1 to S5) a
 
 \noindent\textbf{Text S1. Sampling configuration and member seeding}
 
-Samples are drawn using eighteen sampler steps with a second-order Heun time stepper over the training noise schedule ($\sigma_{\min} = 0.02$ to $\sigma_{\max} = 1000.0$). Bidirectional regridding between ERA5's $0.25^{\circ}$ latitude--longitude grid and native HPX64 pixels uses \texttt{earth2grid} (interpolating onto HPX64 for conditioning frames and back to latitude--longitude for grid diagnostics).
+Samples are drawn by integrating Equation 2 of the main text from $\sigma = 1000$ to $\sigma = 0$. The denoiser is evaluated only at eighteen noise levels spaced by the $\rho = 7$ schedule of Karras et al. (2022) between $\sigma_{\max} = 1000.0$ and $\sigma_{\min} = 0.02$, matching the training noise range (Brenowitz et al., 2025, Section A.8.2). Each step between these levels uses a second-order Heun update, and the final step from $\sigma_{\min}$ to $\sigma = 0$ is a single Euler step that returns the denoiser's estimate $\mathcal{D}_\theta(\mathbf{x}; \sigma_{\min}, \mathbf{c})$. $S_{\text{churn}} = 0$ throughout.
 
 Sea surface temperature conditioning uses the AMIP mid-month SST boundary-condition dataset distributed with the checkpoint, with bracketing monthly values linearly interpolated in time to each frame's valid time. The ocean state is prescribed rather than coupled, varying only linearly between successive monthly anchors without sub-monthly anomalies and remaining identical across all members of a case.
 
-Within each conditioning mode, all 1000 members share identical boundary conditioning and differ only in their latent noise realization. Micro-batch generation offsets seeds from a per-case base seed of zero so that every member is an independent draw. The base seed is shared across conditioning modes so that member $k$ starts from the same initial latent draw across start-, final-, and start-and-final conditioned ensembles; all reported evaluations treat each ensemble independently.
+Within each conditioning mode, all 1000 members share identical boundary conditioning and differ only in their latent noise realization. Members are generated one at a time with different seeds corresponding to their member number. In other words, member $k$ is seeded with $0 + k$. The base seed is shared across conditioning modes so that member $k$ starts from the same initial latent draw across start-, final-, and start-and-final conditioned ensembles. All reported evaluations treat each ensemble independently.
 
 \noindent\textbf{Text S2. EOF modes, regression, and cross-validation}
 
