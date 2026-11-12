@@ -68,6 +68,29 @@ DEFAULT_MAKANI_ANALYSIS = (
     "/projectnb/eb-general/jlin404/weather_interpolation/makani-aicr/analysis"
 )
 
+def submit_survival_root(case_name: str, makani_dir: str, surv_npz: str,
+                         makani_analysis_dir: str, dry_run: bool):
+    """Submit one case's survivor-mask job; return ``(jid to hold on, qsub command)``.
+
+    Every diagnostic that censors makani holds on this job, so the ~50 GB t2m scan
+    runs once per case.  A dry run returns a placeholder so the holds show in the
+    preview.  A failed real submit stops the dispatch here: holding on a job that
+    does not exist would leave the dependents queued forever, and submitting them
+    without the hold would let each recompute the mask and race to write it.
+    """
+    cmd = build_qsub_cmd(
+        script=SURV_SCRIPT, job_name=f"Surv_{case_name}", h_rt=SURV_H_RT,
+        script_args=["--makani-dir", makani_dir, "--case", case_name,
+                     "--out", surv_npz, "--makani-analysis-dir", makani_analysis_dir])
+    jid = submit_qsub(cmd, dry_run=dry_run, cwd=str(BW_DIR), log_dir=LOG_DIR)
+    if dry_run:
+        return f"<Surv_{case_name}>", cmd
+    if jid is None:
+        raise SystemExit(f"ERROR: the survivor-mask job for {case_name} was not "
+                         "submitted; nothing that depends on it was queued.")
+    return jid, cmd
+
+
 # A resolved per-variable domain: (region name or None for global, mask kind).
 Domain = Tuple[Optional[str], str]
 
@@ -176,14 +199,8 @@ def dispatch(
     if survival_hold_jid is not None:
         root_jid = str(survival_hold_jid)  # hold on the externally-submitted root
     else:
-        surv_cmd = build_qsub_cmd(
-            script=SURV_SCRIPT, job_name=f"Surv_{case_name}", h_rt=SURV_H_RT,
-            script_args=["--makani-dir", makani_dir, "--case", case_name,
-                         "--out", surv_npz, "--makani-analysis-dir", makani_analysis_dir])
-        root_jid = submit_qsub(surv_cmd, dry_run=dry_run, cwd=str(BW_DIR),
-                               log_dir=LOG_DIR)
-        if dry_run:
-            root_jid = f"<Surv_{case_name}>"  # placeholder so holds show in preview
+        root_jid, surv_cmd = submit_survival_root(
+            case_name, makani_dir, surv_npz, makani_analysis_dir, dry_run)
         records.append({"role": "survival", "case": case_name, "variable": None,
                         "region": None, "mask": None, "jid": root_jid, "cmd": surv_cmd})
 
