@@ -1,17 +1,17 @@
 """Dispatch the ageostrophic comparison job for one or more cases.
 
-One job per case (the diagnostic is a single global-band scalar at 500 hPa, not
-per-variable), running ``ageostrophic_compare.py`` (makani native vs cBottle
-regridded).  Each job loads the shared survivor-mask cache ``survival_<case>.npz``
--- the same file the spread/RMSE dispatcher writes -- so makani's ensemble summary
-is censored consistently; if that cache does not exist yet, the job computes it
-once and writes it (and the spread jobs would then reuse it).  Ordering between the
-two dispatchers therefore does not matter.
+Per case: the survivor-mask job (``survival_<case>.npz``, the same file the
+spread/RMSE jobs use) and one ``ageostrophic_compare.py`` job held on it (makani
+native vs cBottle regridded; the diagnostic is one global-band scalar at 500 hPa,
+not per-variable).  ``dispatch_all.py`` submits the survivor job itself and passes
+it in, so the scan still runs once per case.  The figure is drawn afterwards, on
+the login node, by ``plot_ageostrophic_compare.py``.
 
 Usage (from this directory):
     python dispatch_ageostrophic.py --dry-run
     python dispatch_ageostrophic.py --case ian
     python dispatch_ageostrophic.py --no-cbottle          # makani-only
+    python plot_ageostrophic_compare.py --case ian --case pnw_heatwave --case sandy
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ SHARED = BW_DIR.parent / "_shared"
 sys.path.insert(0, str(SHARED))
 
 from _dispatch_lib import build_qsub_cmd, load_case, submit_qsub  # noqa: E402
+from dispatch_compare import submit_survival_root  # noqa: E402
 
 SCRIPT = str(BW_DIR / "submit_ageostrophic_compare.sh")
 LOG_DIR = str(BW_DIR / "compare_logs")
@@ -50,10 +51,10 @@ def dispatch(
     survival_hold_jid: Optional[str] = None,
     dry_run: bool = False,
 ) -> Dict[str, Any]:
-    """Submit the ageostrophic comparison job for one case.
+    """Submit the survivor-mask job and the ageostrophic job held on it, for one case.
 
-    ``survival_hold_jid``: hold on an externally-submitted survivor root (shared with
-    spread/PCA by ``dispatch_all.py``) so the ~50 GB survivor scan runs once per case.
+    ``survival_hold_jid``: hold on an externally-submitted survivor root instead
+    (``dispatch_all.py`` shares one with spread/PCA) and submit none here.
     """
     load_case(case_name)  # validate the case exists
     subdir = CASE_DATA_SUBDIR.get(case_name, case_name)
@@ -61,6 +62,9 @@ def dispatch(
     case_out = f"{out_root}/{case_name}"
     surv_npz = f"{case_out}/survival_{case_name}.npz"
 
+    if survival_hold_jid is None:
+        survival_hold_jid, _ = submit_survival_root(
+            case_name, makani_dir, surv_npz, makani_analysis_dir, dry_run)
     args = ["--makani-dir", makani_dir, "--case", case_name,
             "--out-dir", f"{case_out}/ageostrophic", "--level", str(level),
             "--survival-npz", surv_npz,
@@ -69,11 +73,12 @@ def dispatch(
         args += ["--no-cbottle"]
     cmd = build_qsub_cmd(script=SCRIPT, job_name=f"Ageo_{case_name}",
                          h_rt=H_RT, script_args=args,
-                         hold_jids=[survival_hold_jid] if survival_hold_jid else ())
+                         hold_jids=[survival_hold_jid])
     jid = submit_qsub(cmd, dry_run=dry_run, cwd=str(BW_DIR), log_dir=LOG_DIR)
     print(f"[dispatch-ageo] {case_name}: ageostrophic job "
           f"{'(makani-only)' if not cbottle else '(makani+cBottle)'}")
-    return {"case": case_name, "jid": jid, "cmd": cmd}
+    return {"case": case_name, "jid": jid, "cmd": cmd,
+            "survival_jid": survival_hold_jid}
 
 
 def main(argv=None) -> None:

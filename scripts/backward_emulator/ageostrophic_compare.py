@@ -1,12 +1,12 @@
 """Ageostrophic-imbalance comparison: makani (native) vs cBottle (regridded).
 
-The paper's physical-consistency diagnostic (Text S5, Figs. S13-S15): the
+The paper's physical-consistency diagnostic (Text S5, Figs. S15-S17): the
 ``cos(lat)``-weighted domain mean of ``|V_a|/|V|`` -- the fraction of the 500 hPa
 wind that is *not* in geostrophic balance -- and its component magnitudes
 (``|V|``, ``|V_g|``, ``|V_a|``), per member, per lead.  A larger ageostrophic
 fraction means the wind and mass fields are less mutually consistent.
 
-This overlays the two rewind methods on that diagnostic, reusing the paper's exact
+This computes that diagnostic for both rewind methods, reusing the paper's exact
 core (`compute_ageostrophic._spds_from_uvz` / `_weighted_domain_means` /
 `_means_to_diag_dict` / `geostrophic_wind`) so any difference in the curves is a
 difference in the models, not the analysis.  Following the locked design:
@@ -23,11 +23,14 @@ difference in the models, not the analysis.  Following the locked design:
   the broad "physical consistency" measure, identical for both models. Override
   with --lat-min/--lat-max/--lon-min/--lon-max.
 * **makani survivor censoring**: a diverged member's wind field is garbage, so the
-  makani ensemble summary is over survivors (shared survival cache); cBottle needs
-  none.
+  npz carries makani's survivor mask (``makani::alive``, from the shared survival
+  cache) and every makani statistic is taken over survivors; cBottle needs none.
 
-Heavy env (torch + earth2grid via the cBottle regrid). makani-only degrades
-gracefully if the cBottle stores / earth2grid are unavailable.
+This script computes; ``plot_ageostrophic_compare.py`` draws the figure from the npz
+it writes, so restyling the figure never needs this job again.
+
+Heavy env (torch + earth2grid via the cBottle regrid). A failing cBottle overlay
+raises and writes nothing; ``--no-cbottle`` requests a makani-only run.
 
 Usage:
     python ageostrophic_compare.py --makani-dir .../ian --case ian \\
@@ -39,7 +42,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 
@@ -55,16 +58,14 @@ if str(AGEO_DIR) not in sys.path:
     sys.path.append(str(AGEO_DIR))
 
 import _dispatch_lib as dl  # noqa: E402
-import plot_style  # noqa: E402
-from local_time_axis import format_local_time_axis  # noqa: E402
 from makani_source import MakaniBackwardSource, resolve_expected_anchor  # noqa: E402
-from model_labels import CBOTTLE_LABEL, MAKANI_LABEL  # noqa: E402
 
 _KEYS = ("ratio", "mean_v", "mean_vg", "mean_va")
-_ROW_LABEL = {
-    "ratio": r"$|V_a|/|V|$", "mean_v": r"mean $|V|$ (m/s)",
-    "mean_vg": r"mean $|V_g|$ (m/s)", "mean_va": r"mean $|V_a|$ (m/s)",
-}
+
+
+def npz_name(case: str, level: int) -> str:
+    """File name of one case's output; ``plot_ageostrophic_compare.py`` reads it."""
+    return f"ageostrophic_compare_{case}_L{level}.npz"
 
 
 def _domain_setup(lat, lon, args):
@@ -123,66 +124,11 @@ def _cbottle_members(cb, names, lat, lon, lat_idx, lon_idx, lat_weights, batch_s
     return ens, base
 
 
-def _censored_summary(traces: np.ndarray, alive: Optional[np.ndarray]):
-    """Per-lead (mean, std) over members, censoring dead member-leads when given."""
-    x = np.asarray(traces, dtype=np.float64)
-    keep = np.isfinite(x)
-    if alive is not None:
-        keep = keep & np.asarray(alive, dtype=bool)
-    mean = np.full(x.shape[1], np.nan)
-    std = np.full(x.shape[1], np.nan)
-    for l in range(x.shape[1]):
-        col = x[keep[:, l], l]
-        if col.size:
-            mean[l] = col.mean()
-            std[l] = col.std(ddof=1) if col.size > 1 else 0.0
-    return mean, std
-
-
-def _plot(path: Path, models: Dict[str, Dict], *, lead_hours, band_label,
-          pinned_frame, case_meta):
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    fig, axes = plt.subplots(len(_KEYS), 1, figsize=(7.2, 9.2), sharex=True)
-    colors = {"makani": "#1b6ca8", "cbottle": "#c1440e"}
-    lead = np.asarray(lead_hours, float)
-
-    for row, key in enumerate(_KEYS):
-        ax = axes[row]
-        for mkey, m in models.items():
-            c = colors.get(mkey, "#444")
-            mean, std = m["summary"][key]
-            ax.fill_between(lead, mean - std, mean + std, color=c, alpha=0.18, lw=0)
-            ax.plot(lead, mean, color=c, lw=2.0, label=m["label"])
-            base = m["baseline"][key]
-            ax.plot(lead, base, color=c, lw=1.1, ls="--", alpha=0.9,
-                    label=f"{m['baseline_label']}")
-        ax.set_ylabel(_ROW_LABEL[key], fontsize=plot_style.AXIS_LABEL_SIZE)
-        if pinned_frame is not None and 0 <= pinned_frame < lead.size:
-            ax.axvline(lead[pinned_frame], color="0.5", ls=":", lw=1.0)
-        plot_style.style_axes(ax)
-        if row == 0:
-            ax.legend(fontsize=8, ncol=2, frameon=False, loc="best")
-
-    format_local_time_axis(
-        axes[-1], lead, case_meta.get("start_time", ""),
-        case_meta.get("timezone", "UTC"))
-    # Two lines (headline, then the band detail bare -- no wrapping parens),
-    # padded upward so neither line collides with the outside "a.)" label.
-    axes[0].set_title(
-        f"{case_meta.get('display_name','')}: ageostrophic imbalance\n{band_label}",
-        fontsize=plot_style.AXIS_LABEL_SIZE, pad=30)
-    plot_style.add_subplot_labels(axes)
-    fig.tight_layout()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-
-
 def _save_npz(path: Path, models, *, lead_hours, band_label, level, pinned_frame,
-              case_meta, survival=None):
+              case_meta, alive, survival=None):
+    """Write one case's traces.  ``alive`` is makani's (members, frames) survivor
+    mask; ``None`` (an explicit ``--no-censor`` run) is stored as all-alive with
+    ``makani::censored`` False, so the reader can say which it is plotting."""
     payload = {
         "lead_hours": np.asarray(lead_hours, float),
         "band_label": np.array(band_label), "level": np.int32(level),
@@ -195,6 +141,13 @@ def _save_npz(path: Path, models, *, lead_hours, band_label, level, pinned_frame
         for k in _KEYS:
             payload[f"{mkey}::{k}_ens"] = m["ens"][k]
             payload[f"{mkey}::{k}_base"] = m["baseline"][k]
+    m_shape = models["makani"]["ens"]["ratio"].shape
+    payload["makani::censored"] = np.bool_(alive is not None)
+    payload["makani::alive"] = (np.ones(m_shape, bool) if alive is None
+                                else np.asarray(alive, bool))
+    if payload["makani::alive"].shape != m_shape:
+        raise ValueError(f"survivor mask {payload['makani::alive'].shape} != "
+                         f"makani traces {m_shape}")
     if survival is not None:
         payload["makani::survival"] = np.asarray(survival, float)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -224,8 +177,6 @@ def main(argv=None) -> None:
     p.add_argument("--no-cbottle", dest="cbottle", action="store_false")
     p.add_argument("--cbottle-size", type=int, default=None)
     p.add_argument("--batch-size", type=int, default=16)
-    p.add_argument("--makani-label", default=MAKANI_LABEL)
-    p.add_argument("--cbottle-label", default=CBOTTLE_LABEL)
     args = p.parse_args(argv)
 
     case = dl.load_case(args.case)
@@ -263,13 +214,7 @@ def main(argv=None) -> None:
         print(f"[ageo-cmp] survivor censoring: survival@66h="
               f"{float(np.asarray(survival)[0]):.3f}")
 
-    models: Dict[str, Dict] = {
-        "makani": {
-            "label": args.makani_label, "ens": m_ens, "baseline": m_base,
-            "baseline_label": "ERA5 (native)",
-            "summary": {k: _censored_summary(m_ens[k], alive) for k in _KEYS},
-        }
-    }
+    models: Dict[str, Dict] = {"makani": {"ens": m_ens, "baseline": m_base}}
 
     if args.cbottle:
         try:
@@ -282,11 +227,7 @@ def main(argv=None) -> None:
             print("[ageo-cmp] cBottle per-member (HPX->lat/lon regrid) ...", flush=True)
             c_ens, c_base = _cbottle_members(cb, names, lat, lon, lat_idx, lon_idx,
                                              lat_weights, args.batch_size)
-            models["cbottle"] = {
-                "label": args.cbottle_label, "ens": c_ens, "baseline": c_base,
-                "baseline_label": "ERA5 (round-trip)",
-                "summary": {k: _censored_summary(c_ens[k], None) for k in _KEYS},
-            }
+            models["cbottle"] = {"ens": c_ens, "baseline": c_base}
             print(f"[ageo-cmp] cBottle overlay: N={cb.n_members}")
         except Exception as exc:  # noqa: BLE001 - re-raised: never a silent makani-only output
             print(f"[ageo-cmp] ERROR: cBottle overlay failed ({type(exc).__name__}: {exc}). "
@@ -294,20 +235,11 @@ def main(argv=None) -> None:
                   file=sys.stderr)
             raise
 
-    out = Path(args.out_dir)
-    stem = f"ageostrophic_compare_{args.case}_L{args.level}"
-    _save_npz(out / f"{stem}.npz", models, lead_hours=makani.lead_hours,
+    out = Path(args.out_dir) / npz_name(args.case, args.level)
+    _save_npz(out, models, lead_hours=makani.lead_hours,
               band_label=band, level=args.level, pinned_frame=pinned,
-              case_meta=case_meta, survival=survival)
-    _plot(out / f"{stem}.png", models, lead_hours=makani.lead_hours,
-          band_label=band, pinned_frame=pinned, case_meta=case_meta)
-
-    r = models["makani"]["summary"]["ratio"][0]
-    print(f"[ageo-cmp] makani mean |V_a|/|V| over leads = {np.nanmean(r):.4f}")
-    if "cbottle" in models:
-        rc = models["cbottle"]["summary"]["ratio"][0]
-        print(f"[ageo-cmp] cBottle mean |V_a|/|V| over leads = {np.nanmean(rc):.4f}")
-    print(f"[ageo-cmp] wrote {out / (stem + '.npz')} and {stem}.png")
+              case_meta=case_meta, alive=alive, survival=survival)
+    print(f"[ageo-cmp] wrote {out}")
 
 
 if __name__ == "__main__":
