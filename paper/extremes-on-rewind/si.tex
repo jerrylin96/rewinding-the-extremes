@@ -50,7 +50,7 @@ This supporting information document provides supporting text (Texts S1 to S5) a
 
 \noindent\textbf{Text S1. Sampling configuration, SST conditioning, and member seeding}
 
-Samples are drawn by integrating Equation 2 of the main text from $\sigma = 1000$ to $\sigma = 0$. The denoiser is evaluated only at eighteen noise levels spaced by the $\rho = 7$ schedule of Karras et al. (2022) between $\sigma_{\max} = 1000.0$ and $\sigma_{\min} = 0.02$, matching the training noise range (Brenowitz et al., 2025, Section A.8.2). Each step between these levels uses a second-order Heun update, and the final step from $\sigma_{\min}$ to $\sigma = 0$ is a single Euler step that returns the denoiser's estimate $\mathcal{D}_\theta(\mathbf{x}; \sigma_{\min}, \mathbf{c})$. No stochastic noise is added at any step ($S_{\text{churn}} = 0$).
+Samples are drawn by integrating Equation 2 of the main text from $\sigma = 1000$ to $\sigma = 0$. The denoiser is evaluated only at eighteen noise levels spaced by the $\rho = 7$ schedule of Karras et al. (2022) between $\sigma_{\max} = 1000.0$ and $\sigma_{\min} = 0.02$, matching the training noise range (Brenowitz et al., 2025, Section A.8.2). Each step between these levels uses a second-order Heun update, and the final step from $\sigma_{\min}$ to $\sigma = 0$ is a single Euler step that returns the denoiser's estimate $\mathcal{D}_\theta(\mathbf{x}_{\sigma_{\min}}; \sigma_{\min}, \mathbf{c})$. No stochastic noise is added at any step ($S_{\text{churn}} = 0$).
 
 Sea surface temperature conditioning uses the AMIP mid-month SST boundary-condition dataset distributed with the checkpoint, with bracketing monthly values linearly interpolated in time to each frame's valid time. The ocean state is prescribed rather than coupled, varying only linearly between successive monthly anchors without sub-monthly anomalies and remaining identical across all members of a case.
 
@@ -90,7 +90,7 @@ evaluated over all $N = 1000$ members without tracking-based exclusions.
 
 \noindent\textit{Regression.} Two complementary regressions are evaluated from the leading eight modes. The spatial regression maps the height anomaly per unit change in the target quantity. After truncating to the leading eight modes, its slope field is
 \begin{equation}
-R(\mathbf{x}) = \sum_{n=1}^{8} \frac{\mathrm{cov}\left( \mathrm{PC}_{n}, \, T'_{\mathrm{2m}} \right)}{\mathrm{var}\left( T'_{\mathrm{2m}} \right)} \, \mathrm{EOF}_{n}(\mathbf{x}) ,
+b(\mathbf{r}) = \sum_{n=1}^{8} \frac{\mathrm{cov}\left( \mathrm{PC}_{n}, \, T'_{\mathrm{2m}} \right)}{\mathrm{var}\left( T'_{\mathrm{2m}} \right)} \, \mathrm{EOF}_{n}(\mathbf{r}) ,
 \end{equation}
 expressed in metres per kelvin for the heatwave case. The second regression predicts the target quantity from the leading eight PC scores by ordinary least squares. Because both regressions depend on the same underlying covariances $\mathrm{cov}(\mathrm{PC}_{n}, \cdot)$, the spatial map and predicted-versus-observed scatter represent dual views of a single statistical fit.
 
@@ -134,7 +134,8 @@ v_{g} = \frac{1}{fR\cos\phi}\frac{\partial \Phi}{\partial \lambda},
 \qquad
 f = 2\Omega\sin\phi ,
 \end{equation}
-where $R$ is Earth's radius, $f = 2\Omega\sin\phi$ is the Coriolis parameter, and spatial derivatives are evaluated via centered finite differences on the $0.25^{\circ}$ latitude--longitude grid (periodic in longitude). The ageostrophic wind is defined as the residual $\mathbf{V}_{a} = \mathbf{V} - \mathbf{V}_{g}$, capturing all flow components not accounted for by geostrophic balance, including flow curvature.
+
+where $\phi$ is latitude, $\lambda$ is longitude, $R$ is Earth's radius, $\Omega$ is Earth's rotation rate, $f = 2\Omega\sin\phi$ is the Coriolis parameter, and spatial derivatives are evaluated via centered finite differences on the $0.25^{\circ}$ latitude--longitude grid (periodic in longitude). The ageostrophic wind is defined as the residual $\mathbf{V}_{a} = \mathbf{V} - \mathbf{V}_{g}$ between the horizontal wind $\mathbf{V}$ and the geostrophic wind $\mathbf{V}_{g} = (u_{g}, v_{g})$, capturing all flow components not accounted for by geostrophic balance, including flow curvature.
 
 Wind speeds are averaged over the $30^{\circ}$--$60^{\circ}$~$|\phi|$ band in both hemispheres across all longitudes (242 latitude rows by 1440 longitudes, totalling 348,480 points per frame) using $\cos\phi$ area weighting, accounting for the 1.7 factor decrease in grid-cell area across the band. Denoting the area-weighted domain mean by $\langle \cdot \rangle$, the ageostrophic fraction is
 \begin{equation}
