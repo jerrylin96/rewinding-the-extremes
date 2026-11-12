@@ -66,13 +66,13 @@ if str(EA_DIR) not in sys.path:  # appended: never shadow our modules
 
 import _dispatch_lib as dl  # noqa: E402
 from case_track_qc import check_pca_npzs, load_track_qc  # noqa: E402
-from model_labels import CBOTTLE_LABEL, MAKANI_LABEL  # noqa: E402
+from model_labels import CBOTTLE_LABEL, MAKANI_LABEL, MODEL_COLORS  # noqa: E402
 
 _R_EARTH_KM = 6371.0
 
 # Model identity colours (flat member tracks / spread band when NOT colouring by PC)
 # and per-model percentile colormaps (distinct maps: each ensemble's PC is its OWN basis).
-COLORS = {"makani": "#1b6ca8", "cbottle": "#c1440e"}
+COLORS = MODEL_COLORS
 CMAPS = {"makani": "viridis", "cbottle": "cool"}
 # Gold highlight for each model's ERA5-closest member: a deep gold that sits off
 # viridis's thin yellow tip and entirely off cBottle's cool cyan->magenta range,

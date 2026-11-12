@@ -54,7 +54,7 @@ for _p in (str(BW_DIR), str(SHARED)):
 
 import _dispatch_lib as dl  # noqa: E402
 import case_track_qc as cq  # noqa: E402
-from model_labels import MODEL_LABELS  # noqa: E402
+from model_labels import MODEL_COLORS, MODEL_LABELS  # noqa: E402
 from synoptic_pca_makani import regression_summary  # noqa: E402
 
 # Display names, shared with the other compare figures (ageostrophic, TC tracks,
@@ -280,7 +280,7 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
     target_names = list(next(iter(models.values()))["targets"].keys())
     n_t = len(target_names)
     mkeys = list(models)
-    colors = {"makani": "#1b6ca8", "cbottle": "#c1440e"}
+    colors = MODEL_COLORS
 
     # Layout: one EVR row on top, then the scatter grid.  With >= 3 targets
     # (the Ian track case) the grid is one row per MODEL and one column per
