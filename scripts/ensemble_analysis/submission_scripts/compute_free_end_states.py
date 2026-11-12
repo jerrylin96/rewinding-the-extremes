@@ -470,7 +470,7 @@ def main() -> None:
     parser.add_argument(
         "--case-name",
         type=str,
-        default="",
+        required=True,
         help="Display name forwarded to the aggregator for plot titles.",
     )
     parser.add_argument(

@@ -123,7 +123,7 @@ def main() -> None:
         help="Variable to analyse (default: msl).",
     )
     parser.add_argument("--landfall-frame", type=int, default=11)
-    parser.add_argument("--case-name", type=str, default="Hurricane Sandy")
+    parser.add_argument("--case-name", type=str, required=True)
     parser.add_argument(
         "--start-time",
         type=str,

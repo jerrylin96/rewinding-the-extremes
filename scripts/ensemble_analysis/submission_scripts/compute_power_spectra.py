@@ -191,7 +191,7 @@ def main() -> None:
     parser.add_argument(
         "--var-name", default="msl", help="Variable to analyse (default: msl)."
     )
-    parser.add_argument("--case-name", type=str, default="Hurricane Sandy")
+    parser.add_argument("--case-name", type=str, required=True)
     parser.add_argument(
         "--start-time",
         type=str,
