@@ -4,3 +4,13 @@ __pycache__/
 
 # macOS Finder metadata
 .DS_Store
+
+# SGE job output (<job name>.o<job id>), per-job log directories, GPUDirect log
+*.o[0-9]*
+*.e[0-9]*
+*_logs/
+cufile.log
+
+# Analysis outputs written next to the scripts (they live on the cluster)
+scripts/backward_emulator/out/
+scripts/ensemble_analysis/output/
