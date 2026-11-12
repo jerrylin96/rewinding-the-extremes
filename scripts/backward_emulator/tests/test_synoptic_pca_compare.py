@@ -31,11 +31,11 @@ def _makani_npz(path, N=200):
              target_scalar=y.astype(np.float32), target_names=np.array(["t2m"]))
 
 
-def _cbottle_npz(path, N=200, L=12, case_name="Test"):
+def _cbottle_npz(path, N=200, L=12, case_name="Test", offset=0.0):
     rng = np.random.default_rng(1)
     scores = rng.standard_normal((N, 10))
     mis = rng.standard_normal((N, L)).astype(np.float32)
-    mis[:, 0] = scores[:, :8] @ np.array([1.0, 1, 0, 0, 0, 0, 0, 0])  # free-end col
+    mis[:, 0] = scores[:, :8] @ np.array([1.0, 1, 0, 0, 0, 0, 0, 0]) + offset  # free-end col
     np.savez(path, model="cbottle", case_name=case_name, free_end_frame=0,
              impact_kind="scalar",
              pc_scores=scores.astype(np.float32),
@@ -121,7 +121,7 @@ def test_both_models_panels_of_a_target_share_one_range(tmp_path, monkeypatch):
     drawn = []
     real = spc._scatter_panel
     monkeypatch.setattr(spc, "_scatter_panel",
-                        lambda ax, *a, **kw: (drawn.append(ax), real(ax, *a, **kw)))
+                        lambda ax, *a, **kw: (drawn.append(ax), real(ax, *a, **kw))[1])
     spc._plot(tmp_path / "out.png", models, spc._r2_table(models, n_pc=8),
               case="Test", n_pc=8)
     assert len(drawn) == 2
@@ -129,3 +129,58 @@ def test_both_models_panels_of_a_target_share_one_range(tmp_path, monkeypatch):
     y_all = np.concatenate([m["targets"]["t2m"] for m in models.values()])
     lo, hi = drawn[0].get_xlim()
     assert lo < y_all.min() and hi > y_all.max()
+
+
+def _box_panel(x, y):
+    """One real scatter panel with its stats box, over points ``(x, y)`` in [0, 1]."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import plot_style as ps
+    fig, ax = plt.subplots(figsize=(3.2, 3.2))
+    r = {"n_used": len(x), "r2_insample": 0.5, "r2_cv": 0.4, "pvalue": 1e-4}
+    box = spc._scatter_panel(ax, np.asarray(y), np.asarray(x), r, span=(0.0, 1.0),
+                             color="k", ps=ps)
+    return fig, ax, box
+
+
+@pytest.mark.parametrize("cloud, corner", [
+    ((0.85, 0.10), (0.03, 0.97)),  # cloud under the bottom-right box: moves
+    ((0.10, 0.85), (0.97, 0.03)),  # cloud in the top-left: stays
+    ((0.50, 0.50), (0.97, 0.03)),  # both corners clear: stays
+])
+def test_stats_box_takes_the_corner_with_fewer_points(cloud, corner):
+    pytest.importorskip("matplotlib")
+    rng = np.random.default_rng(0)
+    x = cloud[0] + 0.05 * rng.standard_normal(300)
+    y = cloud[1] + 0.05 * rng.standard_normal(300)
+    fig, ax, box = _box_panel(x, y)
+    spc._place_stats_boxes(fig, [(ax, box, x, y)])
+    assert box.get_position() == corner
+    fig.draw_without_rendering()
+    if corner == (0.03, 0.97):  # where it moved to, it covers no point
+        assert spc._points_inside(ax, box.get_bbox_patch().get_window_extent(), x, y) == 0
+
+
+def test_a_cloud_off_the_middle_of_the_shared_range_keeps_its_points_visible(
+        tmp_path, monkeypatch):
+    """PNW-like: cBottle's targets sit 30 units above makani's, so the shared range
+    puts makani's cloud in the lower-left, under the bottom-right box; that box
+    moves, and cBottle's (its corner clear) stays."""
+    pytest.importorskip("matplotlib")
+    mk, cb = tmp_path / "mk.npz", tmp_path / "cb.npz"
+    _makani_npz(mk)
+    _cbottle_npz(cb, offset=30.0)
+    models = {"makani": spc._read_pca_npz(str(mk)),
+              "cbottle": spc._read_pca_npz(str(cb))}
+    placed = []
+    real = spc._place_stats_boxes
+    monkeypatch.setattr(spc, "_place_stats_boxes",
+                        lambda fig, panels: (placed.extend(panels), real(fig, panels)))
+    spc._plot(tmp_path / "out.png", models, spc._r2_table(models, n_pc=8),
+              case="Test", n_pc=8)
+    for ax, _box, x, y in placed:  # the box is placed against the points as drawn
+        np.testing.assert_allclose(ax.collections[0].get_offsets(), np.column_stack([x, y]))
+    corner = {("cbottle" if np.mean(y) > 15 else "makani"): box.get_position()
+              for _ax, box, _x, y in placed}
+    assert corner == {"makani": (0.03, 0.97), "cbottle": (0.97, 0.03)}

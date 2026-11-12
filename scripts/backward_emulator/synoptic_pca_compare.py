@@ -209,9 +209,48 @@ def _shared_spans(fits: Dict) -> Dict[str, Tuple[float, float]]:
     return spans
 
 
+def _points_inside(ax, frame, x: np.ndarray, y: np.ndarray) -> int:
+    """How many data points (data units) are drawn inside display-space ``frame``."""
+    px = ax.transData.transform(np.column_stack([x, y]))
+    inside = ((px[:, 0] > frame.x0) & (px[:, 0] < frame.x1)
+              & (px[:, 1] > frame.y0) & (px[:, 1] < frame.y1))
+    return int(inside.sum())
+
+
+def _place_stats_boxes(fig, panels) -> None:
+    """Move a panel's stats box from the bottom-right corner to the top-left when
+    it covers fewer member points there.
+
+    ``panels`` holds ``(ax, box, x, y)`` per scatter panel.  These are the two
+    corners the 1:1 line does not cross.  With one range per target across models,
+    a cloud can sit away from the middle of the diagonal and under a fixed
+    bottom-right box (the PNW Rewind-AR panel).  Measured on the laid-out figure,
+    since the box's size depends on the font.  The paper's track regression
+    (``aggregate_synoptic_pca._box_covers_star``) moves its box between the same
+    two corners, there to keep ERA5's star visible.
+    """
+    from matplotlib.transforms import Bbox
+
+    fig.draw_without_rendering()
+    for ax, box, x, y in panels:
+        here = box.get_bbox_patch().get_window_extent()
+        frame = ax.get_window_extent()
+        # The same box mirrored into the top-left corner, with equal margins.
+        x0 = frame.x0 + (frame.x1 - here.x1)
+        y1 = frame.y1 - (here.y0 - frame.y0)
+        there = Bbox.from_extents(x0, y1 - here.height, x0 + here.width, y1)
+        if _points_inside(ax, there, x, y) < _points_inside(ax, here, x, y):
+            box.set_position((0.03, 0.97))
+            box.set_horizontalalignment("left")
+            box.set_verticalalignment("top")
+
+
 def _scatter_panel(ax, yobs: np.ndarray, ypred: np.ndarray, r: Dict, *,
-                   span: Tuple[float, float], color: str, ps) -> None:
-    """One predicted-vs-ensemble-member panel (square, 1:1 line, stats box)."""
+                   span: Tuple[float, float], color: str, ps):
+    """One predicted-vs-ensemble-member panel (square, 1:1 line, stats box).
+
+    Returns the stats box, drawn in the bottom-right corner (see
+    ``_place_stats_boxes``)."""
     ax.scatter(ypred, yobs, s=8, alpha=0.35, color=color, edgecolors="none")
     lo, hi = span
     pad = 0.04 * (hi - lo if hi > lo else 1.0)
@@ -223,15 +262,15 @@ def _scatter_panel(ax, yobs: np.ndarray, ypred: np.ndarray, r: Dict, *,
     ax.tick_params(axis="both", labelsize=ps.TICK_LABEL_SIZE_DENSE)
     r2_in = f"{r['r2_insample']:.2f}" if np.isfinite(r["r2_insample"]) else "n/a"
     r2_cv = f"{r['r2_cv']:.2f}" if np.isfinite(r["r2_cv"]) else "n/a"
-    ax.text(0.97, 0.03,
-            f"N = {r['n_used']}\n"
-            f"$R^2$ in = {r2_in}{_pvalue_text(r.get('pvalue', float('nan')))}\n"
-            f"$R^2$ CV = {r2_cv}",
-            transform=ax.transAxes, va="bottom", ha="right",
-            fontsize=ps.TICK_LABEL_SIZE_DENSE,
-            bbox=dict(facecolor="white", alpha=0.85, edgecolor="0.7",
-                      boxstyle="round,pad=0.3"),
-            zorder=6)
+    return ax.text(0.97, 0.03,
+                   f"N = {r['n_used']}\n"
+                   f"$R^2$ in = {r2_in}{_pvalue_text(r.get('pvalue', float('nan')))}\n"
+                   f"$R^2$ CV = {r2_cv}",
+                   transform=ax.transAxes, va="bottom", ha="right",
+                   fontsize=ps.TICK_LABEL_SIZE_DENSE,
+                   bbox=dict(facecolor="white", alpha=0.85, edgecolor="0.7",
+                             boxstyle="round,pad=0.3"),
+                   zorder=6)
 
 
 def _domain_lines(models: Dict[str, Dict], target_names: list) -> list:
@@ -317,6 +356,7 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
     print("[pca-cmp] scatter range shared across models: " + ", ".join(
         f"{nm} {lo:.4g} to {hi:.4g}" for nm, (lo, hi) in spans.items()))
     scatter_axes = []
+    stats_boxes = []
     for ri in range(n_scatter_rows):
         for ci in range(ncol):
             mkey, nm = (
@@ -329,8 +369,10 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
                 ax.axis("off")
                 continue
             scatter_axes.append(ax)
-            _scatter_panel(ax, *fits[(mkey, nm)], tbl[(mkey, nm)], span=spans[nm],
-                           color=colors.get(mkey, "#444"), ps=ps)
+            yobs, ypred = fits[(mkey, nm)]
+            box = _scatter_panel(ax, yobs, ypred, tbl[(mkey, nm)], span=spans[nm],
+                                 color=colors.get(mkey, "#444"), ps=ps)
+            stats_boxes.append((ax, box, ypred, yobs))  # drawn as x=pred, y=obs
             mlabel = _model_label(mkey, m)
             if wide:
                 # Column header = target; row identity = model (left edge).
@@ -364,6 +406,7 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
              ha="center", va="top", fontsize=ps.AXIS_LABEL_SIZE_DENSE,
              color="0.35")
     fig.tight_layout(rect=(0, 0, 1, 1.0 - 0.95 / fig_h))
+    _place_stats_boxes(fig, stats_boxes)  # after the layout is final
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=150, bbox_inches="tight")
     plt.close(fig)
