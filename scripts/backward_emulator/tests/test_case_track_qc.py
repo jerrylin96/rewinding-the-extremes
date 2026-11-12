@@ -195,8 +195,8 @@ def test_pca_pairing_accepts_one_comparison(tmp_path):
 
 
 @pytest.mark.parametrize("over, match", [
-    ({"case_name": "Hurricane Sandy"},
-     "case 'Hurricane Sandy', but the case YAML has 'Hurricane Ian'"),
+    ({"case_name": "Superstorm Sandy"},
+     "case 'Superstorm Sandy', but the case YAML has 'Hurricane Ian'"),
     ({"free_end_frame": 11}, "free end at frame 11"),  # a start-mode npz
     ({"impact_kind": "scalar"}, "impact kind 'scalar', but .*mk.npz has 'track'"),
     ({"free_end_frame": None}, "no free_end_frame"),  # refused, never defaulted
@@ -210,7 +210,7 @@ def test_pca_pairing_refuses_a_file_from_another_comparison(tmp_path, over, matc
 
 
 def test_pca_pairing_without_a_case_compares_the_files(tmp_path):
-    _makani_track_npz(tmp_path / "mk.npz", case_name="2021 Pacific Northwest Heat Wave")
+    _makani_track_npz(tmp_path / "mk.npz", case_name="2021 Pacific Northwest heatwave")
     _cbottle_track_npz(tmp_path / "cb.npz")
     with pytest.raises(SystemExit, match="but .*mk.npz has '2021 Pacific"):
         ctq.check_pca_npzs([str(tmp_path / "mk.npz"), str(tmp_path / "cb.npz")])
@@ -218,8 +218,8 @@ def test_pca_pairing_without_a_case_compares_the_files(tmp_path):
 
 def test_compare_refuses_another_cases_npz(parquet, tmp_path):
     _makani_track_npz(tmp_path / "mk.npz")
-    _cbottle_track_npz(tmp_path / "cb.npz", case_name="Hurricane Sandy")
-    with pytest.raises(SystemExit, match="'Hurricane Sandy'"):
+    _cbottle_track_npz(tmp_path / "cb.npz", case_name="Superstorm Sandy")
+    with pytest.raises(SystemExit, match="'Superstorm Sandy'"):
         spc.main(["--makani-npz", str(tmp_path / "mk.npz"),
                   "--cbottle-npz", str(tmp_path / "cb.npz"),
                   "--makani-parquet", parquet, "--cbottle-parquet", parquet,

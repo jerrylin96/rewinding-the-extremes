@@ -435,7 +435,7 @@ def main() -> None:
         "--case-name",
         type=str,
         required=True,
-        help="Display name used in plot titles (e.g. 'Hurricane Sandy').",
+        help="Display name used in plot titles (e.g. 'Superstorm Sandy').",
     )
     parser.add_argument(
         "--start-time",

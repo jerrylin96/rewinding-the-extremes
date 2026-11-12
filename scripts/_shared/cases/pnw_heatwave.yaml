@@ -1,11 +1,11 @@
-# 2021 Pacific Northwest Heatwave
+# 2021 Pacific Northwest heatwave
 #
 # The June 2021 PNW heat dome set all-time records across the region
 # (Lytton BC hit 49.6 C on June 29).  An intense omega block pushed
 # 500 hPa heights to extraordinary values.  The 66h window starts at
 # 2021-06-25 18Z.
 
-display_name: 2021 Pacific Northwest Heat Wave
+display_name: 2021 Pacific Northwest heatwave
 year: 2021
 timezone: America/Los_Angeles
 base: /projectnb/eb-general/jlin404/scratch/2021_pnw_heatwave

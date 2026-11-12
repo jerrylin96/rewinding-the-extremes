@@ -1,10 +1,10 @@
-# Hurricane Sandy (2012)
+# Superstorm Sandy (2012)
 #
 # Sandy made landfall near Atlantic City, NJ at ~23:30 UTC on Oct 29 2012.
 # The 66h window starts at 2012-10-27 06Z so frame 11 aligns with
 # 2012-10-30 00Z — the nearest ERA5 analysis time to landfall.
 
-display_name: Hurricane Sandy
+display_name: Superstorm Sandy
 year: 2012
 timezone: America/New_York
 base: /projectnb/eb-general/jlin404/scratch/sandy

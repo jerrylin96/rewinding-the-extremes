@@ -34,7 +34,7 @@ Usage:
     python aggregate_tc_tracks.py \\
         --output-dir /path/to/diagnostics/tc_tracks/<tracker> \\
         --lon-min -105 --lon-max -60 --lat-min 10 --lat-max 40 \\
-        --title "Hurricane Sandy Storm Tracks" \\
+        --title "Superstorm Sandy Storm Tracks" \\
         --start-time 2012-10-27T06:00:00Z \\
         --timezone America/New_York
 """

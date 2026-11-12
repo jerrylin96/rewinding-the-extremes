@@ -42,7 +42,7 @@ Usage:
         --era5-zarr          /path/to/era5_reference.zarr \\
         --output-dir         /path/to/diagnostics/synoptic_pca \\
         --mode               end \\
-        --case-name          "Hurricane Sandy" \\
+        --case-name          "Superstorm Sandy" \\
         --variable z500 --variable msl \\
         --lon-min -100 --lon-max -30 --lat-min 25 --lat-max 75 \\
         --impact-kind track \\
