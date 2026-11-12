@@ -100,6 +100,7 @@ Usage::
         --era5-zarr     /path/to/era5_reference.zarr \\
         --output-dir    /path/to/diagnostics/free_end_states/<variable> \\
         --mode          start \\
+        --case-name     "Superstorm Sandy" \\
         --var-name      z500 \\
         --bbox          -85 -60 25 45
 

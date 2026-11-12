@@ -32,6 +32,7 @@ Usage:
         --era5-zarr     /path/to/era5_reference.zarr \\
         --output-dir    /path/to/diagnostics/power_spectra/<variable> \\
         --mode          end \\
+        --case-name     "Superstorm Sandy" \\
         --var-name      msl
 """
 
