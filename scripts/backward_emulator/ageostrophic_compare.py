@@ -13,8 +13,7 @@ difference in the models, not the analysis.  Following the locked design:
 
 * **makani enters native 0.25 deg**, scored against its own native-ERA5 baseline;
   **cBottle** is regridded HPX->lat/lon and scored against the **round-tripped**
-  ERA5 (era5_rt).  The ageostrophic fraction is resolution-dependent (and the
-  HPX->lat/lon regrid can itself inflate cBottle's absolute fraction), so each model
+  ERA5 (era5_rt).  The ageostrophic fraction is resolution-dependent, so each model
   is measured against truth at its own resolution.  The comparison is then each
   model's DEPARTURE from its own baseline -- a fidelity result, not a sharpness
   artefact -- in whichever direction the data land.  We do NOT presuppose which
