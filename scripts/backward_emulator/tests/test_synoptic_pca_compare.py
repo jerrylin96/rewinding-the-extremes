@@ -168,6 +168,9 @@ def test_a_cloud_off_the_middle_of_the_shared_range_keeps_its_points_visible(
     puts makani's cloud in the lower-left, under the bottom-right box; that box
     moves, and cBottle's (its corner clear) stays."""
     pytest.importorskip("matplotlib")
+    # The box only reaches makani's cloud with its "(p < 0.001)" text, and the
+    # p-value needs scipy: without it the p-value is NaN and the box is narrower.
+    pytest.importorskip("scipy")
     mk, cb = tmp_path / "mk.npz", tmp_path / "cb.npz"
     _makani_npz(mk)
     _cbottle_npz(cb, offset=30.0)
