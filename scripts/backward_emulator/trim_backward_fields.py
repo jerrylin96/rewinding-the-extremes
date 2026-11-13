@@ -54,8 +54,8 @@ import numpy as np
 #   z500          spread/RMSE/CRPS, synoptic-PCA cause, ageostrophic, TC warm-core
 #   msl           spread/RMSE/CRPS, free-end states, TC detection
 #   u500, v500    ageostrophic wind at the default 500 hPa level
-#   z300          TC warm-core thickness _DIFF(z300, z500) (Ian)
-#   u10m, v10m    TC intensity _VECMAG(u10m, v10m) + stitch threshold (Ian)
+#   z300          TC warm-core thickness _DIFF(z300, z500) (Ian, Sandy)
+#   u10m, v10m    TC intensity _VECMAG(u10m, v10m) + stitch threshold (Ian, Sandy)
 # Every one of these exists in cBottle's STORED_VARIABLES too, so each is
 # comparable on both sides.  (cBottle-only `sst` is not here: makani has no SST
 # channel, and the PNW land mask is sourced from ERA5, not from the dump.)

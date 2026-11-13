@@ -143,7 +143,7 @@ tests / coarse-grid maps only.
 ## Diagnostics in scope
 
 spread/RMSE/CRPS · free-end states · synoptic-PCA · ageostrophic (500 hPa) ·
-TC tracks (Ian) · power spectra. (Power spectra deferred in discussion but kept
+TC tracks (Ian, Sandy) · power spectra. (Power spectra deferred in discussion but kept
 in the channel manifest so no re-transfer is needed to add it.)
 
 ## Channel manifest

@@ -15,7 +15,7 @@ Reads the makani npz (`synoptic_pca_makani.py`) and the cBottle npz (the paper's
 into one shape.  Without `--cbottle-npz` it runs makani-only; a cBottle path that
 is given but does not exist is an error, never a makani-only run.
 
-**Track targets (Ian) come from the paper's track QC only.**  For a track case
+**Track targets (Ian, Sandy) come from the paper's track QC only.**  For a track case
 (npz ``impact_kind == "track"``) each model's targets are resolved from its tracks
 parquet (`--makani-parquet`, `--cbottle-parquet`, both required) through
 `case_track_qc`; track targets stored in an npz are never read (the paper's older
@@ -294,7 +294,7 @@ def _domain_lines(models: Dict[str, Dict], target_names: list) -> list:
     pcoords = f" ({format_bbox(pbox)})" if pbox else ""
     lines = [f"precursor EOFs: free-end {ptxt} over the synoptic domain{pcoords}"]
 
-    if "tc_lat" in target_names:  # track impact (Ian)
+    if "tc_lat" in target_names:  # track impact (Ian, Sandy)
         tbox = first("tc_domain")
         tcoords = f" ({format_bbox(tbox)})" if tbox else ""
         lines.append("impact: free-end storm position + intensity from TC "
@@ -419,10 +419,11 @@ def main(argv=None) -> None:
                    help="Paper's synoptic_pca_end.npz for cBottle; omit for a "
                    "makani-only run.")
     p.add_argument("--makani-parquet", default=None,
-                   help="makani tracks parquet; required for a track case (Ian).")
+                   help="makani tracks parquet; required for a track case "
+                   "(Ian, Sandy).")
     p.add_argument("--cbottle-parquet", default=None,
                    help="cBottle tracks parquet (the paper's tc_tracks_end.parquet); "
-                   "required for a track case (Ian).")
+                   "required for a track case (Ian, Sandy).")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--case", default="")
     p.add_argument("--n-pc", type=int, default=8)

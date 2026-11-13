@@ -12,7 +12,7 @@ for arm.  The method (unchanged from the paper):
 * Headline: predict the free-end impact target from the leading-8 PC scores by OLS;
   report in-sample and deterministic 10-fold-CV R^2 (Figs S2-S5).  Target =
   land-mean t2m (PNW) or the free-end TC storm properties from the tracks parquet
-  (Ian).
+  (Ian, Sandy).
 
 Locked comparison choice (Option A): makani is decomposed on its NATIVE 0.25 deg
 grid, so lat/lon pixels get **sqrt(cos phi) area weighting** (equivalent to the
@@ -208,7 +208,7 @@ def main(argv=None) -> None:
     p.add_argument("--impact-region", default="impact")
     p.add_argument("--land-mask", default=None, help="For scalar t2m (PNW).")
     p.add_argument("--tc-parquet", default=None,
-                   help="makani tracks parquet for --impact-kind track (Ian).")
+                   help="makani tracks parquet for --impact-kind track (Ian, Sandy).")
     p.add_argument("--n-frames", type=int, default=12)
     p.add_argument("--expected-anchor", default=None,
                    help="ISO-hour prefix the dumps' anchor valid-time must match "
