@@ -274,7 +274,7 @@ def test_compare_resolves_targets_from_parquet(case, parquet, tmp_path, capsys):
 
 
 def _pattern_npzs(tmp_path):
-    """A makani and a cBottle PCA npz carrying z500 PC1 patterns on Ian's EOF box."""
+    """A makani and a cBottle PCA npz carrying z500 EOF1 loadings on Ian's EOF box."""
     lat = np.arange(15.0, 50.01, 0.5)
     lon = np.arange(250.0, 310.01, 0.5)
     eof = np.zeros((10, 1, lat.size * lon.size))
@@ -292,7 +292,7 @@ def _pattern_npzs(tmp_path):
 
 def test_pattern_panels_show_the_eof_domain_with_the_track_box(case, parquet, tmp_path,
                                                                monkeypatch):
-    """The PC pattern panels draw regions.synoptic (the domain the PCA ran over),
+    """The EOF loading panels draw regions.synoptic (the domain the PCA ran over),
     not the track-map view, and outline regions.track on it."""
     pytest.importorskip("matplotlib")
     seen = []

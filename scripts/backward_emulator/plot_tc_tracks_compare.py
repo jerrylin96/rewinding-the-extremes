@@ -8,7 +8,7 @@ draws a three-row figure:
 
   * top: two maps (makani | cBottle) of the member tracks, each model's ERA5 reference
     track, and its ERA5-closest member;
-  * middle (only with PCA npzs): the leading-PC z500 precursor *pattern* per model;
+  * middle (only with PCA npzs): each model's z500 EOF loading for the colouring PC;
   * bottom: the central-pressure (min-MSLP) trajectories, makani vs cBottle vs both
     ERA5 references.
 
@@ -278,7 +278,7 @@ def _scatter_to_box(vals: np.ndarray, rows: np.ndarray, cols: np.ndarray,
 def load_pattern_map(npz_path: str, pc_idx: int, var_want: str = "z500"
                      ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray],
                                 Optional[np.ndarray], bool]:
-    """Read a leading-PC spatial loading as a lat/lon box from either PCA schema.
+    """Read an EOF spatial loading as a lat/lon box from either PCA schema.
 
     cBottle: ``pc_components_latlon [n_eof, n_var, nlat, nlon]`` (already on the box).
     makani: ``eof_loadings_domain [max_d, n_var, n_dom]`` + ``domain_flat`` reshaped
@@ -887,7 +887,7 @@ def main(argv=None) -> None:
                    help="Comma list of PCs to sweep (one figure each): 1-based "
                         "indices, e.g. '1,2,3' (or 'auto' to pick by tc_lon).")
     p.add_argument("--pattern-variable", default="z500",
-                   help="Variable whose PC loading pattern is drawn (middle row).")
+                   help="Variable whose EOF loading is drawn (middle row).")
     p.add_argument("--no-orient-by-tclon", action="store_true",
                    help="Do not sign-orient each PC so high percentile == eastward.")
     p.add_argument("--no-mark-closest", action="store_true",
@@ -1000,7 +1000,7 @@ def main(argv=None) -> None:
                     patterns[mkey] = {
                         "ok": pok, "field": field, "lat": lat, "lon": lon,
                         "label": f"{models[mkey]['label']}: {args.pattern_variable} "
-                                 f"PC{jstar[mkey] + 1} pattern"}
+                                 f"EOF{jstar[mkey] + 1} loading"}
             check_pattern_domain(patterns, eof_box)
             suffix = label.replace("(", "").replace(")", "")
             png = out / f"tc_tracks_compare_{args.case}_{suffix}.png"
