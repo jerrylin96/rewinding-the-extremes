@@ -7,11 +7,12 @@ fire-and-forget.  Per case:
   2. spread/RMSE/CRPS jobs (`dispatch_compare`), ageostrophic (`dispatch_ageostrophic`),
      and the synoptic-PCA job (`dispatch_synoptic_pca_makani`) ALL `-hold_jid` on that
      one root, so the scan is computed once and shared (not recomputed per diagnostic);
-  3. Ian additionally gets the TC-tracks job, and Ian's PCA `-hold_jid`s on it too
-     (its impact target is read from the tracks parquet).
+  3. Cases with a TC (case YAML `tc_tracks`: Ian, Sandy) additionally get the
+     TC-tracks job, and their PCA `-hold_jid`s on it too (the impact target is read
+     from the tracks parquet).
 
 Everything independent runs in parallel; only the two real dependencies
-(survivor root -> {spread, ageo, PCA}; Ian TC -> Ian PCA) are serialized.
+(survivor root -> {spread, ageo, PCA}; TC -> PCA for the storm cases) are serialized.
 
 Run the login-node pre-steps first (land mask, glue gates, WB2 orography cache) --
 see README.md.  `--dry-run` prints the full plan without submitting.
