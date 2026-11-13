@@ -22,7 +22,7 @@ transfer time and in analysis I/O.
 
 The default keep-list is :data:`COMPARISON_CHANNELS` -- the union across the six
 diagnostics in the earth2studio comparison (spread/RMSE/CRPS, free-end states,
-synoptic-PCA, ageostrophic at 500 hPa, power spectra, and the Ian TC tracker).
+synoptic-PCA, ageostrophic at 500 hPa, power spectra, and the TC tracker for Ian and Sandy).
 Keep this list the single source of truth: the adapter imports it from here so the
 trimmed dump and the analysis can never disagree about which channels exist.
 
