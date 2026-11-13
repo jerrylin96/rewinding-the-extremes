@@ -55,7 +55,7 @@
 
 \begin{abstract}
 
-The severity of low-likelihood, high-impact (LLHI) extremes is projected to increase in a warming climate. Sampling the range of precursors that lead to these events traditionally requires massive ensembles that scale poorly with lead time and rarity. While specialized rare-event sampling and ensemble-boosting methods are emerging, they do not demonstrate how a \textit{single} extreme might arise from diverse synoptic precursors. \citet{Lin2026-sz} recently demonstrated this is possible using final-conditioned trajectories from a video diffusion climate emulator (cBottle-video), but the resulting ensembles were structurally underdispersed, geostrophically inconsistent, and over a fixed window length. Notably, cBottle-video was evaluated as an off-the-shelf multi-task checkpoint trained with general masked conditional video diffusion (MCVD) \citep{Brenowitz2025-mz, voleti2022MCVD}. Whether a dedicated reverse-time autoregressive model generates more physically credible backward trajectories remains an open question. Here, we train a backward-in-time probabilistic autoregressive model (Rewind-AR) using a FourCastNet~3 backbone \citep{Bonev2025-dw} to generate systematically diverse, final-conditioned trajectories for two of these case studies. Although the approach is promising, rollout instability indicates that further refinement may be necessary.
+Low-likelihood, high-impact extremes are projected to increase in severity and frequency in a warming climate. Sampling the precursors that lead to these events traditionally requires massive ensembles that scale poorly with lead time and rarity, and typical rare-event sampling and ensemble-boosting methods do not show how a single extreme might arise from diverse synoptic precursors. Recently, Lin et al. (2026) showed this is possible with final-conditioned 66-hour trajectories (trajectories constrained to end at an observed state) from cBottle-video, a pre-trained, off-the-shelf video diffusion climate emulator not explicitly fine-tuned for this task (Brenowitz et al., 2025). However, its ensembles were underdispersed and geostrophically inconsistent, and it reproduces conditioned frames only approximately, hindering autoregressive rollout. Here, we train Rewind-AR, a backward-in-time probabilistic autoregressive model with a FourCastNet~3 backbone (Bonev et al., 2025), and generate final-conditioned ensembles for the same three cases: the 2021 Pacific Northwest heatwave, Hurricane Ian, and Superstorm Sandy (in the Supplementary Information). The leading modes of Rewind-AR's antecedent 500 hPa geopotential height explain far more of the across-member variance than cBottle-video's for both hurricane position and heatwave surface temperature, and Rewind-AR better reproduces the day-over-day heatwave intensification observed in ERA5. Finally, geostrophic inconsistencies close to the conditioning frame seen in cBottle-video are not reproduced by Rewind-AR. Nevertheless, up to 22\% of Rewind-AR members become numerically unstable within 66 hours, so improving rollout physical consistency and stability over long lead times is a natural next step.
 
 \end{abstract}
 
@@ -67,14 +67,20 @@ Recently, \citet{Lin2026-sz} used Climate in a Bottle-Video (cBottle-video), a v
 
 \section{Methods}
 
-\subsection{Backward-in-time probabilistic autoregressive model}
+\subsection{Rewind-AR}
 
 We configure a 273.5M-parameter FourCastNet~3 backbone as a probabilistic autoregressive model of the reverse-time conditional distribution $p(\mathbf{x}_{t-6\mathrm{h}}\mid\mathbf{x}_t)$ \citep{Bonev2025-dw}. The model is trained on 10 years of ERA5 reanalysis data (2009--2018, inclusive, with 2019 used for validation) on a regular $0.25^\circ$ latitude--longitude grid ($\sim$25\,km resolution) and generates multistep trajectories through autoregressive six-hour rollouts \citep{Hersbach2020-oh}. Full architecture, state representation, normalization, objective, and training details are provided in Supplementary Section~\ref{sec:methods_fcn3_backward}.
 
-\subsection{Climate in a Bottle Video (cBottle-video)}
+\subsection{cBottle-video}
 \label{sec:methods_cbottle_main}
 
 cBottle-video is a score-based video diffusion model trained on 38 years of ERA5 reanalysis data (1980--2017, validated on 2018) regridded to an equal-area HEALPix grid ($\sim$100\,km resolution). It generates 66-hour (12-frame) trajectories simultaneously with the ability to arbitrarily condition on any subset of frames \citep{Brenowitz2025-mz, Lin2026-sz}. Case study results for this model are taken directly from \citet{Lin2026-sz}. Full architecture, masked-conditioning formulation, and ODE sampling details are described in \citet{Brenowitz2025-mz} and are additionally provided in Supplementary Section~\ref{sec:methods_cbottle}.
+
+\subsection{Ensemble-member screening}
+
+Each model starts with 1000 members per case
+
+Numerical stability screening excludes rollouts with nonfinite or out-of-range temperatures, whereas track quality control (for Hurricane Ian and Superstorm Sandy) requires an identifiable storm with a detected position at the free-end frame.
 
 \section{Results}
 
@@ -83,7 +89,7 @@ cBottle-video is a score-based video diffusion model trained on 38 years of ERA5
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{ian_tracks_intensity.png}
-\caption{Hurricane Ian 66-hour final-conditioned ensemble comparison between the autoregressive model and cBottle-video. (Top) Storm tracks identified using TempestExtremes and colored by free-end $z_{500}$ PC1 percentile \citep{Ullrich2021-nm, Lin2026-sz}. (Middle) Normalized spatial loading patterns of the leading $z_{500}$ empirical orthogonal function (EOF1) computed over $110^{\circ}$--$50^{\circ}$~W, $15^{\circ}$--$50^{\circ}$~N at $t=0$. (Bottom) Evolution of minimum mean sea level pressure (MSLP, hPa) over local time (EDT) across ensemble members. The ensembles start with 1,000 members: the autoregressive results retain 867 after stability screening (all 1,000 pass track QC), while cBottle-video retains 947 after track QC (seven lack a qualifying Ian track). Highlighted members are retrospectively selected examples. ERA5 references are native-grid for the autoregressive model and HEALPix-round-tripped for cBottle-video.}
+\caption{Hurricane Ian 66-hour final-conditioned ensemble comparison between the autoregressive model and cBottle-video. (Top) Storm tracks identified using TempestExtremes and colored by free-end $z_{500}$ PC1 percentile \citep{Ullrich2021-nm, Lin2026-sz}. (Middle) Normalized spatial loading patterns of the leading $z_{500}$ empirical orthogonal function (EOF1) computed over $110^{\circ}$--$50^{\circ}$~W, $15^{\circ}$--$50^{\circ}$~N at $t=0$. (Bottom) Evolution of minimum mean sea level pressure (MSLP, hPa) over local time (EDT) across ensemble members. 1000 ensemble members are generated for each model. The autoregressive results retain 867 after stability screening (all 1,000 pass track QC), while cBottle-video retains 947 after track QC (seven lack a qualifying Ian track). Highlighted members are retrospectively selected examples. ERA5 references are native-grid for the autoregressive model and HEALPix-round-tripped for cBottle-video.}
 \label{fig:ian-tracks-intensity}
 \end{figure}
 
