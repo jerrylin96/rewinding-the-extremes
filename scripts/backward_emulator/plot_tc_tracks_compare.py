@@ -487,7 +487,8 @@ def _draw_map(
             transform=proj if has_cartopy else None,
             zorder=8,
         )
-    # The member whose TRACK is closest (mean great-circle error) to this
+    # The member whose TRACK is closest (root-mean-square great-circle distance,
+    # frame by frame over the frames both have a fix) to this
     # model's ERA5 track, gold, in the model's own ERA5-baseline linestyle -- the
     # same "closest to ERA5" highlight the central-pressure panel uses, so the
     # gold line ties the two panels together (there it is closest in min-MSLP).
