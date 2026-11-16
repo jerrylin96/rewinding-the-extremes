@@ -99,7 +99,7 @@ python verify_env.py
 ## Citation
 
 This code is archived at Zenodo:
-[10.5281/zenodo.22000716](https://doi.org/10.5281/zenodo.22000716). If you use
+[10.5281/zenodo.22000715](https://doi.org/10.5281/zenodo.22000715). If you use
 it, please cite both the paper and the archive — `CITATION.cff` carries the
 machine-readable metadata. Please also cite
 [Earth2Studio](https://github.com/NVIDIA/earth2studio) and
