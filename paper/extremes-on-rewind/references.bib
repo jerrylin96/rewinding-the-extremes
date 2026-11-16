@@ -3213,3 +3213,41 @@ year = {2024}
   archivePrefix = "arXiv",
   primaryClass  = "physics.ao-ph"
 }
+
+@ARTICLE{Davenport2026-ro,
+  title    = "{JCM} {v1}.0: A Differentiable, Intermediate-Complexity
+              Atmospheric Model",
+  author   = "Davenport, Ellen H and Madan, J Varan and Gjini, Rebecca and
+              Brzenski, Jared and Ho, Nick and Hsu, Tien-Yiao and Liang, Yueshan
+              and Liu, Zhixing and Manivannan, Veeramakali and Pham, Eric and
+              Vutukuru, Rohith and Williams, Andrew I L and Yang, Zhiqi and Yu,
+              Rose and Lutsko, Nicholas J and Hoyer, Stephan and Watson-Parris,
+              Duncan",
+  journal  = "EGUsphere",
+  pages    = "1--20",
+  abstract = "Abstract. In this paper we present version 1.0 of the JAX
+              Circulation Model (JCM). JCM is an open-source, differentiable
+              atmospheric model built in Python using the JAX numerical library.
+              Earth system modeling is rapidly evolving, particularly through
+              hybrid approaches that combine known dynamics with data-driven
+              components. However, the training and validation of hybrid methods
+              in traditional models remain difficult due to the absence of
+              gradients and the complexity of legacy code. Differentiable models
+              written in modern frameworks offer a path forward. JCM couples
+              physics parameterizations to the Dinosaur dynamical core through a
+              flexible interface that makes substitution of other schemes easy.
+              The default parameterization scheme uses the SPEEDY (Simplified
+              Parameterizations, primitivE-Equation DYnamics)
+              intermediate-complexity physics scheme. This modularity supports
+              benchmarking across physical and machine-learned schemes, with
+              direct access to gradients for sensitivity analysis, calibration,
+              and online learning. We show validation of JCM against the
+              original Fortran SPEEDY code at T31 resolution. We also highlight
+              JCM's differentiability and efficiency and outline plans for
+              extending the framework to a differentiable Earth system model.
+              JCM provides a lightweight yet expressive platform for
+              accelerating research in climate modeling.",
+  month    =  jan,
+  year     =  2026,
+  language = "en"
+}
