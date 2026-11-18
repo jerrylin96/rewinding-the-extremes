@@ -64,9 +64,11 @@ emulator destabilizes beyond that.
 5. **makani statistics are over survivors.** makani's members can go numerically
    unstable (one member at 1e8 K destroys a 1000-member mean), so each member is
    censored from its first failing lead onward (`survival.py`: makani's `range`
-   detector and thresholds; once failed, always failed). Every makani statistic is
-   over the members alive at that lead, and the survival fraction is reported with
-   it. At 66 h, 778/1000 members survive for the PNW ridge and 867/1000 for Ian.
+   detector and thresholds; once failed, always failed). Spread/RMSE/CRPS use the
+   members alive at each lead and report the survival fraction with them; the
+   ageostrophic, free-end-state, synoptic-PCA and TC-track statistics use only the
+   members alive at the free end, the same members at every lead. At 66 h, 778/1000
+   members survive for the PNW ridge and 867/1000 for Ian.
    cBottle's members are all numerically valid and are not censored. Track
    statistics also pass through the track QC (Fail-loud guards), so the two Ian
    populations are selected differently: makani's 867 are its survivors, all of
