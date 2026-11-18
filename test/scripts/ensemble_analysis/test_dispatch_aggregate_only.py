@@ -25,15 +25,16 @@ figure is drawn from).  Each dispatcher is driven through its own
 
 from __future__ import annotations
 
-import importlib
+import importlib.util
 import os
 import sys
 
 SCRIPT_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts")
 )
+ANALYSIS_DIR = os.path.join(SCRIPT_DIR, "ensemble_analysis")
 sys.path.insert(0, os.path.join(SCRIPT_DIR, "_shared"))
-sys.path.insert(0, os.path.join(SCRIPT_DIR, "ensemble_analysis"))
+sys.path.insert(0, ANALYSIS_DIR)
 
 import pytest  # noqa: E402
 
@@ -46,8 +47,21 @@ DISPATCHERS = [
 ]
 
 
+def _load(name):
+    """``scripts/ensemble_analysis/<name>.py``, imported by path under a name of
+    its own. ``scripts/backward_emulator`` has a ``dispatch_ageostrophic.py``
+    too, and a plain import reuses whichever one an earlier test loaded."""
+    key = f"ensemble_analysis_{name}"
+    if key not in sys.modules:
+        spec = importlib.util.spec_from_file_location(key, os.path.join(ANALYSIS_DIR, f"{name}.py"))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[key] = mod
+        spec.loader.exec_module(mod)
+    return sys.modules[key]
+
+
 def _submitted_scripts(monkeypatch, name, **kwargs):
-    mod = importlib.import_module(name)
+    mod = _load(name)
     scripts = []
 
     def record(cmd, *args, **kw):
