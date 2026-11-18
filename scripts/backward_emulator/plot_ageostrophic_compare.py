@@ -13,8 +13,10 @@ References.  Rewind-AR runs on ERA5's own 0.25 deg grid, so native ERA5 is its
 exact reference.  cBottle-video is generated on HEALPix and regridded; its
 reference lies between native ERA5 and the round trip (that paper's Text S5).
 
-Rewind-AR statistics are over survivors: a member is dropped from its first
-failing frame on (``makani::alive``, the comparison's survivor mask).
+Rewind-AR statistics are over survivors: a member that fails at any frame
+(``makani::alive``, the comparison's survivor mask) is dropped from every frame, so
+each frame averages the same members -- the N the readout reports, and the members
+the other Rewind-AR figures (free-end states, synoptic PCA, TC tracks) keep.
 
 Also prints, per case, each model's departure of the ageostrophic fraction from
 its references over the unconditioned frames: the numbers a text would quote.
@@ -67,10 +69,11 @@ def load(path: Path) -> Dict:
 
 
 def member_traces(d: Dict, model: str, key: str) -> np.ndarray:
-    """(members, frames) traces; Rewind-AR member-frames after failure are NaN."""
+    """(members, frames) traces; a Rewind-AR member that fails at any frame is NaN
+    at every frame, so a mean covers the same members at every frame."""
     x = np.asarray(d[f"{model}::{key}_ens"], dtype=float).copy()
     if model == "makani":
-        x[~np.asarray(d["makani::alive"], bool)] = np.nan
+        x[~np.asarray(d["makani::alive"], bool).all(axis=1)] = np.nan
     return x
 
 
@@ -105,7 +108,7 @@ def departures(d: Dict) -> Dict[str, np.ndarray]:
 
 def report(case: str, d: Dict) -> None:
     alive = np.asarray(d["makani::alive"], bool)
-    n_m, n_min = alive.shape[0], int(alive.sum(axis=0).min())
+    n_m, n_min = alive.shape[0], int(alive.all(axis=1).sum())
     line = (f"[ageo-plot] {case} ({d['case_name']}): {MODEL_LABELS['makani']} "
             f"{n_min} of {n_m} members survive to the free end")
     if "cbottle::ratio_ens" in d:
