@@ -65,7 +65,7 @@ emulator destabilizes beyond that.
    censored from its first failing lead onward (`survival.py`: makani's `range`
    detector and thresholds; once failed, always failed). Spread/RMSE/CRPS use the
    members alive at each lead and report the survival fraction with them. These
-   figures were not used for the paper featuring Rewind-AR. The ageostrophic,
+   figures were not used in *Run it Back*. The ageostrophic,
    free-end-state, synoptic-PCA and TC-track statistics use only the members alive
    at the free end, the same members at every lead. At 66 h, 778/1000 members
    survive for the PNW ridge and 867/1000 for Ian.
