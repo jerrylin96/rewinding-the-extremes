@@ -77,9 +77,9 @@ public inputs, each pinned:
   `scripts/download_era5_raw/fetch_era5_zarr.py --year <year> --output_dir <dir>`
   writes one year as monthly zarr stores under `<dir>/<year>/`. Fetch every
   year a case touches, including the years of the stress tests' substituted
-  final frames, and point `--data-path` in
-  `scripts/ensemble_run/ensemble_interpolation.py` at `<dir>` (its default is
-  our cluster's copy).
+  final frames. Then change the default of `--data-path` in
+  `scripts/ensemble_run/ensemble_interpolation.py` to `<dir>`: like the job
+  scripts, it is set for our cluster, and the dispatcher does not pass it.
 - **The cBottle-video checkpoint**, downloaded on first use from Hugging Face
   at the revision pinned in `earth2studio/models/px/cbottle_video.py`
   (`nvidia/cbottle@eebd93c`), together with the AMIP SST file it ships with.
