@@ -1,12 +1,12 @@
-"""DRAFT flowchart: how the Extremes on Rewind ensembles are regenerated.
+"""Flowchart for the README: how the Extremes on Rewind ensembles are regenerated.
 
 Every label is checked against the paper (SI Text S1, main text Section 2 and
 Data and Code Availability) and the code (case YAMLs, dispatch_ensemble.py,
-ensemble_interpolation.py, cbottle_video.py). Scope: the three main case studies; the
-stress tests (SI Figures S12-S14), the archive DOI and the reproducibility note belong in
-the caption. Not yet referenced by main.tex or si.tex.
+ensemble_interpolation.py, cbottle_video.py) and reviewed externally. Scope: the three
+main case studies; the stress tests and the reproducibility note are in the README text
+around it (section "Regenerating the ensembles").
 
-    python ensemble_recipe_flowchart.py   ->  ensemble_recipe_flowchart.pdf / .png beside this file
+    python ensemble_recipe_flowchart.py   ->  ensemble_recipe_flowchart.png beside this file
 """
 
 from pathlib import Path
@@ -102,8 +102,6 @@ ax.text(14.5, y4 + h4 / 2 + 0.9, "12-frame ERA5 reference\n(0.25\u00b0 lat\u2013
         color=ACCENT, style="italic", ha="center", va="bottom", linespacing=1.3)
 
 
-# No creation date in the PDF, so re-running the script reproduces the file byte for byte.
-out = Path(__file__).with_suffix("")
-fig.savefig(out.with_suffix(".pdf"), metadata={"CreationDate": None})
-fig.savefig(out.with_suffix(".png"), dpi=300)
-print(f"wrote {out}.pdf / .png")
+out = Path(__file__).with_suffix(".png")
+fig.savefig(out, dpi=300)
+print(f"wrote {out}")
