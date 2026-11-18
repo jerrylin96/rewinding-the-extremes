@@ -3373,3 +3373,38 @@ year = {2024}
   archivePrefix = "arXiv",
   primaryClass  = "cs.LG"
 }
+
+@MISC{Lin2026-ab,
+  title     = "Rewind-{AR} checkpoint",
+  author    = "Lin, Jerry",
+  publisher = "Zenodo",
+  abstract  = "Rewind-AR is a probabilistic weather emulator that steps backward
+               in time. It is the model evaluated in ``Run it Back:
+               Autoregression vs. Video Diffusion for Final-Conditioned Weather
+               Trajectories'' (Lin and Barnes, NeurIPS 2026 Workshop on Tackling
+               Climate Change with Machine Learning). This record holds the
+               exact checkpoint behind every Rewind-AR result in that paper, the
+               files needed to run it, and the code that loads it. Model:
+               FourCastNet 3 architecture (Bonev et al., 2025) with 273.5 M
+               trainable parameters; 72 ERA5 channels at 0.25°; one step is 6
+               hours backward in time. Trained with CRPS and spectral CRPS on
+               ERA5 2009–2018, with 2019 for validation. The checkpoint has the
+               lowest validation loss of the run (epoch 14, iteration 51,128).
+               It is the complete training checkpoint (model, optimizer and
+               scheduler state), byte-identical to the file used in the paper.
+               Files:- rewind-ar\_model\_v1.0.0.tar: the checkpoint, the seven
+               normalization-statistics files (computed over ERA5 1979–2018),
+               and the orography and land-sea-mask inputs, laid out to unpack
+               into \$MAKANI\_DATA.- run-it-back\_v1.0.0.zip: the source code of
+               github.com/jerrylin96/run-it-back at tag v1.0.0, which trains and
+               runs the model.- MANIFEST.md: every file's size and SHA-256, and
+               how to load the model. The checkpoint is a PyTorch pickle: check
+               its SHA-256 against MANIFEST.md before loading it. Licenses:
+               model files CC BY 4.0; code Apache-2.0. The model was trained on
+               ERA5, and its statistics and invariants were computed from ERA5.
+               ERA5 is produced by ECMWF for the Copernicus Climate Change
+               Service (Hersbach et al., 2020; doi:10.24381/cds.adbb2d47 and
+               doi:10.24381/cds.bd0915c6) and is licensed under CC BY 4.0
+               (https://creativecommons.org/licenses/by/4.0/).",
+  year      =  2026
+}
