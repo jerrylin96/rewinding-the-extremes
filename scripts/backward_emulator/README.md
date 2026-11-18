@@ -9,6 +9,8 @@ paper *Run it Back: Autoregression vs. Video Diffusion for Final-Conditioned Wea
 (Lin and Barnes 2026) are all produced here. `run-it-back` produces the
 emulator's ensembles (`analysis/backward_rollout_ensemble.sbatch` there); their
 field dumps are transferred and read by `makani_source.py`.
+The trained emulator (Rewind-AR) is archived at
+[doi:10.5281/zenodo.24354437](https://doi.org/10.5281/zenodo.24354437).
 
 The directory is self-contained apart from the shared helpers in
 `scripts/_shared/`, `scripts/ensemble_analysis/` and `custom_utils/`. Both
