@@ -68,7 +68,7 @@ emulator destabilizes beyond that.
    figures were not used in *Run it Back*. The ageostrophic,
    free-end-state, synoptic-PCA and TC-track statistics use only the members alive
    at the free end, the same members at every lead. At 66 h, 778/1000 members
-   survive for the PNW ridge and 867/1000 for Ian.
+   survive for the PNW ridge, 867/1000 for Ian and 1000/1000 for Sandy.
    cBottle's members are all numerically valid and are not censored. Track
    statistics also pass through the track QC (Fail-loud guards), so the two Ian
    populations are selected differently: makani's 867 are its survivors, all of
