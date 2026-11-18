@@ -64,6 +64,47 @@ They are included as a record of exactly how the published runs were executed;
 adapt the scheduler directives and paths for your own system. The underlying
 `compute_*.py` / `aggregate_*.py` scripts are plain Python and run anywhere.
 
+## Regenerating the ensembles
+
+The generated ensembles (about 240 GB) are not archived. They regenerate from
+public inputs, each pinned:
+
+<!-- markdownlint-disable MD013 -->
+![Flowchart: ERA5, the cBottle-video checkpoint and the case file feed GPU generation, which writes one Zarr store per case and mode for CPU analysis](scripts/ensemble_run/ensemble_recipe_flowchart.png)
+<!-- markdownlint-enable MD013 -->
+
+- **ERA5**, read from WeatherBench 2 through Earth2Studio:
+  `scripts/download_era5_raw/fetch_era5_zarr.py --year <year> --output_dir <dir>`
+  writes one year as monthly zarr stores under `<dir>/<year>/`. Fetch every
+  year a case touches, including the years of the stress tests' substituted
+  final frames, and point `--data-path` in
+  `scripts/ensemble_run/ensemble_interpolation.py` at `<dir>` (its default is
+  our cluster's copy).
+- **The cBottle-video checkpoint**, downloaded on first use from Hugging Face
+  at the revision pinned in `earth2studio/models/px/cbottle_video.py`
+  (`nvidia/cbottle@eebd93c`), together with the AMIP SST file it ships with.
+- **The case file**, `scripts/_shared/cases/<case>.yaml`: the start time (the
+  window runs 66 h from it), the conditioning modes, the ensemble size, the
+  base seed and, for the stress tests, `custom_frames`. Set its `base:` to
+  where the output should go.
+
+Then, from `scripts/ensemble_run/` on a GPU cluster:
+
+```bash
+python dispatch_ensemble.py <case> --dry-run   # print the jobs first
+python dispatch_ensemble.py <case>
+```
+
+For each conditioning mode this submits 20 jobs of 50 members and a merge job
+that waits for them, and writes `<base>/<mode>/ensemble_f<frames>_n1000.zarr`
+(about 26 GB) with `era5_reference.zarr`, the 12-frame ERA5 window on its
+0.25° grid, beside it. Member *k* is drawn with seed `random_seed + k` (one
+member per batch, the default), as described in Text S1 of the Supporting
+Information. The three stress tests (`equator_indian_ocean`, `sandy_reversed`,
+`texas_heat_to_freeze`) run the same way with start+final conditioning only
+and 100 or 8 members. Seeds are fixed, but numerical results can vary across
+GPU and software environments.
+
 ## Changes to the Earth2Studio library
 
 Everything under `earth2studio/` is taken verbatim from upstream `0.17.0a0`
