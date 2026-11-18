@@ -38,6 +38,9 @@ import numpy as np
 
 SHARED = Path(__file__).resolve().parents[1] / "_shared"
 sys.path.insert(0, str(SHARED))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from model_labels import MAKANI_LABEL  # noqa: E402
 
 # The 66 h cBottle-video context window (12 frames x 6 h to the anchor).
 DEFAULT_CONTEXT_HOURS = 66.0
@@ -149,7 +152,7 @@ def plot(out_path: Path, cases: List[Tuple[str, Dict]], *,
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=ps.LEGEND_SIZE, loc="upper left", framealpha=0.9)
     ps.style_axes(ax)
-    ax.set_title("Autoregressive backward-rollout stability",
+    ax.set_title(f"{MAKANI_LABEL} backward-rollout stability",
                  fontsize=ps.TITLE_SIZE)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

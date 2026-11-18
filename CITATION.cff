@@ -22,7 +22,7 @@ authors:
     family-names: Barnes
     affiliation: "Department of Computing & Data Sciences, Boston University"
 repository-code: https://github.com/jerrylin96/rewinding-the-extremes
-doi: 10.5281/zenodo.22000716
+doi: 10.5281/zenodo.22000715
 date-released: 2026-08-18
 references:
   - type: software

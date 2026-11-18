@@ -20,6 +20,8 @@
 # ---------------------------------------------------------------------
 
 # 1. Environment Setup
+# Unbuffered, so a job killed at its time or memory limit keeps its whole log.
+export PYTHONUNBUFFERED=1
 module load miniconda/25.3.1
 module load gcc/12.2.0
 module load cuda/12.8
@@ -57,7 +59,7 @@ echo "=========================================================="
 echo "Job ID: $JOB_ID"
 echo "Node: $HOSTNAME"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<unset>}"
-echo "Visible GPUs (nvidia-smi -L, honours CUDA_VISIBLE_DEVICES):"
+echo "GPUs on the node (nvidia-smi ignores CUDA_VISIBLE_DEVICES; the job uses the index above):"
 nvidia-smi -L 2>&1 | sed 's/^/  /'
 echo "Arguments: ${ARGS[*]}"
 echo "Cache: $EARTH2STUDIO_CACHE"
@@ -70,7 +72,15 @@ if [ -n "$OUTPUT_DIR" ]; then
 else
     GPU_LOG="gpu_monitor_${JOB_ID}.csv"
 fi
-nvidia-smi --query-gpu=timestamp,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw \
+# nvidia-smi ignores CUDA_VISIBLE_DEVICES, so name the job's GPU with -i.
+# Without it the CSV interleaves every GPU on the node, other users' jobs
+# included (job 8538275 logged all 8).  The index column makes any mix visible.
+GPU_SEL=()
+if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    GPU_SEL=(-i "$CUDA_VISIBLE_DEVICES")
+fi
+nvidia-smi "${GPU_SEL[@]}" \
+    --query-gpu=index,timestamp,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw \
     --format=csv -l 2 > "$GPU_LOG" &
 MONITOR_PID=$!
 echo "GPU monitoring started (PID: $MONITOR_PID, log: $GPU_LOG)"

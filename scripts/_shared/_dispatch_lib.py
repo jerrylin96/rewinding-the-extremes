@@ -44,12 +44,33 @@ MODE_COLORS_TAB: Dict[str, str] = {
     "both": "tab:green",
 }
 
-# Short display labels.  Scripts that want e.g. "Start Conditioning" can
-# format on top of these.
+# Short display labels, standing alone (column titles, "Final (N=1000)" legend
+# entries).  Phrases use MODE_LABELS_NOUN / MODE_LABELS_TITLE below.
 MODE_LABELS_SHORT: Dict[str, str] = {
     "start": "Start",
-    "end": "End",
-    "both": "Both",
+    "end": "Final",
+    "both": "Start-and-final",
+}
+
+# Figure text for the three conditioning modes.  The display names are start /
+# final / start-and-final, always hyphenated to the following word, as in the
+# papers: "final-conditioned members" (modifier) and "under final-conditioning"
+# (noun).  The mode keys ("end", "both") are internal names used in file paths
+# and CLI flags and do not change.
+MODE_LABELS_LONG: Dict[str, str] = {  # modifier, e.g. "Final-conditioned · EOF1"
+    "start": "Start-conditioned",
+    "end": "Final-conditioned",
+    "both": "Start-and-final-conditioned",
+}
+MODE_LABELS_NOUN: Dict[str, str] = {  # sentence case, e.g. legends and headers
+    "start": "Start-conditioning",
+    "end": "Final-conditioning",
+    "both": "Start-and-final-conditioning",
+}
+MODE_LABELS_TITLE: Dict[str, str] = {  # title case, e.g. column titles
+    "start": "Start-Conditioning",
+    "end": "Final-Conditioning",
+    "both": "Start-and-Final-Conditioning",
 }
 
 

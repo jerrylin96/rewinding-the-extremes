@@ -92,7 +92,7 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))  # ensemble_analysis/ for track_qc
 
 from _dispatch_lib import (  # noqa: E402
     MODE_COLORS_TAB,
-    MODE_LABELS_SHORT,
+    MODE_LABELS_LONG,
     tc_tracks_parquet_path,
 )
 from track_qc import compute_track_qc  # noqa: E402
@@ -343,9 +343,8 @@ def _attach_track_qc(diag: dict, output_dir: Path, mode: str) -> None:
 
 
 def _mode_label(mode: str) -> str:
-    """Long-form conditioning label, e.g. 'end-conditioned'."""
-    short = MODE_LABELS_SHORT.get(mode, mode)
-    return f"{short}-conditioned"
+    """Long-form conditioning label for figure text, e.g. 'Final-conditioned'."""
+    return MODE_LABELS_LONG.get(mode, f"{mode}-conditioned")
 
 
 def _free_end_role(mode: str) -> str:

@@ -27,7 +27,7 @@ https://doi.org/10.1002/2016GL071606):
   ``custom_utils/check_geopotential_units.ipynb`` for verification.
   Defaults to off so archived ensemble runs that didn't persist z300
   can still be tracked; with warm-core off the tracker also captures
-  the post-tropical landfall phase of storms like Hurricane Sandy that
+  the post-tropical landfall phase of storms like Superstorm Sandy that
   the canonical setup truncates at extratropical transition.
 
 - ``--outputcmd "msl,min,0;_VECMAG(u10m,v10m),max,2.0"``; when
@@ -628,7 +628,7 @@ def track_with_tempest(
         When True, append the Z&U 2017 _DIFF(z300,z500) warm-core
         thickness contour to the default ``closedcontourcmd``.  Default
         False so archived ensemble runs without z300 can still be
-        tracked (and so storms like Hurricane Sandy keep their
+        tracked (and so storms like Superstorm Sandy keep their
         post-tropical landfall phase, which the canonical setup
         truncates at extratropical transition).  If ``detect_flags``
         overrides ``closedcontourcmd``, ``warm_core`` has no effect on

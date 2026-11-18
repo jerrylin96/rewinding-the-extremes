@@ -221,6 +221,7 @@ def dispatch(
     tracker_override: Optional[List[str]] = None,
     warm_core: Optional[bool] = None,
     dry_run: bool = False,
+    aggregate_only: bool = False,
 ) -> Dict[Any, Optional[str]]:
     """Submit TC tracking jobs for a case.
 
@@ -252,7 +253,11 @@ def dispatch(
 
     results: Dict[Any, Optional[str]] = {}
     output_root = output_root_override or f"{case['base']}/diagnostics"
-    for mode in modes_to_run:
+    # --aggregate-only: skip the compute jobs, keep the figure job.
+    if aggregate_only:
+        print(f"[{case['name']}] --aggregate-only: none of the jobs above; "
+              "submitting only the figure (aggregator) job")
+    for mode in ([] if aggregate_only else modes_to_run):
         for tracker in trackers:
             jid = submit_tc_tracks_for_mode(
                 case,
@@ -289,6 +294,12 @@ def main() -> None:
         "--list", action="store_true", help="List available cases and exit."
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--aggregate-only",
+        action="store_true",
+        help="Submit only the figure (aggregator) job, re-rendering from the "
+        "outputs already on disk; no compute jobs.",
+    )
     parser.add_argument(
         "--mode",
         action="append",
@@ -346,6 +357,7 @@ def main() -> None:
         tracker_override=args.tracker,
         warm_core=args.warm_core,
         dry_run=args.dry_run,
+        aggregate_only=args.aggregate_only,
     )
 
 

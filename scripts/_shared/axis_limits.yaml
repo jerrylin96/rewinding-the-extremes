@@ -69,3 +69,25 @@ ageostrophic:
     # claim as the only one not comparable across the three case figures.
     # Nothing clips: the axis runs well below the lowest member.
     ratio: {ylim: [0.10, 0.32]}
+
+tc_tracks:
+  # PINNED 2026-11-06 from the "drawn y range" lines that
+  # axis_limits.pin_y_to_drawn logs: every data artist (all members, ERA5,
+  # envelopes, means) of every storm-intensity panel in both papers. One range
+  # for both storms and both papers, so Ian reads the same in all three of its
+  # figures and Sandy and Ian read against each other.
+  #   Extremes on Rewind Sandy track figure:  final 939.805-997.276,
+  #     start 950.28-992.735, start-and-final 946.063-977.781
+  #   Extremes on Rewind Ian track figure:    final 972.915-1008.11,
+  #     start 977.904-1007.89, start-and-final 974.645-1002.52
+  #   Extremes on Rewind Ian landfall split:  972.915-1008.11
+  #   Run it Back Sandy track figure:         934.781-997.276
+  #   Run it Back Ian track figure:           946.894-1008.11
+  # Overall 934.781 (Run it Back Sandy) to 1008.11 (Ian). The Extremes on
+  # Rewind Ian panels use the top ~45% of the axis: nothing cBottle-video
+  # draws for Ian goes below 972.9 hPa, while the Run it Back Ian figure
+  # reaches 946.9. A per-storm range would only raise that to ~55%, since Ian's
+  # range must still cover the Run it Back figure. Widen if a case is added;
+  # data outside the range is logged as clipping.
+  tc_msl:
+    trajectory: {ylim: [930.0, 1010.0]}

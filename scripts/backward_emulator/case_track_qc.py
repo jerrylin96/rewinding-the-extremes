@@ -91,9 +91,19 @@ def check_pca_npzs(paths: Sequence[str], case_name: Optional[str] = None) -> Non
                              f"{kind_src} has {ref_kind!r}.")
 
 
-def free_end_target_matrix(qc) -> np.ndarray:
-    """``[N, 4]`` free-end targets in ``track_qc.TARGET_COLUMNS`` order; excluded rows NaN."""
-    from track_qc import TARGET_COLUMNS
+# The free-end track targets the PCA regressions use: (key in this directory's
+# files and figures, ``track_qc`` free-end column).  Distance from the ERA5 fix is
+# not regressed, as in the paper (``synoptic_pca_track_stats.DESCRIPTIVE_ONLY_TARGETS``):
+# it is a function of latitude and longitude, so it adds nothing about large-scale
+# organization.
+REGRESSION_TARGETS: Tuple[Tuple[str, str], ...] = (
+    ("tc_lat", "fe_lat_deg"),
+    ("tc_lon", "fe_lon_deg"),
+    ("tc_msl_hpa", "fe_msl_hpa"),
+)
 
+
+def free_end_regression_targets(qc) -> Dict[str, np.ndarray]:
+    """Free-end regression targets by key, aligned to the member axis; excluded members NaN."""
     t = qc.free_end_targets()
-    return np.column_stack([t[c] for c in TARGET_COLUMNS]).astype(np.float64)
+    return {key: np.asarray(t[col], dtype=np.float64) for key, col in REGRESSION_TARGETS}

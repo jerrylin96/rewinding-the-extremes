@@ -46,10 +46,11 @@ if str(EA_SUB) not in sys.path:  # appended: never shadow our own modules
     sys.path.append(str(EA_SUB))
 
 import _dispatch_lib as dl  # noqa: E402
+from model_labels import CBOTTLE_LABEL, MAKANI_LABEL  # noqa: E402
 
 # Top-to-bottom order + section labels (override the paper's mode labels).
 TOP_KEY, BOTTOM_KEY = "end", "start"  # make_figure renders "end" above "start"
-LABELS = {TOP_KEY: "Autoregressive", BOTTOM_KEY: "Video diffusion (cBottle)"}
+LABELS = {TOP_KEY: MAKANI_LABEL, BOTTOM_KEY: CBOTTLE_LABEL}
 
 # ``start_time`` free_end_states_makani.py bakes when no case start time resolves;
 # rendering it puts the top block's local-time axis in Dec 1969.
@@ -111,7 +112,7 @@ def _load_diag(npz_path: str, afes) -> Dict[str, np.ndarray]:
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--makani-npz", required=True,
-                   help="Autoregressive free-end-states npz (free_end_states_makani.py).")
+                   help="Rewind-AR free-end-states npz (free_end_states_makani.py).")
     p.add_argument("--cbottle-npz", required=True,
                    help="cBottle free_end_states_end.npz (the paper's own output).")
     p.add_argument("--case", default="pnw_heatwave")
@@ -140,7 +141,7 @@ def main(argv=None) -> None:
     out.mkdir(parents=True, exist_ok=True)
     out_png = out / f"free_end_states_compare_{args.case}.png"
     afes.make_figure(per_mode, out_png)
-    print(f"[fes-cmp] wrote {out_png} ({cname}: Autoregressive vs cBottle)")
+    print(f"[fes-cmp] wrote {out_png} ({cname}: {MAKANI_LABEL} vs {CBOTTLE_LABEL})")
 
 
 if __name__ == "__main__":

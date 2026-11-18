@@ -71,6 +71,7 @@ Usage:
         --era5-zarr     /path/to/era5_reference.zarr \\
         --output-dir    /path/to/diagnostics/spread_rmse_crps/<variable> \\
         --mode          end \\
+        --case-name     "2021 Pacific Northwest heatwave" \\
         --region        -170 -100 25 70 --region-name synoptic
 
     # Surface variable over a masked impact box:
@@ -123,7 +124,7 @@ def main() -> None:
         help="Variable to analyse (default: msl).",
     )
     parser.add_argument("--landfall-frame", type=int, default=11)
-    parser.add_argument("--case-name", type=str, default="Hurricane Sandy")
+    parser.add_argument("--case-name", type=str, required=True)
     parser.add_argument(
         "--start-time",
         type=str,

@@ -1043,7 +1043,7 @@ def main():
         help="Tempest tracker only: enable the Z&U 2017 _DIFF(z300,z500) "
         "warm-core thickness contour.  Requires z300/z500 in the input "
         "zarr.  Off by default so archived ensemble runs without z300 "
-        "can still be tracked (and so storms like Hurricane Sandy keep "
+        "can still be tracked (and so storms like Superstorm Sandy keep "
         "their post-tropical landfall phase, which the canonical setup "
         "truncates at extratropical transition).",
     )

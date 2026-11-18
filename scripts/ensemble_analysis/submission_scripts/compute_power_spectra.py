@@ -32,6 +32,7 @@ Usage:
         --era5-zarr     /path/to/era5_reference.zarr \\
         --output-dir    /path/to/diagnostics/power_spectra/<variable> \\
         --mode          end \\
+        --case-name     "Superstorm Sandy" \\
         --var-name      msl
 """
 
@@ -191,7 +192,7 @@ def main() -> None:
     parser.add_argument(
         "--var-name", default="msl", help="Variable to analyse (default: msl)."
     )
-    parser.add_argument("--case-name", type=str, default="Hurricane Sandy")
+    parser.add_argument("--case-name", type=str, required=True)
     parser.add_argument(
         "--start-time",
         type=str,

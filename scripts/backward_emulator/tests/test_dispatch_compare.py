@@ -67,3 +67,21 @@ def test_variable_override_limits_matrix(tmp_path):
                        variables=["z500"], dry_run=True)
     comps = _by_role(recs, "compare")
     assert [c["variable"] for c in comps] == ["z500"]
+
+
+def test_failed_survivor_submit_stops_the_dispatch(tmp_path, monkeypatch):
+    """A survivor job qsub refused must not leave compare jobs held on a job id
+    that does not exist, nor submit them unheld to race on the mask file."""
+    import pytest
+
+    submitted = []
+
+    def refuse(cmd, **kw):
+        submitted.append(cmd)
+        return None
+
+    monkeypatch.setattr(dc, "submit_qsub", refuse)
+    monkeypatch.setattr(dc, "validate_zarrs_exist", lambda *a, **k: None)
+    with pytest.raises(SystemExit, match="survivor-mask job for ian"):
+        dc.dispatch("ian", out_root=str(tmp_path), cbottle=False, dry_run=False)
+    assert len(submitted) == 1

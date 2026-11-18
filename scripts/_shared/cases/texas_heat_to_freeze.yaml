@@ -1,0 +1,37 @@
+# Conditioning stress test: Texas summer heat to winter freeze in 66 h.
+#
+# F0 is the natural start, 2011-08-28 18Z: the hottest August 2011 18Z in
+# ERA5 by cos(lat)-weighted mean t2m over Texas (29-35N, 104-95W), 38.0 C.
+# F11 is pinned to 2021-02-15 12Z: the coldest February 2021 12Z by the same
+# measure, -14.8 C.  F11's slot is 2011-08-31 12Z, so both endpoints match
+# their time of day; the season is the one contradiction under test.  The
+# calendar and AMIP SST inputs follow the August clock in all 12 frames.
+#
+# era5_reference.zarr holds the real Aug 28-31 2011 evolution: context, not
+# truth for this run.  Like the other stress tests, the case omits regions
+# and tc_tracks; do not run skill diagnostics against it.
+
+display_name: "Conditioning stress test: Texas, August 2011 heat to February 2021 freeze"
+year: 2011
+timezone: America/Chicago
+base: /projectnb/eb-general/jlin404/scratch/texas_heat_to_freeze
+
+ensemble:
+  start_time: { year: 2011, month: 8, day: 28, hour: 18 }
+  size: 8
+  modes: [both]
+  batch_size: 1
+  random_seed: 0
+  custom_frames:
+    - { frame: 11, year: 2021, month: 2, day: 15, hour: 12 }
+
+plots:
+  members: [0, 1, 2, 3]
+  view: [-125, -66, 24, 50]
+  variables:
+    # Red-blue centred on freezing (273 +/- 45 K).  The shared t2m palette
+    # (280-320 K) cannot show the February state.
+    - { name: t2m, vmin: 228, vmax: 318, cmap: RdBu_r, coastline_color: "0.25" }
+    # Raw geopotential (m^2/s^2); widened below the palette's 51000 so the
+    # February trough over North America does not clip.
+    - { name: z500, vmin: 48000, vmax: 59000, extent: [-140, -50, 15, 70] }

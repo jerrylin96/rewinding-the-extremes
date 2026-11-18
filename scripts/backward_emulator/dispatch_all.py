@@ -7,11 +7,12 @@ fire-and-forget.  Per case:
   2. spread/RMSE/CRPS jobs (`dispatch_compare`), ageostrophic (`dispatch_ageostrophic`),
      and the synoptic-PCA job (`dispatch_synoptic_pca_makani`) ALL `-hold_jid` on that
      one root, so the scan is computed once and shared (not recomputed per diagnostic);
-  3. Ian additionally gets the TC-tracks job, and Ian's PCA `-hold_jid`s on it too
-     (its impact target is read from the tracks parquet).
+  3. Cases with a TC (case YAML `tc_tracks`: Ian, Sandy) additionally get the
+     TC-tracks job, and their PCA `-hold_jid`s on it too (the impact target is read
+     from the tracks parquet).
 
 Everything independent runs in parallel; only the two real dependencies
-(survivor root -> {spread, ageo, PCA}; Ian TC -> Ian PCA) are serialized.
+(survivor root -> {spread, ageo, PCA}; TC -> PCA for the storm cases) are serialized.
 
 Run the login-node pre-steps first (land mask, glue gates, WB2 orography cache) --
 see README.md.  `--dry-run` prints the full plan without submitting.
@@ -36,32 +37,20 @@ for _p in (str(BW_DIR), str(SHARED)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from _dispatch_lib import build_qsub_cmd, load_case, submit_qsub  # noqa: E402
+from _dispatch_lib import load_case  # noqa: E402
 
 import dispatch_ageostrophic as d_ageo  # noqa: E402
 import dispatch_compare as d_cmp  # noqa: E402
 import dispatch_synoptic_pca_makani as d_pca  # noqa: E402
 import dispatch_tc_tracks_compare as d_tc  # noqa: E402
 
-SURV_SCRIPT = str(BW_DIR / "submit_survival.sh")
-LOG_DIR = str(BW_DIR / "compare_logs")
-SURV_H_RT = "03:00:00"
 
 CASE_DATA_SUBDIR = {"pnw_heatwave": "2021_pnw_heatwave", "ian": "ian"}
-DEFAULT_CASES = ["pnw_heatwave", "ian"]
+DEFAULT_CASES = ["pnw_heatwave", "ian", "sandy"]
 DEFAULT_DATA_ROOT = "/projectnb/eb-general/jlin404/scratch/backward_emulator_data"
 DEFAULT_MAKANI_ANALYSIS = (
     "/projectnb/eb-general/jlin404/weather_interpolation/makani-aicr/analysis"
 )
-
-
-def _submit_survival_root(case_name, makani_dir, surv_npz, mk_dir, dry_run) -> str:
-    cmd = build_qsub_cmd(
-        script=SURV_SCRIPT, job_name=f"Surv_{case_name}", h_rt=SURV_H_RT,
-        script_args=["--makani-dir", makani_dir, "--case", case_name,
-                     "--out", surv_npz, "--makani-analysis-dir", mk_dir])
-    jid = submit_qsub(cmd, dry_run=dry_run, cwd=str(BW_DIR), log_dir=LOG_DIR)
-    return jid or f"<Surv_{case_name}>"  # placeholder keeps holds visible in dry-run
 
 
 def run(
@@ -99,8 +88,8 @@ def run(
         surv_npz = f"{out_root}/{case_name}/survival_{case_name}.npz"
 
         print(f"\n===== {case_name} =====")
-        surv_jid = _submit_survival_root(case_name, makani_dir, surv_npz,
-                                         makani_analysis_dir, dry_run)
+        surv_jid, _ = d_cmp.submit_survival_root(case_name, makani_dir, surv_npz,
+                                                 makani_analysis_dir, dry_run)
         common = dict(data_root=data_root, out_root=out_root,
                       makani_analysis_dir=makani_analysis_dir, dry_run=dry_run)
 
@@ -111,7 +100,7 @@ def run(
 
         tc_jid: Optional[str] = None
         tc = None
-        if case.get("tc_tracks"):  # Ian: tracks first, PCA holds on it
+        if case.get("tc_tracks"):  # Ian, Sandy: tracks first, PCA holds on it
             tc = d_tc.dispatch(case_name, data_root=data_root, out_root=out_root,
                                dry_run=dry_run)
             tc_jid = tc["jid"] or f"<TC_{case_name}>"
@@ -127,7 +116,7 @@ def run(
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--case", action="append", default=None,
-                   help="Case name (repeatable). Default: pnw_heatwave and ian.")
+                   help="Case name (repeatable). Default: pnw_heatwave, ian and sandy.")
     p.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
     p.add_argument("--out-root", default="./out")
     p.add_argument("--makani-analysis-dir", default=DEFAULT_MAKANI_ANALYSIS)

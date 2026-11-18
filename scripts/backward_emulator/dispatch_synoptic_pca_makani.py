@@ -37,7 +37,7 @@ LOG_DIR = str(BW_DIR / "compare_logs")
 H_RT = "04:00:00"
 
 CASE_DATA_SUBDIR = {"pnw_heatwave": "2021_pnw_heatwave", "ian": "ian"}
-DEFAULT_CASES = ["pnw_heatwave", "ian"]
+DEFAULT_CASES = ["pnw_heatwave", "ian", "sandy"]
 DEFAULT_DATA_ROOT = "/projectnb/eb-general/jlin404/scratch/backward_emulator_data"
 DEFAULT_MAKANI_ANALYSIS = (
     "/projectnb/eb-general/jlin404/weather_interpolation/makani-aicr/analysis"
@@ -64,7 +64,7 @@ def dispatch(
     holds: List[str] = []
     if survival_hold_jid:  # shared survivor root (censoring cache)
         holds.append(str(survival_hold_jid))
-    if case.get("tc_tracks"):  # track impact (Ian)
+    if case.get("tc_tracks"):  # track impact (Ian, Sandy)
         parquet = f"{case_out}/tc_tracks/tc_tracks_makani_{case_name}_end.parquet"
         args += ["--impact-kind", "track", "--tc-parquet", parquet]
         if tc_hold_jid:
@@ -85,13 +85,14 @@ def dispatch(
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--case", action="append", default=None,
-                   help="Case name (repeatable). Default: pnw_heatwave and ian.")
+                   help="Case name (repeatable). Default: pnw_heatwave, ian and sandy.")
     p.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
     p.add_argument("--out-root", default="./out")
     p.add_argument("--land-mask-dir", default=None)
     p.add_argument("--makani-analysis-dir", default=DEFAULT_MAKANI_ANALYSIS)
     p.add_argument("--tc-hold-jid", default=None,
-                   help="SGE job id of the Ian tc_tracks job; Ian's PCA holds on it.")
+                   help="SGE job id of the case's tc_tracks job; its PCA holds on it. "
+                        "One --case per call (dispatch_all.py chains every case).")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args(argv)
 

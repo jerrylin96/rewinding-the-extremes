@@ -15,7 +15,7 @@ Reads the makani npz (`synoptic_pca_makani.py`) and the cBottle npz (the paper's
 into one shape.  Without `--cbottle-npz` it runs makani-only; a cBottle path that
 is given but does not exist is an error, never a makani-only run.
 
-**Track targets (Ian) come from the paper's track QC only.**  For a track case
+**Track targets (Ian, Sandy) come from the paper's track QC only.**  For a track case
 (npz ``impact_kind == "track"``) each model's targets are resolved from its tracks
 parquet (`--makani-parquet`, `--cbottle-parquet`, both required) through
 `case_track_qc`; track targets stored in an npz are never read (the paper's older
@@ -27,7 +27,7 @@ case (the `--case` YAML's display name, or makani's without `--case`), another
 conditioning mode (free end not at frame 0), or another impact kind.
 
 Figure conventions match the other compare figures: the models are displayed as
-"Autoregressive" and "Video diffusion (cBottle)" (npz-internal keys stay
+"Rewind-AR" and "cBottle-video" (model_labels.py; npz-internal keys stay
 makani/cbottle), targets get the paper's spelled-out names, and the scatter's
 vertical axis is labelled "ensemble member" -- each point is one member's own
 free-end value, not an observation (ERA5 is the observation and is not drawn).
@@ -42,7 +42,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Tuple
 
 import numpy as np
 
@@ -54,12 +54,13 @@ for _p in (str(BW_DIR), str(SHARED)):
 
 import _dispatch_lib as dl  # noqa: E402
 import case_track_qc as cq  # noqa: E402
+from model_labels import MODEL_COLORS, MODEL_LABELS  # noqa: E402
 from synoptic_pca_makani import regression_summary  # noqa: E402
 
 # Display names, shared with the other compare figures (ageostrophic, TC tracks,
 # free-end states).  Keys are the internal model keys; npz-stored names / file
 # stems are only a fallback for unknown models.
-_MODEL_LABELS = {"makani": "Autoregressive", "cbottle": "Video diffusion (cBottle)"}
+_MODEL_LABELS = MODEL_LABELS
 
 # Spelled-out target names + units, matching the paper's track-regression figure
 # (aggregate_synoptic_pca._TRACK_TARGETS) and its scalar precursor->impact panel.
@@ -67,12 +68,9 @@ _TARGET_LABELS = {
     "tc_lat": ("free-end latitude", "°N"),
     "tc_lon": ("free-end longitude", "°E"),
     # Newline keeps the widest column title inside its panel.
-    "tc_dist_km": ("free-end distance\nfrom ERA5", "km"),
     "tc_msl_hpa": ("free-end\ncentral MSL", "hPa"),
     "t2m": ("land-mean t2m", "K"),
 }
-# Track target names, in `case_track_qc.TARGET_COLUMNS` order.
-_TRACK_NAMES = ("tc_lat", "tc_lon", "tc_dist_km", "tc_msl_hpa")
 
 
 def _model_label(mkey: str, m: Dict) -> str:
@@ -155,13 +153,14 @@ def _track_targets(m: Dict, parquet: str, case: Dict, name: str) -> None:
     rows = m["analyzable"]
     _ens, _era5, qc = cq.load_track_qc(
         parquet, case, n_members=rows.size if rows is not None else n_rows)
-    tgt = cq.free_end_target_matrix(qc)
+    tgt = cq.free_end_regression_targets(qc)
     if rows is not None:
-        tgt = tgt[rows]
-    if tgt.shape[0] != n_rows:
-        raise SystemExit(f"[pca-cmp] {name}: {tgt.shape[0]} track rows != "
+        tgt = {nm: y[rows] for nm, y in tgt.items()}
+    n_track = next(iter(tgt.values())).shape[0]
+    if n_track != n_rows:
+        raise SystemExit(f"[pca-cmp] {name}: {n_track} track rows != "
                          f"{n_rows} PC-score rows")
-    m["targets"] = {nm: tgt[:, j] for j, nm in enumerate(_TRACK_NAMES)}
+    m["targets"] = tgt
     print(f"[pca-cmp] {name} track QC from {parquet}: {qc.summary()}")
 
 
@@ -192,13 +191,68 @@ def _pvalue_text(p: float) -> str:
     return " (p < 0.001)" if p < 1e-3 else f" (p = {p:.3f})"
 
 
-def _scatter_panel(ax, m: Dict, mkey: str, nm: str, r: Dict, *, n_pc: int,
-                   color: str, ps) -> None:
-    """One predicted-vs-ensemble-member panel (square, 1:1 line, stats box)."""
-    yobs, ypred = _fit_predict(m["pc_scores"], m["targets"][nm], n_pc)
+def _shared_spans(fits: Dict) -> Dict[str, Tuple[float, float]]:
+    """Axis range per target, shared by every model's panel of that target.
+
+    ``fits`` maps ``(model, target)`` to ``(yobs, ypred)``.  A target is the
+    same quantity in each model's panel, so the panels share one range: the
+    reader compares the two models' clouds by eye, which a per-panel range
+    would distort (each cloud would fill its own panel whatever its spread).
+    """
+    spans: Dict[str, Tuple[float, float]] = {}
+    for (_mkey, nm), (yobs, ypred) in fits.items():
+        lo = float(min(yobs.min(), ypred.min()))
+        hi = float(max(yobs.max(), ypred.max()))
+        if nm in spans:
+            lo, hi = min(lo, spans[nm][0]), max(hi, spans[nm][1])
+        spans[nm] = (lo, hi)
+    return spans
+
+
+def _points_inside(ax, frame, x: np.ndarray, y: np.ndarray) -> int:
+    """How many data points (data units) are drawn inside display-space ``frame``."""
+    px = ax.transData.transform(np.column_stack([x, y]))
+    inside = ((px[:, 0] > frame.x0) & (px[:, 0] < frame.x1)
+              & (px[:, 1] > frame.y0) & (px[:, 1] < frame.y1))
+    return int(inside.sum())
+
+
+def _place_stats_boxes(fig, panels) -> None:
+    """Move a panel's stats box from the bottom-right corner to the top-left when
+    it covers fewer member points there.
+
+    ``panels`` holds ``(ax, box, x, y)`` per scatter panel.  These are the two
+    corners the 1:1 line does not cross.  With one range per target across models,
+    a cloud can sit away from the middle of the diagonal and under a fixed
+    bottom-right box (the PNW Rewind-AR panel).  Measured on the laid-out figure,
+    since the box's size depends on the font.  The paper's track regression
+    (``aggregate_synoptic_pca._box_covers_star``) moves its box between the same
+    two corners, there to keep ERA5's star visible.
+    """
+    from matplotlib.transforms import Bbox
+
+    fig.draw_without_rendering()
+    for ax, box, x, y in panels:
+        here = box.get_bbox_patch().get_window_extent()
+        frame = ax.get_window_extent()
+        # The same box mirrored into the top-left corner, with equal margins.
+        x0 = frame.x0 + (frame.x1 - here.x1)
+        y1 = frame.y1 - (here.y0 - frame.y0)
+        there = Bbox.from_extents(x0, y1 - here.height, x0 + here.width, y1)
+        if _points_inside(ax, there, x, y) < _points_inside(ax, here, x, y):
+            box.set_position((0.03, 0.97))
+            box.set_horizontalalignment("left")
+            box.set_verticalalignment("top")
+
+
+def _scatter_panel(ax, yobs: np.ndarray, ypred: np.ndarray, r: Dict, *,
+                   span: Tuple[float, float], color: str, ps):
+    """One predicted-vs-ensemble-member panel (square, 1:1 line, stats box).
+
+    Returns the stats box, drawn in the bottom-right corner (see
+    ``_place_stats_boxes``)."""
     ax.scatter(ypred, yobs, s=8, alpha=0.35, color=color, edgecolors="none")
-    lo = float(min(yobs.min(), ypred.min()))
-    hi = float(max(yobs.max(), ypred.max()))
+    lo, hi = span
     pad = 0.04 * (hi - lo if hi > lo else 1.0)
     ax.plot([lo, hi], [lo, hi], "k-", lw=0.8, alpha=0.6)
     ax.set_xlim(lo - pad, hi + pad)
@@ -208,15 +262,15 @@ def _scatter_panel(ax, m: Dict, mkey: str, nm: str, r: Dict, *, n_pc: int,
     ax.tick_params(axis="both", labelsize=ps.TICK_LABEL_SIZE_DENSE)
     r2_in = f"{r['r2_insample']:.2f}" if np.isfinite(r["r2_insample"]) else "n/a"
     r2_cv = f"{r['r2_cv']:.2f}" if np.isfinite(r["r2_cv"]) else "n/a"
-    ax.text(0.97, 0.03,
-            f"N = {r['n_used']}\n"
-            f"$R^2$ in = {r2_in}{_pvalue_text(r.get('pvalue', float('nan')))}\n"
-            f"$R^2$ CV = {r2_cv}",
-            transform=ax.transAxes, va="bottom", ha="right",
-            fontsize=ps.TICK_LABEL_SIZE_DENSE,
-            bbox=dict(facecolor="white", alpha=0.85, edgecolor="0.7",
-                      boxstyle="round,pad=0.3"),
-            zorder=6)
+    return ax.text(0.97, 0.03,
+                   f"N = {r['n_used']}\n"
+                   f"$R^2$ in = {r2_in}{_pvalue_text(r.get('pvalue', float('nan')))}\n"
+                   f"$R^2$ CV = {r2_cv}",
+                   transform=ax.transAxes, va="bottom", ha="right",
+                   fontsize=ps.TICK_LABEL_SIZE_DENSE,
+                   bbox=dict(facecolor="white", alpha=0.85, edgecolor="0.7",
+                             boxstyle="round,pad=0.3"),
+                   zorder=6)
 
 
 def _domain_lines(models: Dict[str, Dict], target_names: list) -> list:
@@ -240,7 +294,7 @@ def _domain_lines(models: Dict[str, Dict], target_names: list) -> list:
     pcoords = f" ({format_bbox(pbox)})" if pbox else ""
     lines = [f"precursor EOFs: free-end {ptxt} over the synoptic domain{pcoords}"]
 
-    if "tc_lat" in target_names:  # track impact (Ian)
+    if "tc_lat" in target_names:  # track impact (Ian, Sandy)
         tbox = first("tc_domain")
         tcoords = f" ({format_bbox(tbox)})" if tbox else ""
         lines.append("impact: free-end storm position + intensity from TC "
@@ -265,7 +319,7 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
     target_names = list(next(iter(models.values()))["targets"].keys())
     n_t = len(target_names)
     mkeys = list(models)
-    colors = {"makani": "#1b6ca8", "cbottle": "#c1440e"}
+    colors = MODEL_COLORS
 
     # Layout: one EVR row on top, then the scatter grid.  With >= 3 targets
     # (the Ian track case) the grid is one row per MODEL and one column per
@@ -295,7 +349,14 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
     ax0.grid(True, alpha=0.25)
 
     # Scatter grid: predicted vs ensemble member, one panel per (model, target).
+    fits = {(mkey, nm): _fit_predict(m["pc_scores"], m["targets"][nm], n_pc)
+            for mkey, m in models.items() for nm in target_names
+            if nm in m["targets"]}
+    spans = _shared_spans(fits)
+    print("[pca-cmp] scatter range shared across models: " + ", ".join(
+        f"{nm} {lo:.4g} to {hi:.4g}" for nm, (lo, hi) in spans.items()))
     scatter_axes = []
+    stats_boxes = []
     for ri in range(n_scatter_rows):
         for ci in range(ncol):
             mkey, nm = (
@@ -308,8 +369,10 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
                 ax.axis("off")
                 continue
             scatter_axes.append(ax)
-            _scatter_panel(ax, m, mkey, nm, tbl[(mkey, nm)], n_pc=n_pc,
-                           color=colors.get(mkey, "#444"), ps=ps)
+            yobs, ypred = fits[(mkey, nm)]
+            box = _scatter_panel(ax, yobs, ypred, tbl[(mkey, nm)], span=spans[nm],
+                                 color=colors.get(mkey, "#444"), ps=ps)
+            stats_boxes.append((ax, box, ypred, yobs))  # drawn as x=pred, y=obs
             mlabel = _model_label(mkey, m)
             if wide:
                 # Column header = target; row identity = model (left edge).
@@ -343,6 +406,7 @@ def _plot(out_png: Path, models: Dict[str, Dict], tbl: Dict, *, case: str, n_pc:
              ha="center", va="top", fontsize=ps.AXIS_LABEL_SIZE_DENSE,
              color="0.35")
     fig.tight_layout(rect=(0, 0, 1, 1.0 - 0.95 / fig_h))
+    _place_stats_boxes(fig, stats_boxes)  # after the layout is final
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -355,10 +419,11 @@ def main(argv=None) -> None:
                    help="Paper's synoptic_pca_end.npz for cBottle; omit for a "
                    "makani-only run.")
     p.add_argument("--makani-parquet", default=None,
-                   help="makani tracks parquet; required for a track case (Ian).")
+                   help="makani tracks parquet; required for a track case "
+                   "(Ian, Sandy).")
     p.add_argument("--cbottle-parquet", default=None,
                    help="cBottle tracks parquet (the paper's tc_tracks_end.parquet); "
-                   "required for a track case (Ian).")
+                   "required for a track case (Ian, Sandy).")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--case", default="")
     p.add_argument("--n-pc", type=int, default=8)

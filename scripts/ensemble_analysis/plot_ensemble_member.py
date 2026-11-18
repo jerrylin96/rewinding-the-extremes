@@ -49,15 +49,13 @@ sys.path.insert(0, SHARED_DIR)
 import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import cmasher  # noqa: F401, E402 — registers "cmr.*" colormap names with matplotlib
-from matplotlib.animation import FuncAnimation  # noqa: E402
-import numpy as np  # noqa: E402
-import zarr  # noqa: E402
-
 import cartopy.crs as ccrs  # noqa: E402
 import cartopy.feature as cfeature  # noqa: E402
-
+import cmasher  # noqa: F401, E402 — registers "cmr.*" colormap names with matplotlib
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+import zarr  # noqa: E402
 from _dispatch_lib import (  # noqa: E402
     ensemble_zarr_path,
     era5_zarr_path,
@@ -68,9 +66,8 @@ from _dispatch_lib import (  # noqa: E402
     parse_member_spec,
     resolve_view,
 )
-from custom_utils.ensemble_loading import variable_index  # noqa: E402
-from custom_utils.interpolation_utils import CBottleUtils  # noqa: E402
 from derived_fields import relative_vorticity  # noqa: E402
+from matplotlib.animation import FuncAnimation  # noqa: E402
 from plot_style import (  # noqa: E402
     COLORBAR_LABEL_SIZE,
     COLORBAR_LABEL_SIZE_DENSE,
@@ -88,8 +85,10 @@ from plot_style import (  # noqa: E402
     nice_speed,
     quiver_step,
 )
+from var_metadata import to_display_units, var_label  # noqa: E402
 
-import torch  # noqa: E402
+from custom_utils.ensemble_loading import variable_index  # noqa: E402
+from custom_utils.interpolation_utils import CBottleUtils  # noqa: E402
 
 # ── Derived variables ──────────────────────────────────────────────────────
 # Each entry maps a derived name to (list of source vars, combining function,
@@ -226,13 +225,17 @@ def parse_args():
         "--vmin",
         type=float,
         default=None,
-        help="Colorbar minimum (default: auto from data)",
+        help="Colorbar minimum in storage units, like cases/_palettes.yaml "
+        "(Pa for msl, m^2/s^2 for geopotential); converted with the field "
+        "(default: auto from data)",
     )
     parser.add_argument(
         "--vmax",
         type=float,
         default=None,
-        help="Colorbar maximum (default: auto from data)",
+        help="Colorbar maximum in storage units, like cases/_palettes.yaml "
+        "(Pa for msl, m^2/s^2 for geopotential); converted with the field "
+        "(default: auto from data)",
     )
     parser.add_argument(
         "--coastline-color",
@@ -341,6 +344,19 @@ def parse_args():
     return args
 
 
+def _utc_label(when):
+    """Format a timestamp as ``"2004-11-27 18:00 UTC"``.
+
+    The single timestamp format for every title this script draws -- free
+    panels, pinned panels and video frames alike -- so a figure never mixes
+    styles and matches the paper text's "HH:MM UTC" convention.  Accepts a
+    ``numpy.datetime64`` or an ISO string such as the ``"2004-11-27T12:00"``
+    stamps ``ensemble_interpolation.py`` writes into the store attrs.
+    """
+    text = np.datetime_as_string(np.datetime64(when), unit="m")
+    return f"{str(text).replace('T', ' ')} UTC"
+
+
 def get_valid_time_labels(root, n_frames, is_era5=False):
     """Return a list of human-readable valid-time strings for all frames."""
     times = np.array(root["time"][:])
@@ -351,7 +367,7 @@ def get_valid_time_labels(root, n_frames, is_era5=False):
             valid = times[f]
         else:
             valid = times[0] + lead_times[f]
-        labels.append(str(np.datetime_as_string(valid, unit="h")))
+        labels.append(_utc_label(valid))
     return labels
 
 
@@ -492,11 +508,34 @@ def load_field(root, var, member, n_frames, is_era5, hpx_level):
     return _regrid_member_field(arr_hpx, root, hpx_level)
 
 
+def load_display_field(root, var, member, n_frames, is_era5, hpx_level):
+    """``load_field`` in the units ``get_display_label`` names.
+
+    Storage keeps geopotential in m^2/s^2, while ``var_label`` names it as
+    geopotential height in m, so the field is converted at plot time as every
+    other figure script does.  Other variables pass through unchanged.
+    """
+    arr, lat, lon = load_field(root, var, member, n_frames, is_era5, hpx_level)
+    return to_display_units(var, arr), lat, lon
+
+
+def display_limit(var, value):
+    """A --vmin/--vmax or palette limit (storage units) in display units."""
+    return None if value is None else float(to_display_units(var, float(value)))
+
+
 def get_display_label(var):
-    """Return a human-readable label for a variable."""
+    """Return a human-readable label for a variable.
+
+    Derived variables carry their own label.  Everything else goes through the
+    shared ``var_label`` -- spelled-out name plus units, e.g. ``"Mean sea level
+    pressure (Pa)"`` -- so colorbars and titles never show a raw shorthand
+    like ``msl``.  ``var_label`` falls back to the shorthand for variables it
+    does not know, so this is safe for any stored variable.
+    """
     if var in DERIVED_VARIABLES:
         return DERIVED_VARIABLES[var]["label"]
-    return var
+    return var_label(var)
 
 
 def animate_member(ens_root, era5_root, var, member, args):
@@ -522,7 +561,7 @@ def animate_member(ens_root, era5_root, var, member, args):
 
     # Load all frames at once — both end up on the same lat/lon grid: ERA5
     # round-tripped through HPX, ensemble regridded HPX -> lat/lon.
-    ens_all, ens_lat, ens_lon = load_field(
+    ens_all, ens_lat, ens_lon = load_display_field(
         ens_root,
         var,
         member,
@@ -530,7 +569,7 @@ def animate_member(ens_root, era5_root, var, member, args):
         is_era5=False,
         hpx_level=hpx_level,
     )
-    era5_all, era5_lat, era5_lon = load_field(
+    era5_all, era5_lat, era5_lon = load_display_field(
         era5_root,
         var,
         member,
@@ -550,8 +589,8 @@ def animate_member(ens_root, era5_root, var, member, args):
     era5_all = era5_all[:, :, era5_sort]
 
     # Color range
-    vmin = args.vmin
-    vmax = args.vmax
+    vmin = display_limit(var, args.vmin)
+    vmax = display_limit(var, args.vmax)
     if vmin is None:
         vmin = min(float(np.nanmin(era5_all)), float(np.nanmin(ens_all)))
     if vmax is None:
@@ -724,14 +763,6 @@ def _frame_provenance(ens_root, n_frames):
     start_date = ens_root.attrs.get("start_date")
     pinned = {int(f) for f in conditioning}
 
-    def _stamp(iso):
-        # "2013-09-12T18:00" -> "2013-09-12 18Z".  Slicing, not rstrip: the
-        # obvious rstrip(":00") also eats the hour of any frame pinned at 00Z,
-        # which is exactly frame 0 of the Atlantic teleport.
-        text = str(iso)
-        date, _, clock = text.partition("T")
-        return f"{date} {clock[:2]}Z" if clock else date
-
     labels = []
     for f in range(n_frames):
         if f not in pinned:
@@ -741,9 +772,9 @@ def _frame_provenance(ens_root, n_frames):
         # pinned frame is the run's own start_date.
         borrowed = custom.get(str(f), custom.get(f))
         if borrowed is not None:
-            labels.append((True, f"ERA5 {_stamp(borrowed)}"))
+            labels.append((True, f"ERA5 {_utc_label(borrowed)}"))
         elif f == 0 and start_date:
-            labels.append((True, f"ERA5 {_stamp(start_date)}"))
+            labels.append((True, f"ERA5 {_utc_label(start_date)}"))
         else:
             labels.append((True, "ERA5"))
     return labels
@@ -891,14 +922,16 @@ def plot_member_grid(ens_root, era5_root, var, member, args):
     n_frames = ens_root["data"].shape[2]
 
     display_label = get_display_label(var)
-    ens_all, lat, lon = load_field(
+    ens_all, lat, lon = load_display_field(
         ens_root, var, member, n_frames, is_era5=False, hpx_level=hpx_level
     )
 
     (ens_all,), plot_lon = _sort_by_plot_lon([ens_all], lon)
 
-    vmin = args.vmin if args.vmin is not None else float(np.nanmin(ens_all))
-    vmax = args.vmax if args.vmax is not None else float(np.nanmax(ens_all))
+    vmin = display_limit(var, args.vmin)
+    vmax = display_limit(var, args.vmax)
+    vmin = vmin if vmin is not None else float(np.nanmin(ens_all))
+    vmax = vmax if vmax is not None else float(np.nanmax(ens_all))
 
     wind = _prepare_wind_overlay(
         ens_root,
@@ -989,17 +1022,20 @@ def plot_member_grid(ens_root, era5_root, var, member, args):
                 wind_key_done = True
 
         is_pinned, source = provenance[f]
-        # Panel titles carry the frame index and valid time; a pinned panel
-        # replaces its valid time with the stamp of the field it was pinned
-        # to, which is the only date visible in it.
+        # A borrowed field has two clocks: its ERA5 source date and its slot
+        # in the generated sequence. Show both when they differ, so reversed
+        # endpoint conditioning cannot look like a backwards model clock.
         #
         # y=1.0 is required, not cosmetic: see draw_graticule's caller
         # obligation — cartopy's Gridliner resolves an auto-placed title to
         # `inf` on a labelled axes, which drops the title and breaks the tight
         # bbox.  It reproduces the automatic placement when nothing sits above.
         if is_pinned:
+            title = f"F{f} — PINNED\n{source}"
+            if source != f"ERA5 {time_labels[f]}":
+                title += f"\nSlot: {time_labels[f]}"
             ax.set_title(
-                f"F{f} — PINNED\n{source}",
+                title,
                 fontsize=TITLE_SIZE_DENSE,
                 color=PINNED_EDGE_COLOR,
                 fontweight="bold",
@@ -1030,11 +1066,12 @@ def plot_member_grid(ens_root, era5_root, var, member, args):
     cbar.ax.xaxis.label.set_fontsize(COLORBAR_LABEL_SIZE_DENSE)
     cbar.ax.tick_params(labelsize=COLORBAR_TICK_SIZE_DENSE)
 
-    title = getattr(args, "grid_title", None) or display_label
+    # The member index stays in the filename only: the grid is a figure of
+    # one example, and the index carries no meaning for its reader.
+    suptitle = getattr(args, "grid_title", None) or display_label
     # Which wind the arrows are belongs in the figure, not only in the
     # filename: a reader looking at the panel alone must be able to say what
     # the arrows show, and a reviewer must be able to check it.
-    suptitle = f"{title}  —  member {member}"
     if wind is not None:
         suptitle += f"\narrows: {wind['label']}"
     fig.suptitle(suptitle, fontsize=SUPTITLE_SIZE_DENSE)

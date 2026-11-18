@@ -24,3 +24,34 @@ def test_no_cbottle_flag(tmp_path):
     rec = da.dispatch("pnw_heatwave", out_root=str(tmp_path), cbottle=False,
                       dry_run=True)
     assert "--no-cbottle" in rec["cmd"]
+
+
+def test_submits_its_own_survivor_job_and_holds_on_it(tmp_path, capsys):
+    rec = da.dispatch("sandy", out_root=str(tmp_path), dry_run=True)
+    assert rec["survival_jid"] == "<Surv_sandy>"
+    assert "-hold_jid" in rec["cmd"] and "<Surv_sandy>" in rec["cmd"]
+    assert "-N Surv_sandy" in capsys.readouterr().out
+
+
+def test_external_survivor_job_is_held_on_and_none_submitted(tmp_path, capsys):
+    rec = da.dispatch("ian", out_root=str(tmp_path), survival_hold_jid="123",
+                      dry_run=True)
+    assert rec["cmd"][rec["cmd"].index("-hold_jid") + 1] == "123"
+    assert "Surv_ian" not in capsys.readouterr().out
+
+
+def test_failed_survivor_submit_queues_nothing(tmp_path, monkeypatch):
+    import dispatch_compare as dc
+    import pytest
+
+    submitted = []
+
+    def fake_submit(cmd, **kw):
+        submitted.append(cmd)
+        return None  # qsub refused
+
+    monkeypatch.setattr(dc, "submit_qsub", fake_submit)
+    monkeypatch.setattr(da, "submit_qsub", fake_submit)
+    with pytest.raises(SystemExit, match="survivor-mask job for ian"):
+        da.dispatch("ian", out_root=str(tmp_path), dry_run=False)
+    assert len(submitted) == 1  # the survivor job only; no Ageo job behind it

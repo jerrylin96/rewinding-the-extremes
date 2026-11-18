@@ -38,6 +38,7 @@ from trim_backward_fields import COMPARISON_CHANNELS  # noqa: E402
 EXPECTED_ANCHOR = {
     "pnw": "2021-06-28T12",
     "ian": "2022-09-30T18",
+    "sandy": "2012-10-30T00",
 }
 
 # Loose physical-range sanity bounds (physical/storage units) for a spot check.

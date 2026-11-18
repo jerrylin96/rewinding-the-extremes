@@ -42,6 +42,7 @@ sys.path.insert(0, str(SCRIPT_DIR.parent))
 sys.path.insert(0, str(SCRIPT_DIR.parent.parent / "_shared"))
 
 from _dispatch_lib import (  # noqa: E402
+    MODE_LABELS_TITLE,
     anchor_free_end_frames,
     load_case,
     require_region,
@@ -61,11 +62,7 @@ from track_qc import compute_track_qc  # noqa: E402
 # ``aggregate_tc_tracks.py`` so the per-row layout matches the per-case
 # ``tc_tracks.png`` it summarizes.
 MODE_ORDER: tuple[str, ...] = ("end", "start", "both")
-MODE_LABELS: dict[str, str] = {
-    "start": "Start Conditioning",
-    "end": "End Conditioning",
-    "both": "Both-End Conditioning",
-}
+MODE_LABELS: dict[str, str] = MODE_LABELS_TITLE
 
 MEMBER_TRACK_CMAP = plt.cm.jet
 

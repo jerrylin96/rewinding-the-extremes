@@ -49,6 +49,8 @@ exec > "${LOG_DIR}/member_videos_${JOB_ID:-local-$$}.log" 2>&1
 
 cd "$ANALYSIS_DIR" || exit 1
 
+# Unbuffered, so a job killed at its time or memory limit keeps its whole log.
+export PYTHONUNBUFFERED=1
 module load miniconda/25.3.1
 module load gcc/12.2.0
 # anim.save(writer="ffmpeg") shells out to the ffmpeg binary; e2s-custom does

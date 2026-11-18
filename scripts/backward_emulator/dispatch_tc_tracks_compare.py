@@ -1,9 +1,9 @@
 """Dispatch the makani TC-tracking job (TempestExtremes).
 
-Only **Ian** has a tropical cyclone; PNW has none, so this submits one job for
-Ian by default. The job writes a parquet in the paper's schema
-(`tc_tracks_makani_ian_end.parquet`) that then feeds Ian's synoptic-PCA impact
-target and the TC-track aggregator.
+The storm cases (case YAML `tc_tracks`: Ian and Sandy) each get one job by
+default; PNW has no tropical cyclone. Each job writes a parquet in the paper's
+schema (`tc_tracks_makani_<case>_end.parquet`) that then feeds that case's
+synoptic-PCA impact target and the TC-track figure.
 
 Pre-fetch the WB2 orography once on a login node first (see submit script /
 `smoke_tc_tracks.py`).
@@ -31,7 +31,7 @@ LOG_DIR = str(BW_DIR / "compare_logs")
 H_RT = "12:00:00"
 
 CASE_DATA_SUBDIR = {"pnw_heatwave": "2021_pnw_heatwave", "ian": "ian"}
-DEFAULT_CASES = ["ian"]  # only Ian has a TC
+DEFAULT_CASES = ["ian", "sandy"]  # the cases with a TC (case YAML `tc_tracks`)
 DEFAULT_DATA_ROOT = "/projectnb/eb-general/jlin404/scratch/backward_emulator_data"
 
 
@@ -51,7 +51,7 @@ def dispatch(case_name: str, *, data_root: str = DEFAULT_DATA_ROOT,
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--case", action="append", default=None,
-                   help="Case name (repeatable). Default: ian.")
+                   help="Case name (repeatable). Default: ian and sandy.")
     p.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
     p.add_argument("--out-root", default="./out")
     p.add_argument("--dry-run", action="store_true")

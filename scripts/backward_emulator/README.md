@@ -5,7 +5,7 @@ Tooling to compare this repo's **video-diffusion** end-conditioned ensembles
 [run-it-back](https://github.com/jerrylin96/run-it-back) for the same
 extreme-event case studies, running the analyses we already have on both methods
 and drawing them side by side. The figures of the NeurIPS 2026 CCAI workshop
-paper *Run it Back: Autoregression vs. Video Diffusion for End-Conditioned Weather Trajectories*
+paper *Run it Back: Autoregression vs. Video Diffusion for Final-Conditioned Weather Trajectories*
 (Lin and Barnes 2026): the Ian tracks and intensity, the two EOF regressions and
 the PNW free-end states, are produced here. `run-it-back` produces the
 emulator's ensembles (`analysis/backward_rollout_ensemble.sbatch` there); their
@@ -33,6 +33,8 @@ point at the `analysis/` directory of a `run-it-back` checkout (named
 the two index the same 12 valid times in opposite directions.
 PNW: cBottle 2021-06-25 18Z + 66 h = **2021-06-28 12Z** = makani anchor.
 Ian: 2022-09-28 00Z + 66 h = **2022-09-30 18Z** = makani anchor.
+Sandy: 2012-10-27 06Z + 66 h = **2012-10-30 00Z** = makani anchor. Sandy (2012) is
+inside both models' training years (makani 2009–2018, cBottle 1980–2017).
 Frames are joined on **valid timestamp**, and makani's rollout (which runs
 further back, −180 h) is truncated to the first 12 frames (66 h) because the
 emulator destabilizes beyond that.
@@ -141,7 +143,7 @@ tests / coarse-grid maps only.
 ## Diagnostics in scope
 
 spread/RMSE/CRPS · free-end states · synoptic-PCA · ageostrophic (500 hPa) ·
-TC tracks (Ian) · power spectra. (Power spectra deferred in discussion but kept
+TC tracks (Ian, Sandy) · power spectra. (Power spectra deferred in discussion but kept
 in the channel manifest so no re-transfer is needed to add it.)
 
 ## Channel manifest
@@ -157,8 +159,9 @@ The union the six diagnostics consume — 8 channels, each present in cBottle's
 
 - PNW: `/projectnb/eb-general/jlin404/scratch/backward_emulator_data/2021_pnw_heatwave`
 - Ian: `/projectnb/eb-general/jlin404/scratch/backward_emulator_data/ian`
+- Sandy: `/projectnb/eb-general/jlin404/scratch/backward_emulator_data/sandy`
 
-(cBottle bases are the sibling `.../scratch/{2021_pnw_heatwave,ian}`.)
+(cBottle bases are the sibling `.../scratch/{2021_pnw_heatwave,ian,sandy}`.)
 
 ## Components
 
@@ -170,17 +173,17 @@ The union the six diagnostics consume — 8 channels, each present in cBottle's
 | `inspect_bundle.py` | Morning-first PASS/WARN check on a transferred bundle. | ✅ done + tested |
 | `survival.py` | Survivor censoring (makani `range` detector, exact ceilings) → per-member `alive` mask + survival fraction, in forward order. | ✅ done + tested |
 | `compare_spread_rmse_crps.py` | adapter → censored reducer → npz + manuscript-style **5-panel + survival** figure (S6–S11 layout, cBottle-vs-makani series, display units, local-time axis). makani side wired; cBottle overlay is a documented HPC add-in. | ✅ makani side |
-| `plot_survival_stability.py` | stability-only SI figure: both cases' full-horizon (−180 h) survival curves overlaid on ONE panel (hours-from-anchor axis, 66 h context line, survival-at-66 h + 50%-crossing stats in the legend), from `survival.py` npz files (scan via `submit_survival.sh --n-frames 0`, one qsub per case). `si_survival_stability.tex` is the matching SI figure block (numbers to fill from the script's stdout). | ✅ done + tested |
+| `plot_survival_stability.py` | stability-only SI figure: both cases' full-horizon (−180 h) survival curves overlaid on ONE panel (hours-from-anchor axis, 66 h context line, survival-at-66 h + 50%-crossing stats in the legend), from `survival.py` npz files (scan via `submit_survival.sh --n-frames 0`, one qsub per case). | ✅ done + tested |
 | `tests/` | 33 tests (schema, pooling/alignment, memory-safe paths, metric identities incl. per-lead bias-variance under censoring, forward/rollout ordering, driver E2E). | ✅ |
 | `cbottle_source.py` | cBottle end-mode ensemble as a lat/lon source (batched HPX→lat/lon regrid; round-tripped ERA5 = matched-baseline truth); same interface as the makani source. Heavy env; untestable in the light env. | ✅ written, HPC-run |
 | `smoke_cbottle_source.py` | Quick login-node gate for `cbottle_source`: regrids a few members, checks shapes/finiteness/physical range in seconds. Run before fanning out cBottle overlays. | ✅ |
 | `make_land_mask.py` | Shared land mask (`land = isnan(sst)` on native lat/lon — the paper's convention — from the case `era5_reference`). zarr+numpy; seconds on a login node. | ✅ + tested |
 | `submit_compare_spread_rmse_crps.sh` / `submit_survival.sh` | SGE wrappers (eb-general, 16 omp, e2s-custom): the per-(variable,region) compare job; the survivor-mask root job. | ✅ |
 | `dispatch_compare.py` | Reads each case's `spread_rmse_crps.domains`; submits a survivor root + per-variable compare jobs (`-hold_jid` chained, cached mask). `--dry-run` previews. | ✅ + tested |
-| `ageostrophic_compare.py` + `submit_ageostrophic_compare.sh` + `dispatch_ageostrophic.py` + `smoke_ageostrophic.py` | Ageostrophic imbalance (S13–S15): `\|V_a\|/\|V\|` over the 30–60° \|lat\| band, makani native vs cBottle regridded, each vs its resolution-matched ERA5, makani survivor-censored. Reuses `compute_ageostrophic`'s core verbatim. | ✅ + tested |
+| `ageostrophic_compare.py` + `submit_ageostrophic_compare.sh` + `dispatch_ageostrophic.py` + `smoke_ageostrophic.py` + `plot_ageostrophic_compare.py` | Ageostrophic imbalance (as in EoR Figs. S15–S17): `\|V_a\|/\|V\|` and the mean speeds over the 30–60° \|lat\| band, makani native vs cBottle regridded, reusing `compute_ageostrophic`'s core verbatim. `dispatch_ageostrophic.py` submits a survivor-mask job and one compute job per case held on it; each writes an npz with the traces, both ERA5 references and makani's survivor mask. `plot_ageostrophic_compare.py` (login node, seconds) draws one figure, a column per case, in S15–S17's conventions and pinned ranges, and prints each model's departure from its references over the unconditioned frames: `python plot_ageostrophic_compare.py --case ian --case pnw_heatwave --case sandy`. | ✅ + tested |
 | `case_track_qc.py` | The paper's track QC (`track_qc.py`) for an end-conditioned case (track box, anchor at the pinned last frame, free end at frame 0): one storm-of-interest and population rule for every tracks-parquet consumer below. | ✅ + tested |
-| `tc_tracks_compare.py` + `submit_tc_tracks_compare.sh` + `dispatch_tc_tracks_compare.py` + `smoke_tc_tracks.py` | TC tracks (Ian, Text S3): re-tracks makani natively through the paper's TempestExtremes runner (`track_member_with_tempest`, Z&U-2017 warm-core + WB2 orography), ERA5 ref = makani truth; writes the paper's parquet schema → feeds Ian's synoptic-PCA impact target. | ✅ + tested |
-| `synoptic_pca_makani.py` + `synoptic_pca_compare.py` + `submit_synoptic_pca_makani.sh` + `dispatch_synoptic_pca_makani.py` | Per-ensemble EOF/PC regression (Text S2): makani on native lat/lon (√cos φ weighting), leading-8-PC → impact R² (in-sample + 10-fold CV), free-end-divergence censored. Compare vs the paper's cBottle `synoptic_pca_end.npz`. Ian consumes the TC parquet. | ✅ + tested |
+| `tc_tracks_compare.py` + `submit_tc_tracks_compare.sh` + `dispatch_tc_tracks_compare.py` + `smoke_tc_tracks.py` | TC tracks (Ian and Sandy, Text S3): re-tracks makani natively through the paper's TempestExtremes runner (`track_member_with_tempest`, Z&U-2017 warm-core + WB2 orography), ERA5 ref = makani truth; writes the paper's parquet schema → feeds the storm cases' synoptic-PCA impact target. | ✅ + tested |
+| `synoptic_pca_makani.py` + `synoptic_pca_compare.py` + `submit_synoptic_pca_makani.sh` + `dispatch_synoptic_pca_makani.py` | Per-ensemble EOF/PC regression (Text S2): makani on native lat/lon (√cos φ weighting), leading-8-PC → impact R² (in-sample + 10-fold CV), free-end-divergence censored. Compare vs the paper's cBottle `synoptic_pca_end.npz`. Ian and Sandy consume the TC parquet. | ✅ + tested |
 | power spectra | Deferred (lowest priority; resolution asymmetry makes a raw overlay tautological). | ⏳ |
 
 **Note on trimming:** now that the files transfer untrimmed, trimming buys ~no
