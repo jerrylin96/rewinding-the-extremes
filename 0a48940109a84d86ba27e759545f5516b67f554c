@@ -1,0 +1,18 @@
+[SIGNOFF 0a48940]: human comprehension and risk attestation
+
+Tier 0 cursory review of 1-line prose edit in paper/extremes-on-rewind/main.tex clarifying that the 8-PC regression explains 48% of antecedent storm latitude variance and cannot be attributed solely to environmental steering.
+
+Signoff-Spec-Version: 1.0
+Signoff-Status: VERIFIED_BY_HUMAN
+Signoff-Timestamp: 2026-11-18T05:25:53Z
+Signoff-Base-SHA: cb03f26ff1fe31b2cc2e7ef8539c3a9c89d99a4b
+Signoff-Reviewed-Commit-SHA: 0a48940109a84d86ba27e759545f5516b67f554c
+Signoff-Reviewed-Tree-SHA: eba74950fa6ca5089c4fdc2b9efee0d0448496a3
+Signoff-Harness-ID: antigravity-cli
+Signoff-Conversation-ID: 0e7e464c-24ab-418a-a7db-7177ec273656
+Signoff-Transcript-Digest: sha256:6e622729ea2d5b70af1857a444a6a37b03dd54088f7ad96623165c1e453b0d70
+Signoff-Transcript-Bytes: 95693
+Signoff-Tradeoff: none
+Signoff-Risk: Delaying arXiv upload of revised manuscript while completing signoff
+Signoff-Verified-By: jlin404@bu.edu
+Signoff-Agent: harness=antigravity-cli/N/A model=gemini-4-hydrogen-high reasoning=N/A interview=cursory/software-general
