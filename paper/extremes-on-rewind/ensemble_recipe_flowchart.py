@@ -98,7 +98,7 @@ arrow((50, y3 - 0.6), (50, y4 + h4 + 0.6))
 # ERA5's second use: the full window, kept on its own 0.25-degree grid, verifies the ensembles.
 ax.plot([4.5, 4.5], [y1 - 0.6, y4 + h4 / 2], color=ACCENT, lw=1.0)
 arrow((4.5, y4 + h4 / 2), (24.4, y4 + h4 / 2))
-ax.text(14.5, y4 + h4 / 2 + 0.9, "full 12-frame window,\n0.25\u00b0 \u2192 verification", fontsize=6.6,
+ax.text(14.5, y4 + h4 / 2 + 0.9, "12-frame ERA5 reference\n(0.25\u00b0 lat\u2013lon)", fontsize=6.6,
         color=ACCENT, style="italic", ha="center", va="bottom", linespacing=1.3)
 
 
