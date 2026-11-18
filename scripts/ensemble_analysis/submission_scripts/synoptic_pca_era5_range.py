@@ -10,9 +10,10 @@ PCA field, not of a storm track).  Columns:
     m        members at least as far out as ERA5
     d2_era5  ERA5's squared Mahalanobis distance from the members' mean
     d2_max   the farthest member's
-    p        (m+1)/(N+1): if ERA5 were one more draw like the members, the
-             chance it would rank at least this far out
     ERA5     inside (m >= 1) or outside
+
+No p-value: the members fit the mean and covariance their own distances use
+and ERA5 does not, so a rank p-value would not be calibrated.
 
 This is the source the paper cites.  A start-conditioned row
 is a coverage fact, not a test of the model: those cases were chosen for
@@ -66,7 +67,6 @@ def range_row(npz_path: Path, n_pc: int) -> Dict[str, object]:
         "m": result.m,
         "d2_era5": result.d2_point,
         "d2_max": result.d2_max,
-        "p": result.p_value,
         "ERA5": "inside" if result.inside else "outside",
     }
 
@@ -114,7 +114,7 @@ def main() -> None:
     table = range_table(args.cases, args.modes, args.n_pc)
     print(
         f"ERA5 free-end PC state vs all members ({args.n_pc} PCs, Mahalanobis; "
-        f"m = members at least as far out, p = (m+1)/(N+1))"
+        f"m = members at least as far out)"
     )
     print(
         table.to_string(
@@ -122,7 +122,6 @@ def main() -> None:
             formatters={
                 "d2_era5": "{:.1f}".format,
                 "d2_max": "{:.1f}".format,
-                "p": "{:.3g}".format,
             },
         )
     )
