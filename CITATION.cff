@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: If you use this software, please cite it as below.
+message: If you use this software, please cite the paper below.
 title: "Extremes on Rewind: ensemble generation and analysis code"
 abstract: >-
   Research code for generating and analyzing 1,000-member weather ensembles
@@ -23,7 +23,24 @@ authors:
     affiliation: "Department of Computing & Data Sciences, Boston University"
 repository-code: https://github.com/jerrylin96/rewinding-the-extremes
 doi: 10.5281/zenodo.22000715
-date-released: 2026-08-18
+version: 2.0.0
+date-released: 2026-11-19
+preferred-citation:
+  type: article
+  title: "Extremes on Rewind: Generating 1,000-Member Ensembles Initialized at a Final Condition"
+  authors:
+    - given-names: Jerry
+      family-names: Lin
+    - given-names: Mu-Ting
+      family-names: Chien
+    - given-names: Mansi
+      family-names: Sakarvadia
+    - given-names: Elizabeth A.
+      family-names: Barnes
+  journal: arXiv
+  year: 2026
+  doi: 10.48550/arXiv.2608.19008
+  url: "https://arxiv.org/abs/2608.19008"
 references:
   - type: software
     title: NVIDIA Earth2Studio
@@ -32,5 +49,5 @@ references:
     repository-code: https://github.com/NVIDIA/earth2studio
     license: Apache-2.0
     notes: Upstream project that this repository modifies.
-# TODO: add a `preferred-citation` entry for the article once it is accepted,
-# and bump `doi`/`date-released` if a new Zenodo version is deposited.
+# The top-level doi is Zenodo's all-versions DOI: it resolves to the newest
+# archived version of this code.
