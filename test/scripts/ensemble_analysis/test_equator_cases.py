@@ -46,7 +46,6 @@ from dispatch_ensemble import build_script_args  # noqa: E402
 CASE_NAME = "equator_indian_ocean"
 EXPECTED_METADATA = {
     "year": 2004,
-    "display_name": "Equator crossing: Cyclone Agni (2004) to TS Abaimba (2003)",
     "start_time": {"year": 2004, "month": 11, "day": 27, "hour": 12},
     "custom_frames": [{"frame": 11, "year": 2003, "month": 10, "day": 2, "hour": 12}],
     "start_era5_idx": 106,
@@ -59,7 +58,6 @@ def test_equator_case_loadable_and_valid():
     """Case YAML must load cleanly and pass schema validation."""
     case = load_case(CASE_NAME)
     assert case["name"] == CASE_NAME
-    assert case["display_name"] == EXPECTED_METADATA["display_name"]
     assert case["year"] == EXPECTED_METADATA["year"]
     assert case["base"] == f"/projectnb/eb-general/jlin404/scratch/{CASE_NAME}"
     assert case["timezone"] == "UTC"

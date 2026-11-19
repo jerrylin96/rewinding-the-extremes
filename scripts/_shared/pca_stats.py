@@ -110,6 +110,10 @@ class EllipsoidTest(NamedTuple):
     ``n`` members; ``d2_point`` / ``d2_max`` are the point's and the farthest
     member's squared Mahalanobis distances from the members' mean; ``m`` is the
     number of members at least as far as the point.
+
+    There is deliberately no p-value: the members fit the mean and covariance
+    their own distances use and the point does not, so the point is not
+    exchangeable with them and a rank such as ``(m+1)/(n+1)`` is not calibrated.
     """
 
     n: int
@@ -121,12 +125,6 @@ class EllipsoidTest(NamedTuple):
     def inside(self) -> bool:
         """At least one member is at least as far from the center."""
         return self.m >= 1
-
-    @property
-    def p_value(self) -> float:
-        """``(m+1)/(n+1)``: if the point were one more draw like the members, the
-        chance it would rank at least this far out among all ``n+1``."""
-        return (self.m + 1) / (self.n + 1)
 
 
 def ellipsoid_test(scores: np.ndarray, point: np.ndarray) -> EllipsoidTest:

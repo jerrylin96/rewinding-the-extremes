@@ -63,13 +63,15 @@ def test_inside_and_outside_rows(case_dir: Path) -> None:
     _write_npz(npz_dir / "synoptic_pca_end.npz", era5_scale=0.1)
     _write_npz(npz_dir / "synoptic_pca_start.npz", era5_scale=5.0)
     table = era5_range.range_table(["storm"], ["end", "start"], n_pc=8)
+    # Position only, no p-value: the members fit the ellipsoid ERA5 is
+    # scored against, so a rank p-value would not be calibrated.
+    assert set(table.columns) == {"case", "mode", "vars", "N", "m", "d2_era5", "d2_max", "ERA5"}
     end, start = table.iloc[0], table.iloc[1]
     assert end["case"] == "storm" and end["mode"] == "end"
     assert end["N"] == N_MEMBERS and end["vars"] == "z500"
-    assert end["ERA5"] == "inside" and end["p"] > 0.5
+    assert end["ERA5"] == "inside" and end["m"] >= 1
     assert start["ERA5"] == "outside"
     assert start["m"] == 0
-    assert start["p"] == pytest.approx(1 / (N_MEMBERS + 1))
     assert start["d2_era5"] > start["d2_max"]
 
 

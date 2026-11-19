@@ -68,7 +68,6 @@ def test_center_is_inside(scores: np.ndarray) -> None:
     assert result.d2_point == pytest.approx(0.0, abs=1e-12)
     assert result.m == N_MEMBERS
     assert result.inside
-    assert result.p_value == pytest.approx(1.0)
 
 
 def test_just_beyond_farthest_member_is_outside(scores: np.ndarray) -> None:
@@ -79,7 +78,6 @@ def test_just_beyond_farthest_member_is_outside(scores: np.ndarray) -> None:
     assert inside.inside
     assert not outside.inside and outside.m == 0
     assert outside.d2_point > outside.d2_max
-    assert outside.p_value == pytest.approx(1.0 / (N_MEMBERS + 1))
 
 
 def test_unchanged_when_pcs_are_rescaled(scores: np.ndarray) -> None:

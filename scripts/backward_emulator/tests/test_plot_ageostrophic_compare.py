@@ -57,7 +57,11 @@ def _load(out_root: Path, case: str):
 def test_dead_member_frames_leave_the_mean(tmp_path):
     _write(tmp_path, "ian")
     d = _load(tmp_path, "ian")
-    mean = pac.ensemble_mean(pac.member_traces(d, "makani", "ratio"))
+    traces = pac.member_traces(d, "makani", "ratio")
+    # Member 0 fails at frames 0-1 only, but leaves every frame, so all frames
+    # average the same members.
+    assert np.isnan(traces[0]).all() and np.isfinite(traces[1:]).all()
+    mean = pac.ensemble_mean(traces)
     np.testing.assert_allclose(mean, TYPICAL["ratio"])  # the 1e8 never enters
     # cBottle is never censored.
     np.testing.assert_allclose(pac.ensemble_mean(pac.member_traces(d, "cbottle", "ratio")),
@@ -102,9 +106,9 @@ def test_figure_layout_axes_and_legend(tmp_path):
     labels = [t.get_text() for t in axes[0, 0].get_legend().get_texts()]
     assert labels == ["Rewind-AR", "cBottle-video", "ERA5",
                       "ERA5 (HEALPix round trip)", "Conditioned frame"]
-    # Member 0's dead frames are not drawn: its line starts at frame 2.
+    # Member 0 fails at frames 0-1, so it is not drawn at any frame.
     member0 = axes[0, 0].get_lines()[0].get_ydata()
-    assert np.isnan(member0[:2]).all() and np.isfinite(member0[2:]).all()
+    assert np.isnan(member0).all()
 
 
 def test_main_writes_the_figure(tmp_path, capsys):

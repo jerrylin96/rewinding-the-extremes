@@ -155,14 +155,14 @@ def test_box_covers_star_measured_on_the_drawn_frame() -> None:
     plt.close(fig)
 
 
-def test_no_stats_box_covers_its_star(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_no_stats_box_covers_its_star(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """ERA5's pressure far below every member puts its star at the bottom of
     panel (c), under the box's usual corner; the figure moves that box."""
     diag = _diag(np.zeros(MAX_D))
     diag["track_qc"].era5_free_end["msl_hpa"] = 950.0
     figures = []
     monkeypatch.setattr(plt, "close", figures.append)  # keep the figure
-    plot_track_regression(diag, "end", Path(os.devnull))
+    plot_track_regression(diag, "end", tmp_path / "track_regression.png")
     (fig,) = figures
     fig.draw_without_rendering()
     panels = _track_regression_panels(diag, n_pc=8)
