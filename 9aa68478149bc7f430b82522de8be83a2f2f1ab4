@@ -1,0 +1,18 @@
+[SIGNOFF 9aa6847]: human comprehension and risk attestation
+
+Hedge reliability claims in main.tex and align si.tex caption terminology
+
+Signoff-Spec-Version: 1.0
+Signoff-Status: VERIFIED_BY_HUMAN
+Signoff-Timestamp: 2026-11-19T07:16:34Z
+Signoff-Base-SHA: 59db7bcc1b755fa1a8afe2c78af2528d65f11981
+Signoff-Reviewed-Commit-SHA: 9aa68478149bc7f430b82522de8be83a2f2f1ab4
+Signoff-Reviewed-Tree-SHA: 4ca054e10c4962f10bf1a51057532e2777478fbe
+Signoff-Harness-ID: antigravity-cli
+Signoff-Conversation-ID: cf07c125-616e-4644-997a-c5db6b84ca66
+Signoff-Transcript-Digest: sha256:55234843fa4d26e540691ec76c436656b362ead0ec0f75c410039ba7cb5e89da
+Signoff-Transcript-Bytes: 22583
+Signoff-Tradeoff: none
+Signoff-Risk: none
+Signoff-Verified-By: jerrylin247365@gmail.com
+Signoff-Agent: harness=antigravity-cli/N/A model=gemini-4-hydrogen-low reasoning=N/A interview=standard/software-general
