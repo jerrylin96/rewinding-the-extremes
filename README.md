@@ -6,7 +6,8 @@
 
 Research code for **"Extremes on Rewind: Generating 1,000-Member Ensembles
 Initialized at a Final Condition"** — Jerry Lin, Mu-Ting Chien,
-Mansi Sakarvadia, and Elizabeth A. Barnes.
+Mansi Sakarvadia, and Elizabeth A. Barnes
+([arXiv:2608.19008](https://arxiv.org/abs/2608.19008)).
 
 > [!IMPORTANT]
 > **This is not NVIDIA Earth2Studio.** This repository is a *modified copy* of
@@ -45,7 +46,7 @@ The research code lives outside the `earth2studio/` package:
 | `scripts/ensemble_run/` | Ensemble generation — `dispatch_ensemble.py` submits one job per conditioning mode; `ensemble_interpolation.py` runs cBottle-video; `merge_ensemble_zarrs.py` consolidates member chunks. |
 | `scripts/ensemble_analysis/` | Diagnostics and figures. Each `dispatch_*.py` fans out a `submission_scripts/compute_*.py` per case/mode, then `aggregate_*.py` reduces to the published figure. Covers spread/RMSE/CRPS, synoptic PCA, TC tracking, landfall splits, ageostrophic flow, power spectra, and free end states. |
 | `scripts/_shared/` | Case definitions (`cases/*.yaml` — event windows, ensemble size, analysis regions) and shared figure helpers. See `scripts/_shared/README.md`. |
-| `scripts/backward_emulator/` | Side-by-side comparison with the autoregressive backward emulator of [run-it-back](https://github.com/jerrylin96/run-it-back) on the same cases (survivor censoring, spread/RMSE/CRPS, free end states, synoptic PCA, ageostrophic flow, TC tracks); the figures of the NeurIPS 2026 CCAI workshop paper *Run it Back: Autoregression vs. Video Diffusion for Final-Conditioned Weather Trajectories* (Lin and Barnes 2026). See `scripts/backward_emulator/README.md`. |
+| `scripts/backward_emulator/` | Side-by-side comparison with the autoregressive backward emulator of [run-it-back](https://github.com/jerrylin96/run-it-back) on the same cases (survivor censoring, spread/RMSE/CRPS, free end states, synoptic PCA, ageostrophic flow, TC tracks); the figures of the NeurIPS 2026 CCAI workshop paper *Run it Back: Autoregression vs. Video Diffusion for Final-Conditioned Weather Trajectories* (Lin and Barnes 2026, [arXiv:2611.21521](https://arxiv.org/abs/2611.21521)). See `scripts/backward_emulator/README.md`. |
 | `scripts/download_era5_raw/` | ERA5 retrieval into local zarr stores for conditioning and verification. |
 | `custom_utils/` | Ensemble loading, derived variables, interpolation, and diagnostic helpers. |
 | `test/scripts/` | Tests for the analysis pipeline. |
@@ -141,7 +142,8 @@ python verify_env.py
 
 This code is archived at Zenodo:
 [10.5281/zenodo.22000715](https://doi.org/10.5281/zenodo.22000715). If you use
-it, please cite both the paper and the archive — `CITATION.cff` carries the
+it, please cite both the paper
+([arXiv:2608.19008](https://arxiv.org/abs/2608.19008)) and the archive — `CITATION.cff` carries the
 machine-readable metadata. Please also cite
 [Earth2Studio](https://github.com/NVIDIA/earth2studio) and
 [cBottle](https://github.com/NVlabs/cBottle) for the underlying software and
