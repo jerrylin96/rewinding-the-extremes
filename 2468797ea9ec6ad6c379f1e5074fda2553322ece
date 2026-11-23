@@ -1,0 +1,19 @@
+[SIGNOFF dfc21d1]: human comprehension and risk attestation
+
+Reviewed the wind-balance diagnostic, storm screening, Ian longitude statistic, figure labels, and print handoff. Jerry accepts responsibility and will send Zeyuan a corrected PDF if a material figure error is found.
+
+Signoff-Spec-Version: 1.0
+Signoff-Status: VERIFIED_BY_HUMAN
+Signoff-Timestamp: 2026-11-23T21:20:33Z
+Signoff-Base-SHA: 63c5c6e58feed9ae7e17248950dc2108d14d00ca
+Signoff-Reviewed-Commit-SHA: dfc21d12285c98f1a99ceb4a5a996918f0e32d34
+Signoff-Reviewed-Tree-SHA: 2468797ea9ec6ad6c379f1e5074fda2553322ece
+Signoff-Harness-ID: codex-cli
+Signoff-Conversation-ID: 01a209bb-d869-7281-a2a8-0f1f65f872cc
+Signoff-Transcript-Digest: sha256:d9bc0412cf8f8ab7438632c8f51f761a6af3d7a5904a53c1a4fca66e47432036
+Signoff-Transcript-Bytes: 7149910
+Signoff-Tradeoff: Keeping editable Typst source and a print PDF supports revisions and requires checking the version sent to the presenter.
+Signoff-Risk: Agreement in ageostrophic fraction can mask wind-speed errors. Some retained Sandy tracks begin implausibly far inland.
+Signoff-Risk: A changed plot crop can misalign temperature labels. Check poster ticks against the manuscript figure.
+Signoff-Verified-By: jerrylin247365@gmail.com
+Signoff-Agent: harness=codex-cli/N/A model=gpt-6.2-astra reasoning=N/A interview=skeptical/domain-science/sha256:969a81c785bf
