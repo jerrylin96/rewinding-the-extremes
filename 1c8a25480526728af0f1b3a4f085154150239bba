@@ -1,0 +1,18 @@
+[SIGNOFF 1c8a254]: human comprehension and risk attestation
+
+Jerry Lin accepts responsibility for the presenter credit and both poster images. If a poster panel changes, he will inspect the correction, replace the affected NeurIPS PNG, and confirm that Zeyuan Hu has the current print PDF.
+
+Signoff-Spec-Version: 1.0
+Signoff-Status: VERIFIED_BY_HUMAN
+Signoff-Timestamp: 2026-11-24T21:15:57Z
+Signoff-Base-SHA: 66f1658be295e3e838047a9065db10289bd04d75
+Signoff-Reviewed-Commit-SHA: 1c8a25480526728af0f1b3a4f085154150239bba
+Signoff-Reviewed-Tree-SHA: 8071d4929df3a571f5fd945c63b0a7f61f5792ee
+Signoff-Harness-ID: codex-cli
+Signoff-Conversation-ID: 01a20f3e-1fa7-70d0-92ef-f35bf0d6a31c
+Signoff-Transcript-Digest: sha256:6e5ce7279d9437be204243ab7cb48899a4e07a9fdc949b5043f0c142bb05c0eb
+Signoff-Transcript-Bytes: 3440400
+Signoff-Tradeoff: The Hurricane Ian thumbnail highlights the Rewind-AR tracks. Readers need the full poster to compare the two methods.
+Signoff-Risk: After a correction, attendees or the presenter could still see an older online or print version.
+Signoff-Verified-By: jerrylin247365@gmail.com
+Signoff-Agent: harness=codex-cli/N/A model=gpt-6.2-astra reasoning=N/A interview=standard/domain-science/sha256:969a81c785bf
